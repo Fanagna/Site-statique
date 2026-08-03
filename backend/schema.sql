@@ -66,9 +66,10 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
   id SERIAL PRIMARY KEY,
   first_name VARCHAR(255) NOT NULL,
   last_name VARCHAR(255) NOT NULL,
-  birth_date DATE,
+  age INTEGER DEFAULT 0,
   entry_date DATE DEFAULT CURRENT_DATE,
   status VARCHAR(50) DEFAULT 'active',
+  training VARCHAR(255),
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

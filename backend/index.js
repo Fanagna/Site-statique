@@ -19,7 +19,6 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
 });
 
-// Test DB connection
 pool.connect()
   .then(() => console.log('✅ PostgreSQL connected'))
   .catch((err) => console.error('❌ DB connection error:', err.message));
@@ -29,21 +28,170 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// --- Routes ---
+// ═══════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  // Simple hardcoded auth — replace with DB check in production
+  if (username === 'admin' && password === 'arina2024') {
+    res.json({ success: true, user: { username, role: 'admin' } });
+  } else {
+    res.status(401).json({ success: false, error: 'Identifiants incorrects' });
+  }
+});
 
-// GET all news
+// ═══════════════════════════════════════
+// BENEFICIARIES CRUD
+// ═══════════════════════════════════════
+
+// GET all
+app.get('/api/beneficiaries', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM beneficiaries ORDER BY id DESC');
+    // Normalize column names for frontend
+    const rows = result.rows.map(r => ({
+      id: r.id,
+      nom: r.last_name,
+      prenom: r.first_name,
+      age: r.age || 0,
+      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
+      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
+      formation: r.training || '—',
+    }));
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create
+app.post('/api/beneficiaries', async (req, res) => {
+  try {
+    const { prenom, nom, age, statut, dateEntree, formation } = req.body;
+    const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
+    const result = await pool.query(
+      `INSERT INTO beneficiaries (first_name, last_name, age, status, entry_date, training)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation]
+    );
+    const r = result.rows[0];
+    res.status(201).json({
+      id: r.id, nom: r.last_name, prenom: r.first_name,
+      age: r.age || 0,
+      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
+      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
+      formation: r.training || '—',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update
+app.put('/api/beneficiaries/:id', async (req, res) => {
+  try {
+    const { prenom, nom, age, statut, dateEntree, formation } = req.body;
+    const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
+    const result = await pool.query(
+      `UPDATE beneficiaries SET first_name=$1, last_name=$2, age=$3, status=$4, entry_date=$5, training=$6
+       WHERE id=$7 RETURNING *`,
+      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const r = result.rows[0];
+    res.json({
+      id: r.id, nom: r.last_name, prenom: r.first_name,
+      age: r.age || 0,
+      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
+      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
+      formation: r.training || '—',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE
+app.delete('/api/beneficiaries/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM beneficiaries WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// FINANCES CRUD
+// ═══════════════════════════════════════
+
+// GET all
+app.get('/api/finances', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM finances ORDER BY date DESC, id DESC');
+    const rows = result.rows.map(r => ({
+      id: r.id,
+      type: r.type === 'income' ? 'Revenu' : 'Dépense',
+      categorie: r.category || 'Autre',
+      montant: Number(r.amount),
+      description: r.description || '',
+      date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
+    }));
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create
+app.post('/api/finances', async (req, res) => {
+  try {
+    const { type, categorie, montant, description, date } = req.body;
+    const result = await pool.query(
+      `INSERT INTO finances (type, category, amount, description, date)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [type === 'Revenu' ? 'income' : 'expense', categorie, Number(montant) || 0, description, date]
+    );
+    const r = result.rows[0];
+    res.status(201).json({
+      id: r.id,
+      type: r.type === 'income' ? 'Revenu' : 'Dépense',
+      categorie: r.category || 'Autre',
+      montant: Number(r.amount),
+      description: r.description || '',
+      date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE
+app.delete('/api/finances/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM finances WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// NEWS
+// ═══════════════════════════════════════
+
 app.get('/api/news', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM news ORDER BY created_at DESC LIMIT 10'
-    );
+    const result = await pool.query('SELECT * FROM news ORDER BY created_at DESC LIMIT 20');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET single news
 app.get('/api/news/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM news WHERE id = $1', [req.params.id]);
@@ -54,27 +202,44 @@ app.get('/api/news/:id', async (req, res) => {
   }
 });
 
-// GET stats
-app.get('/api/stats', async (req, res) => {
+// POST create news
+app.post('/api/news', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM stats LIMIT 1');
-    res.json(result.rows[0] || {
-      young_accompanied: 30,
-      insertion_rate: 85,
-      partners: 12,
-      years_active: 5,
-    });
+    const { title, excerpt, category, image_url } = req.body;
+    const result = await pool.query(
+      'INSERT INTO news (title, excerpt, category, image_url) VALUES ($1, $2, $3, $4) RETURNING *',
+      [title, excerpt, category, image_url]
+    );
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.json({
-      young_accompanied: 30,
-      insertion_rate: 85,
-      partners: 12,
-      years_active: 5,
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET pillars
+// DELETE news
+app.delete('/api/news/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM news WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// CONTACT & NEWSLETTER
+// ═══════════════════════════════════════
+
+app.get('/api/stats', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM stats LIMIT 1');
+    res.json(result.rows[0] || { young_accompanied: 30, insertion_rate: 85, partners: 12, years_active: 5 });
+  } catch (err) {
+    res.json({ young_accompanied: 30, insertion_rate: 85, partners: 12, years_active: 5 });
+  }
+});
+
 app.get('/api/pillars', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM pillars ORDER BY id');
@@ -84,7 +249,6 @@ app.get('/api/pillars', async (req, res) => {
   }
 });
 
-// POST contact form
 app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, message } = req.body;
@@ -98,7 +262,6 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// POST newsletter subscription
 app.post('/api/newsletter', async (req, res) => {
   try {
     const { email } = req.body;
@@ -112,7 +275,6 @@ app.post('/api/newsletter', async (req, res) => {
   }
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

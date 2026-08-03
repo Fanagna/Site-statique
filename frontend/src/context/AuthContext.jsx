@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { apiLogin } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -21,13 +22,24 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = (username, password) => {
+  const login = async (username, password) => {
+    // Try API first
+    const apiResult = await apiLogin(username, password);
+    if (apiResult && apiResult.success) {
+      const userData = { ...apiResult.user, loginAt: new Date().toISOString() };
+      localStorage.setItem('arina_admin', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    }
+
+    // Fallback to hardcoded
     if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
       const userData = { username, role: 'admin', loginAt: new Date().toISOString() };
       localStorage.setItem('arina_admin', JSON.stringify(userData));
       setUser(userData);
       return { success: true };
     }
+
     return { success: false, error: 'Identifiants incorrects' };
   };
 
