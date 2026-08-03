@@ -1,23 +1,31 @@
 import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const navLinks = [
-  { label: 'Accueil', href: '#hero' },
-  { label: 'Nos Actions', href: '#pillars' },
-  { label: 'Actualités', href: '#news' },
-  { label: 'Témoignages', href: '#testimonials' },
-  { label: 'Contact', href: '#footer' },
+  { label: 'Accueil', href: '/' },
+  { label: 'Nos Actions', href: '/#pillars' },
+  { label: 'Actualités', href: '/actualites' },
+  { label: 'Témoignages', href: '/#testimonials' },
+  { label: 'Contact', href: '/#footer' },
 ];
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [lang, setLang] = useState('FR');
+  const location = useLocation();
+
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/';
+    if (path.startsWith('/#')) return false; // hash links don't get active state
+    return location.pathname.startsWith(path);
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md shadow-sm transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-3 group">
+          <Link to="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 lg:w-12 lg:h-12 bg-arina-blue rounded-xl flex items-center justify-center text-white font-serif font-bold text-lg lg:text-xl shadow-lg group-hover:bg-arina-blue-dark transition-colors">
               A
             </div>
@@ -25,18 +33,22 @@ export default function Navbar() {
               <div className="text-sm font-bold text-arina-blue leading-tight">ARINA</div>
               <div className="text-[10px] text-arina-gray leading-tight">Association</div>
             </div>
-          </a>
+          </Link>
 
           {/* Desktop nav */}
           <div className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => (
-              <a
+              <Link
                 key={link.label}
-                href={link.href}
-                className="px-4 py-2 text-sm font-medium text-arina-dark/80 hover:text-arina-blue rounded-lg hover:bg-arina-blue/5 transition-all"
+                to={link.href}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  isActive(link.href)
+                    ? 'text-arina-blue bg-arina-blue/5'
+                    : 'text-arina-dark/80 hover:text-arina-blue hover:bg-arina-blue/5'
+                }`}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </div>
 
@@ -58,20 +70,20 @@ export default function Navbar() {
             </button>
 
             {/* Donate button */}
-            <a
-              href="#cta"
+            <Link
+              to="/#cta"
               className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-red-500 transition-all shadow-md hover:shadow-lg"
             >
               ❤️ Don
-            </a>
+            </Link>
 
             {/* Volunteer button */}
-            <a
-              href="#cta"
+            <Link
+              to="/#cta"
               className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-gold text-white text-sm font-semibold rounded-lg hover:bg-arina-gold-light transition-all shadow-md hover:shadow-lg"
             >
               🤝 Bénévole
-            </a>
+            </Link>
 
             {/* Mobile menu button */}
             <button
@@ -101,22 +113,26 @@ export default function Navbar() {
       >
         <div className="px-4 py-4 space-y-1 bg-white">
           {navLinks.map((link) => (
-            <a
+            <Link
               key={link.label}
-              href={link.href}
+              to={link.href}
               onClick={() => setMenuOpen(false)}
-              className="block px-4 py-3 text-sm font-medium text-arina-dark/80 hover:text-arina-blue hover:bg-arina-blue/5 rounded-lg transition-all"
+              className={`block px-4 py-3 text-sm font-medium rounded-lg transition-all ${
+                isActive(link.href)
+                  ? 'text-arina-blue bg-arina-blue/5'
+                  : 'text-arina-dark/80 hover:text-arina-blue hover:bg-arina-blue/5'
+              }`}
             >
               {link.label}
-            </a>
+            </Link>
           ))}
           <div className="flex gap-2 pt-3 px-4 sm:hidden">
-            <a href="#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
+            <Link to="/#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
               ❤️ Don
-            </a>
-            <a href="#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
+            </Link>
+            <Link to="/#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
               🤝 Bénévole
-            </a>
+            </Link>
           </div>
         </div>
       </div>
