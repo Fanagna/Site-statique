@@ -4,8 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
-
-const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card transition-all';
+import { inputClass } from '../../components/admin/ui';
 
 /* ── Mock enriched data (until detail API exists) ── */
 const benefDetails = {

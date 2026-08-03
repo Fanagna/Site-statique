@@ -8,10 +8,14 @@ CREATE TABLE IF NOT EXISTS news (
   content TEXT,
   image_url VARCHAR(500),
   category VARCHAR(100),
+  status VARCHAR(20) DEFAULT 'published',
   views INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration for existing databases (idempotent)
+ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published';
 
 -- Stats table
 CREATE TABLE IF NOT EXISTS stats (

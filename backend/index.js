@@ -192,7 +192,7 @@ app.delete('/api/finances/:id', async (req, res) => {
 
 app.get('/api/news', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM news ORDER BY created_at DESC LIMIT 20');
+    const result = await pool.query('SELECT * FROM news ORDER BY created_at DESC, id DESC LIMIT 500');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -212,12 +212,27 @@ app.get('/api/news/:id', async (req, res) => {
 // POST create news
 app.post('/api/news', async (req, res) => {
   try {
-    const { title, excerpt, category, image_url } = req.body;
+    const { title, excerpt, category, image_url, status } = req.body;
     const result = await pool.query(
-      'INSERT INTO news (title, excerpt, category, image_url) VALUES ($1, $2, $3, $4) RETURNING *',
-      [title, excerpt, category, image_url]
+      "INSERT INTO news (title, excerpt, category, image_url, status) VALUES ($1, $2, $3, $4, COALESCE($5, 'published')) RETURNING *",
+      [title, excerpt, category, image_url, status]
     );
     res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update news
+app.put('/api/news/:id', async (req, res) => {
+  try {
+    const { title, excerpt, category, image_url, status } = req.body;
+    const result = await pool.query(
+      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status) WHERE id=$6 RETURNING *',
+      [title, excerpt, category, image_url, status, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

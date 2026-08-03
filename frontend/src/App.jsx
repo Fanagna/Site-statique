@@ -13,6 +13,7 @@ import PillarPage from './pages/PillarPage';
 import SoutenirPage from './pages/SoutenirPage';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import NewsManagementPage from './pages/admin/NewsManagementPage';
 import BeneficiaryDetailPage from './pages/admin/BeneficiaryDetailPage';
 
 function App() {
@@ -28,6 +29,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/actualites"
+              element={
+                <ProtectedRoute>
+                  <NewsManagementPage />
                 </ProtectedRoute>
               }
             />

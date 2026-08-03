@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, deleteFinance,
-  fetchNews, deleteNews, createNews, updateNews,
+  fetchNews,
   fetchContacts, deleteContact,
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
   fetchActivity,
@@ -12,70 +12,19 @@ import {
 import { allNews } from '../../data/news';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
+import {
+  formatMGA, today, fmtDate, timeAgo, initials, inputClass, CountUp, EmptyState, Th,
+} from '../../components/admin/ui';
 
 /* ═══════════════════════════════════════
    Helpers
    ═══════════════════════════════════════ */
-const formatMGA = (n) => (n || 0).toLocaleString('fr-FR') + ' Ar';
-const today = () => new Date().toISOString().split('T')[0];
-const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card focus:border-arina-blue/30 transition-all';
-const initials = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const monthKey = (d) => {
   if (!d) return '';
   const [y, m] = String(d).split('-').map(Number);
   return y && m ? `${y}-${String(m).padStart(2, '0')}` : '';
 };
-const timeAgo = (dateStr) => {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  if (Number.isNaN(diff)) return '';
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "à l'instant";
-  if (min < 60) return `il y a ${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `il y a ${h} h`;
-  const days = Math.floor(h / 24);
-  if (days < 7) return `il y a ${days} j`;
-  return new Date(dateStr).toLocaleDateString('fr-FR');
-};
 const pctDelta = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0);
-
-/* Count-up animation (Apple-style numbers) */
-function useCountUp(target, duration = 900) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (!target) { setValue(0); return; }
-    let raf;
-    const start = performance.now();
-    const tick = (now) => {
-      const p = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
-
-function CountUp({ value, format }) {
-  const v = useCountUp(value);
-  return <>{format ? format(v) : v.toLocaleString('fr-FR')}</>;
-}
-
-function EmptyState({ icon, text, action }) {
-  return (
-    <div className="py-12 text-center">
-      <div className="w-12 h-12 mx-auto rounded-2xl bg-ios-fill flex items-center justify-center text-ios-text3 mb-3">
-        <Icon name={icon} className="w-6 h-6" />
-      </div>
-      <p className="text-sm text-ios-text2 font-medium max-w-xs mx-auto">{text}</p>
-      {action}
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════
    Charts (real data)
@@ -219,28 +168,15 @@ function CategoryDonut({ finances, loading }) {
   );
 }
 
-/* Sortable table header */
-function Th({ label, k, sort, onSort, className = '' }) {
-  return (
-    <th className={`px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3 whitespace-nowrap ${className}`}>
-      {k ? (
-        <button onClick={() => onSort(k)} className="inline-flex items-center gap-1 hover:text-ios-text transition-colors">
-          {label}
-          {sort.key === k && <span className="text-[9px]">{sort.dir === 1 ? '↑' : '↓'}</span>}
-        </button>
-      ) : (
-        label
-      )}
-    </th>
-  );
-}
-
 /* ═══════════════════════════════════════
    Main dashboard
    ═══════════════════════════════════════ */
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'dashboard';
+  const setTab = (key) => setSearchParams(key === 'dashboard' ? {} : { tab: key }, { replace: true });
   const [apiStatus, setApiStatus] = useState('checking');
 
   /* ── Data ── */
@@ -252,7 +188,6 @@ export default function AdminDashboard() {
   const [activity, setActivity] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
   const [financesLoading, setFinancesLoading] = useState(true);
-  const [newsLoading, setNewsLoading] = useState(true);
 
   /* ── UI state ── */
   const [query, setQuery] = useState('');
@@ -272,13 +207,6 @@ export default function AdminDashboard() {
   const [finType, setFinType] = useState('');
   const [finCat, setFinCat] = useState('');
   const [finSort, setFinSort] = useState({ key: '', dir: 1 });
-
-  /* ── News CRUD ── */
-  const [showNewsForm, setShowNewsForm] = useState(false);
-  const [editingNews, setEditingNews] = useState(null);
-  const [newsForm, setNewsForm] = useState({ title: '', excerpt: '', category: 'Événement', image_url: '' });
-  const [newsCat, setNewsCat] = useState('');
-  const [newsSort, setNewsSort] = useState({ key: '', dir: 1 });
 
   /* ── Load ── */
   const loadData = useCallback(async () => {
@@ -302,7 +230,6 @@ export default function AdminDashboard() {
     const nFromApi = await fetchNews();
     if (nFromApi !== null) { if (nFromApi.length) setNews(nFromApi); else setNews([]); }
     else setNews(allNews);
-    setNewsLoading(false);
 
     const cFromApi = await fetchContacts();
     if (cFromApi !== null) { if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
@@ -345,21 +272,6 @@ export default function AdminDashboard() {
     setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() });
   };
   const removeFinance = async (id) => { if (!confirm('Supprimer cette transaction ?')) return; await deleteFinance(id); setFinances(finances.filter((f) => f.id !== id)); };
-
-  const openNewsForm = (n) => {
-    if (n) { setEditingNews(n); setNewsForm({ title: n.title || '', excerpt: n.excerpt || '', category: n.category || 'Événement', image_url: n.image_url || '' }); }
-    else { setEditingNews(null); setNewsForm({ title: '', excerpt: '', category: 'Événement', image_url: '' }); }
-    setShowNewsForm(true);
-  };
-  const saveNews = async () => {
-    if (editingNews) { const u = await updateNews(editingNews.id, newsForm); setNews(news.map((n) => (n.id === editingNews.id ? u || { ...n, ...newsForm } : n))); }
-    else {
-      const c = await createNews(newsForm);
-      setNews([c || { id: Date.now(), ...newsForm, date: today(), views: 0, slug: newsForm.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 60) }, ...news]);
-    }
-    setShowNewsForm(false);
-  };
-  const removeNews = async (id) => { if (!confirm('Supprimer cette actualité ?')) return; await deleteNews(id); setNews(news.filter((n) => n.id !== id)); };
 
   const removeContact = async (id) => { if (!confirm('Supprimer ce message ?')) return; await deleteContact(id); setContacts(contacts.filter((c) => c.id !== id)); };
   const removeSub = async (id) => { if (!confirm("Supprimer cet abonné ?")) return; await deleteNewsletterSubscriber(id); setSubs(subs.filter((s) => s.id !== id)); };
@@ -412,21 +324,6 @@ export default function AdminDashboard() {
     });
   }, [filteredFinances, finSort]);
 
-  const filteredNews = useMemo(() => {
-    let arr = news.filter((n) => (newsCat ? n.category === newsCat : true));
-    if (q) arr = arr.filter((n) => `${n.title} ${n.excerpt}`.toLowerCase().includes(q));
-    return arr;
-  }, [news, newsCat, q]);
-  const sortedNews = useMemo(() => {
-    if (!newsSort.key) return filteredNews;
-    return [...filteredNews].sort((a, b) => {
-      const x = a[newsSort.key] ?? a.date ?? a.created_at;
-      const y = b[newsSort.key] ?? b.date ?? b.created_at;
-      if (typeof x === 'number' && typeof y === 'number') return (x - y) * newsSort.dir;
-      return String(x ?? '').localeCompare(String(y ?? ''), 'fr') * newsSort.dir;
-    });
-  }, [filteredNews, newsSort]);
-
   const filteredContacts = useMemo(() => {
     if (!q) return contacts;
     return contacts.filter((c) => `${c.name} ${c.email} ${c.message}`.toLowerCase().includes(q));
@@ -451,7 +348,7 @@ export default function AdminDashboard() {
     else if (finances.length > 0 && totalDepenses > totalRevenus) a.push({ level: 'warn', icon: 'bell', text: 'Les dépenses dépassent les revenus', tab: 'finances' });
     if (finances.length === 0) a.push({ level: 'info', icon: 'wallet', text: 'Aucune transaction — ajoutez un premier revenu', tab: 'finances' });
     if (contacts.length > 0) a.push({ level: 'info', icon: 'mail', text: `${contacts.length} message${contacts.length > 1 ? 's' : ''} reçu${contacts.length > 1 ? 's' : ''} via le formulaire`, tab: 'messages' });
-    if (news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', tab: 'actualites' });
+    if (news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', to: '/admin/actualites' });
     return a;
   }, [solde, finances.length, totalDepenses, totalRevenus, contacts.length, news.length]);
 
@@ -461,7 +358,7 @@ export default function AdminDashboard() {
   const groups = [
     { group: 'Principal', items: [
       { key: 'dashboard', label: 'Tableau de bord', icon: 'grid' },
-      { key: 'actualites', label: 'Actualités', icon: 'file' },
+      { key: 'actualites', label: 'Actualités', icon: 'file', to: '/admin/actualites' },
       { key: 'enfants', label: 'Enfants', icon: 'users' },
       { key: 'finances', label: 'Finances', icon: 'wallet' },
     ] },
@@ -472,20 +369,19 @@ export default function AdminDashboard() {
   ];
   const meta = {
     dashboard: { title: 'Tableau de bord', subtitle: "Vue d'ensemble de votre structure" },
-    actualites: { title: 'Actualités', subtitle: 'Publier et gérer vos articles' },
     enfants: { title: 'Enfants', subtitle: 'Bénéficiaires accompagnés par ARINA' },
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
   };
+  const currentMeta = meta[tab] || meta.dashboard;
   const searchPlaceholder = {
     dashboard: 'Rechercher…',
-    actualites: 'Rechercher une actualité…',
     enfants: 'Rechercher un enfant…',
     finances: 'Rechercher une transaction…',
     messages: 'Rechercher un message…',
     newsletter: 'Rechercher un e-mail…',
-  }[tab];
+  }[tab] || 'Rechercher…';
 
   /* KPI cards */
   const kpis = [
@@ -496,7 +392,7 @@ export default function AdminDashboard() {
   ];
 
   const quickActions = [
-    { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => { setTab('actualites'); setTimeout(() => openNewsForm(null), 120); } },
+    { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') },
     { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FCE3D0] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
     { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
@@ -519,8 +415,8 @@ export default function AdminDashboard() {
       groups={groups}
       activeKey={tab}
       onNavigate={setTab}
-      title={meta[tab].title}
-      subtitle={meta[tab].subtitle}
+      title={currentMeta.title}
+      subtitle={currentMeta.subtitle}
       search={{ value: query, onChange: setQuery, placeholder: searchPlaceholder }}
       footerNav={[{ key: 'site', label: 'Voir le site', icon: 'globe', to: '/' }]}
       user={user}
@@ -564,7 +460,7 @@ export default function AdminDashboard() {
                     {alerts.map((a, i) => (
                       <button
                         key={i}
-                        onClick={() => { if (a.tab) setTab(a.tab); setNotifOpen(false); }}
+                        onClick={() => { if (a.to) navigate(a.to); else if (a.tab) setTab(a.tab); setNotifOpen(false); }}
                         className="w-full flex items-start gap-3 px-5 py-3.5 text-left hover:bg-ios-fill transition-colors border-b border-ios-hairline last:border-0"
                       >
                         <span className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -704,7 +600,7 @@ export default function AdminDashboard() {
                   <h3 className="font-bold">Activité récente</h3>
                   <p className="text-xs text-ios-text3 mt-0.5">Dernières actions dans votre base</p>
                 </div>
-                <button onClick={() => setTab('actualites')} className="text-xs font-semibold text-arina-blue hover:underline">Tout voir</button>
+                <button onClick={() => navigate('/admin/actualites')} className="text-xs font-semibold text-arina-blue hover:underline">Tout voir</button>
               </div>
               <div className="space-y-1">
                 {activityFeed.length === 0 && (
@@ -739,68 +635,6 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════ ACTUALITÉS ═══════════ */}
-      {tab === 'actualites' && (
-        <div className="space-y-4 animate-fade-up">
-          <div className="flex flex-wrap items-center gap-3">
-            <select value={newsCat} onChange={(e) => setNewsCat(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
-              <option value="">Toutes catégories</option>
-              {['Événement', 'Témoignage', 'Rapport', 'Projet'].map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <button onClick={() => openNewsForm(null)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5`}>
-              <Icon name="plus" className="w-4 h-4" /> Nouvelle
-            </button>
-          </div>
-          <div className="card-apple overflow-hidden">
-            {newsLoading ? (
-              <div className="p-6 space-y-4"><div className="skeleton h-10" /><div className="skeleton h-10" /><div className="skeleton h-10" /></div>
-            ) : sortedNews.length === 0 ? (
-              <EmptyState icon="file" text="Aucune actualité trouvée. Publiez votre premier article !" action={<button onClick={() => openNewsForm(null)} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /> Nouvelle actualité</button>} />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-ios-fill">
-                    <tr>
-                      <Th label="Titre" k="title" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
-                      <Th label="Catégorie" k="category" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
-                      <Th label="Date" k="created_at" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
-                      <Th label="Vues" k="views" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ios-hairline">
-                    {sortedNews.map((n) => (
-                      <tr key={n.id} className="hover:bg-ios-fill transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            {n.image_url ? (
-                              <img src={n.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0"><Icon name="file" className="w-4 h-4" /></div>
-                            )}
-                            <span className="font-medium text-ios-text truncate max-w-[280px]">{n.title}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3"><span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full text-xs font-medium">{n.category || 'Article'}</span></td>
-                        <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(n.date || n.created_at)}</td>
-                        <td className="px-4 py-3 tabular text-ios-text2 whitespace-nowrap"><Icon name="eye" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{n.views || 0}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1.5">
-                            <Link to={`/actualites/${n.slug || n.id}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Voir l'article"><Icon name="eye" className="w-4 h-4" /></Link>
-                            <button onClick={() => openNewsForm(n)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
-                            <button onClick={() => removeNews(n.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1116,35 +950,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {showNewsForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewsForm(false)} />
-          <div className="relative w-full max-w-lg bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
-            <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><Icon name="file" className="w-5 h-5" /></div>
-              <div>
-                <h3 className="font-bold">{editingNews ? 'Modifier' : 'Nouvelle'} actualité</h3>
-                <p className="text-xs text-ios-text3">Article public</p>
-              </div>
-            </div>
-            <div className="p-6 space-y-3">
-              <input placeholder="Titre" value={newsForm.title} onChange={(e) => setNewsForm({ ...newsForm, title: e.target.value })} className={inputClass} />
-              <textarea placeholder="Extrait" rows={3} value={newsForm.excerpt} onChange={(e) => setNewsForm({ ...newsForm, excerpt: e.target.value })} className={inputClass} />
-              <select value={newsForm.category} onChange={(e) => setNewsForm({ ...newsForm, category: e.target.value })} className={inputClass}>
-                <option value="Événement">Événement</option>
-                <option value="Témoignage">Témoignage</option>
-                <option value="Rapport">Rapport</option>
-                <option value="Projet">Projet</option>
-              </select>
-              <input placeholder="URL image" value={newsForm.image_url} onChange={(e) => setNewsForm({ ...newsForm, image_url: e.target.value })} className={inputClass} />
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setShowNewsForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
-              <button onClick={saveNews} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminLayout>
   );
 }

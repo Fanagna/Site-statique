@@ -60,20 +60,13 @@ export default function AdminLayout({
             {g.items.map((item) => {
               const active = item.key === activeKey;
               const badge = typeof item.badge === 'function' ? item.badge() : item.badge;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    onNavigate(item.key);
-                    setMobileOpen(false);
-                  }}
-                  title={compact ? item.label : undefined}
-                  className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
-                    active
-                      ? 'bg-arina-warm text-arina-blue font-semibold'
-                      : 'text-ios-text2 hover:bg-ios-fill hover:text-ios-text'
-                  } ${compact ? 'justify-center' : ''}`}
-                >
+              const btnClass = `relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
+                active
+                  ? 'bg-arina-warm text-arina-blue font-semibold'
+                  : 'text-ios-text2 hover:bg-ios-fill hover:text-ios-text'
+              } ${compact ? 'justify-center' : ''}`;
+              const inner = (
+                <>
                   {active && !compact && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-arina-blue" />
                   )}
@@ -90,6 +83,29 @@ export default function AdminLayout({
                       {badge}
                     </span>
                   )}
+                </>
+              );
+              return item.to ? (
+                <Link
+                  key={item.key}
+                  to={item.to}
+                  onClick={() => setMobileOpen(false)}
+                  title={compact ? item.label : undefined}
+                  className={btnClass}
+                >
+                  {inner}
+                </Link>
+              ) : (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    onNavigate(item.key);
+                    setMobileOpen(false);
+                  }}
+                  title={compact ? item.label : undefined}
+                  className={btnClass}
+                >
+                  {inner}
                 </button>
               );
             })}
