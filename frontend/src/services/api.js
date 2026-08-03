@@ -68,6 +68,14 @@ export async function fetchNews() {
   return await apiCall('/news');
 }
 
+export async function createNews(data) {
+  return await apiCall('/news', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateNews(id, data) {
+  return await apiCall(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
 export async function deleteNews(id) {
   return await apiCall(`/news/${id}`, { method: 'DELETE' });
 }

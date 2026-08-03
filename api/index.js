@@ -147,6 +147,18 @@ app.post('/api/news', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.put('/api/news/:id', async (req, res) => {
+  try {
+    const { title, excerpt, category, image_url } = req.body;
+    const result = await pool.query(
+      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4 WHERE id=$5 RETURNING *',
+      [title, excerpt, category, image_url, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/news/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM news WHERE id=$1 RETURNING *', [req.params.id]);
