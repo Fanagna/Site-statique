@@ -60,7 +60,7 @@ export default function PillarPage() {
       {/* Stats bar */}
       <section className="relative -mt-12 z-20">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-arina-cream rounded-2xl shadow-xl p-6 lg:p-8 grid grid-cols-2 md:grid-cols-4 gap-4 border border-arina-warm">
             {data.stats.map((stat, i) => (
               <div key={i} className="text-center p-3">
                 <div className={`text-2xl lg:text-3xl font-extrabold ${data.textColor}`}>{stat.value}</div>
@@ -122,7 +122,7 @@ export default function PillarPage() {
               <Link
                 key={p.slug}
                 to={`/actions/${p.slug}`}
-                className="group bg-white rounded-2xl shadow-md border border-gray-100 card-hover overflow-hidden"
+                className="group bg-arina-cream rounded-2xl shadow-md border border-arina-warm card-hover overflow-hidden"
               >
                 <div className="relative h-40 overflow-hidden">
                   <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

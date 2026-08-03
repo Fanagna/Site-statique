@@ -33,7 +33,7 @@ export default function TestimonialsPage() {
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero Banner */}
-      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark py-20 lg:py-28 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark py-20 lg:py-28 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-10 right-10 w-96 h-96 bg-arina-gold rounded-full blur-3xl" />
@@ -58,7 +58,7 @@ export default function TestimonialsPage() {
       {/* Stats strip */}
       <section className="relative -mt-12 z-20">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-arina-cream rounded-2xl shadow-xl p-6 lg:p-8 grid grid-cols-2 md:grid-cols-4 gap-4 border border-arina-warm">
             {[
               { value: '45+', label: 'Jeunes accompagnés' },
               { value: '6+', label: 'Témoignages reçus' },
@@ -78,7 +78,7 @@ export default function TestimonialsPage() {
       <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 bg-green-100 text-green-700 text-sm font-semibold rounded-full mb-4">
+            <span className="inline-block px-4 py-1.5 bg-arina-gold/20 text-arina-blue text-sm font-semibold rounded-full mb-4">
               ⭐ Témoignages à la une
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark">
@@ -92,7 +92,7 @@ export default function TestimonialsPage() {
               return (
                 <article
                   key={t.id}
-                  className={`group bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden card-hover transition-all ${
+                  className={`group bg-arina-cream rounded-2xl shadow-lg border border-arina-warm overflow-hidden card-hover transition-all ${
                     expanded ? 'md:col-span-3' : ''
                   }`}
                 >
@@ -165,7 +165,7 @@ export default function TestimonialsPage() {
                 return (
                   <article
                     key={t.id}
-                    className={`bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden card-hover transition-all ${
+                    className={`bg-arina-cream rounded-2xl shadow-md border border-arina-warm overflow-hidden card-hover transition-all ${
                       expanded ? 'md:col-span-2 lg:col-span-3' : ''
                     }`}
                   >
@@ -239,7 +239,7 @@ export default function TestimonialsPage() {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8 space-y-5">
+            <form onSubmit={handleSubmit} className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8 space-y-5">
               <div className="grid sm:grid-cols-2 gap-5">
                 {/* Name */}
                 <div>
@@ -365,7 +365,7 @@ export default function TestimonialsPage() {
       </section>
 
       {/* CTA Banner */}
-      <section className="py-16 bg-gradient-to-r from-arina-blue to-arina-blue-dark text-white text-center">
+      <section className="py-16 bg-gradient-to-r from-arina-accent to-arina-blue-dark text-white text-center">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-2xl lg:text-3xl font-serif font-bold mb-4">
             Inspiré par ces histoires ?

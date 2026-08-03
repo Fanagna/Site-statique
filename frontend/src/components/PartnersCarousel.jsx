@@ -28,7 +28,7 @@ export default function PartnersCarousel() {
             {[...partners, ...partners].map((partner, i) => (
               <div
                 key={i}
-                className="partner-logo flex-shrink-0 w-40 h-24 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-100"
+                className="partner-logo group flex-shrink-0 w-40 h-24 bg-arina-cream rounded-xl flex items-center justify-center shadow-sm border border-arina-warm"
               >
                 <span className="text-2xl font-bold text-arina-gray/50 group-hover:text-arina-blue transition-colors">
                   {partner.logo}

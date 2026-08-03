@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function CTASection() {
   return (
-    <section id="cta" className="py-20 lg:py-28 bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark relative overflow-hidden">
+    <section id="cta" className="py-20 lg:py-28 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark relative overflow-hidden">
       {/* Decorative elements */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />

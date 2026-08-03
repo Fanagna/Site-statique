@@ -11,7 +11,7 @@ const contactInfo = [
       { text: 'Antanimena, Antananarivo' },
       { text: 'Madagascar' },
     ],
-    color: 'from-blue-500 to-arina-blue',
+    color: 'from-arina-gold to-arina-accent',
   },
   {
     icon: '📞',
@@ -77,7 +77,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark py-16 lg:py-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark py-16 lg:py-24 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 w-80 h-80 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />
@@ -103,7 +103,7 @@ export default function ContactPage() {
             {contactInfo.map((info, i) => (
               <div
                 key={i}
-                className="bg-white rounded-2xl shadow-xl p-6 card-hover border border-gray-100 group"
+                className="bg-arina-cream rounded-2xl shadow-xl p-6 card-hover border border-arina-warm group"
               >
                 <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${info.color} text-white text-xl mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
                   <span>{info.icon}</span>
@@ -151,7 +151,7 @@ export default function ContactPage() {
           <div className="grid lg:grid-cols-5 gap-8 lg:gap-12">
             {/* Form */}
             <div className="lg:col-span-3">
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
+              <div className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8">
                 <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">
                   Envoyez-nous un message
                 </h2>
@@ -279,7 +279,7 @@ export default function ContactPage() {
               </div>
 
               {/* FAQ */}
-              <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="bg-arina-cream rounded-2xl shadow-md border border-arina-warm p-6">
                 <h3 className="font-bold text-arina-dark mb-4">❓ Questions fréquentes</h3>
                 <div className="space-y-4">
                   {[
@@ -312,7 +312,7 @@ export default function ContactPage() {
               </div>
 
               {/* Social */}
-              <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="bg-arina-cream rounded-2xl shadow-md border border-arina-warm p-6">
                 <h3 className="font-bold text-arina-dark mb-4">📱 Suivez-nous</h3>
                 <div className="flex gap-3">
                   {[

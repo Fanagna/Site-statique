@@ -74,7 +74,7 @@ export default function Navbar() {
             {/* Donate button */}
             <Link
               to="/soutenir"
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-red-500 transition-all shadow-md hover:shadow-lg"
+              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-arina-accent-dark transition-all shadow-md hover:shadow-lg"
             >
               ❤️ Don
             </Link>

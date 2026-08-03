@@ -200,7 +200,7 @@ export default function NewsPage() {
               ))}
               <button
                 onClick={clearAllFilters}
-                className="text-xs text-arina-accent hover:text-red-600 font-medium transition-colors ml-1"
+                className="text-xs text-arina-accent hover:text-arina-accent-dark font-medium transition-colors ml-1"
               >
                 Effacer tout
               </button>
@@ -214,7 +214,7 @@ export default function NewsPage() {
             {paginatedNews.map((item) => {
               const colors = categoryColors[item.category] || categoryColors['Événement'];
               return (
-                <article key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100 card-hover flex flex-col">
+                <article key={item.id} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover flex flex-col">
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <img

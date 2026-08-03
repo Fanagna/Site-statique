@@ -27,7 +27,7 @@ export default function NewsSection() {
         </div>
 
         {/* Featured article */}
-        <div className="mb-8 bg-gradient-to-r from-arina-blue to-arina-blue-dark rounded-2xl overflow-hidden shadow-xl">
+        <div className="mb-8 bg-gradient-to-r from-arina-accent to-arina-blue-dark rounded-2xl overflow-hidden shadow-xl">
           <div className="flex flex-col lg:flex-row">
             <div className="lg:w-1/2">
               <img
@@ -64,7 +64,7 @@ export default function NewsSection() {
         {/* News grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {allNews.filter(n => !n.featured).slice(0, 3).map((item, i) => (
-            <article key={i} className="group bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100 card-hover">
+            <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover">
               <div className="relative overflow-hidden">
                 <img
                   src={item.image}

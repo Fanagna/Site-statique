@@ -31,7 +31,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-3xl shadow-2xl p-8 lg:p-10">
           {/* Logo */}

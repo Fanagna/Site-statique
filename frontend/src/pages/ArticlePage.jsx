@@ -165,7 +165,7 @@ export default function ArticlePage() {
         </div>
 
         {/* CTA Banner */}
-        <div className="mt-10 bg-gradient-to-r from-arina-blue to-arina-blue-dark rounded-2xl p-8 text-center text-white">
+        <div className="mt-10 bg-gradient-to-r from-arina-accent to-arina-blue-dark rounded-2xl p-8 text-center text-white">
           <h3 className="text-xl font-serif font-bold mb-2">Vous avez aimé cet article ?</h3>
           <p className="text-white/80 mb-6">Soutenez nos actions pour continuer à changer des vies.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -217,7 +217,7 @@ export default function ArticlePage() {
                   <Link
                     key={item.id}
                     to={`/actualites/${item.slug}`}
-                    className="group bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100 card-hover"
+                    className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover"
                   >
                     <div className="relative overflow-hidden">
                       <img

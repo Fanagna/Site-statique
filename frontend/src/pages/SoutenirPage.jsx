@@ -53,7 +53,7 @@ export default function SoutenirPage() {
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark py-16 lg:py-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark py-16 lg:py-24 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 w-80 h-80 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />
@@ -74,7 +74,7 @@ export default function SoutenirPage() {
       {/* Tabs */}
       <section className="relative -mt-10 z-20 pb-16">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="flex bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 mb-8">
+          <div className="flex bg-arina-cream rounded-2xl shadow-xl overflow-hidden border border-arina-warm mb-8">
             <button
               onClick={() => setTab('don')}
               className={`flex-1 py-4 lg:py-5 text-lg font-bold transition-all flex items-center justify-center gap-2 ${
@@ -99,7 +99,7 @@ export default function SoutenirPage() {
 
           {/* DONOR FORM */}
           {tab === 'don' && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
+            <div className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8">
               {donorSubmitted ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🙏</div>
@@ -125,7 +125,7 @@ export default function SoutenirPage() {
                         onClick={() => setDonor({ ...donor, amount: amt.replace('€', '') })}
                         className={`py-3 rounded-xl font-bold text-lg transition-all border-2 ${
                           donor.amount === amt.replace('€', '')
-                            ? 'border-arina-accent bg-red-50 text-arina-accent'
+                            ? 'border-arina-accent bg-arina-accent/10 text-arina-accent'
                             : 'border-gray-200 text-arina-dark hover:border-arina-accent/50'
                         }`}
                       >
@@ -199,7 +199,7 @@ export default function SoutenirPage() {
                     </label>
                     <button
                       type="submit"
-                      className="w-full py-4 bg-arina-accent text-white text-lg font-bold rounded-xl hover:bg-red-500 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                      className="w-full py-4 bg-arina-accent text-white text-lg font-bold rounded-xl hover:bg-arina-accent-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                     >
                       ❤️ Valider mon don de {donor.amount || '...'}€
                     </button>
@@ -214,7 +214,7 @@ export default function SoutenirPage() {
 
           {/* VOLUNTEER FORM */}
           {tab === 'benevole' && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
+            <div className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8">
               {volSubmitted ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🎉</div>

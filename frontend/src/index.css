@@ -1,16 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-arina-blue: #a92557;
-  --color-arina-blue-dark: #861646;
-  --color-arina-blue-light: #c9446e;
-  --color-arina-gold: #cd683a;
-  --color-arina-gold-light: #e08a5a;
-  --color-arina-cream: #FFF5F0;
-  --color-arina-warm: #FDE8DF;
-  --color-arina-dark: #2d0d1a;
+  /* Vif — brand & CTA */
+  --color-arina-blue: #D8431A;
+  --color-arina-accent: #E23B15;
+  --color-arina-accent-dark: #B72E0B;
+  /* Foncé — gradients, footer, hovers */
+  --color-arina-blue-dark: #7A2A0E;
+  --color-arina-dark: #2B0F05;
+  --color-arina-gold: #C87A1E;
+  /* Doux — fonds & teintes claires */
+  --color-arina-blue-light: #E98B5E;
+  --color-arina-gold-light: #F4C477;
+  --color-arina-cream: #FFF8F2;
+  --color-arina-warm: #FDEADB;
   --color-arina-gray: #6B7280;
-  --color-arina-accent: #e05a3e;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-serif: 'Playfair Display', Georgia, serif;
 }
@@ -28,7 +32,7 @@ body {
 
 /* Custom gradient utilities */
 .hero-gradient {
-  background: linear-gradient(135deg, rgba(169,37,87,0.85) 0%, rgba(134,22,70,0.92) 100%);
+  background: linear-gradient(135deg, rgba(226,59,21,0.88) 0%, rgba(122,42,14,0.94) 100%);
 }
 
 .card-hover {
@@ -36,7 +40,7 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(169, 37, 87, 0.15);
+  box-shadow: 0 20px 40px rgba(216, 67, 26, 0.18);
 }
 
 /* Slider dots animation */
@@ -55,8 +59,8 @@ body {
 
 /* Pulse for CTA */
 @keyframes pulse-soft {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(205, 104, 58, 0.4); }
-  50% { box-shadow: 0 0 0 15px rgba(205, 104, 58, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 122, 30, 0.4); }
+  50% { box-shadow: 0 0 0 15px rgba(200, 122, 30, 0); }
 }
 .pulse-gold {
   animation: pulse-soft 2.5s ease infinite;
