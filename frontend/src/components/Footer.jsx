@@ -94,6 +94,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-500 text-sm">
             © 2024 ARINA. Tous droits réservés.
+            <a href="/admin" className="ml-4 text-gray-600 hover:text-gray-400 transition-colors text-xs">🔒 Admin</a>
           </p>
           <div className="flex flex-wrap justify-center gap-4 text-gray-500 text-sm">
             <a href="#" className="hover:text-white transition-colors">Mentions légales</a>
