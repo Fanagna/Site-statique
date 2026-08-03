@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:5000/api';
+// Automatically use same origin (works for Vercel + local dev)
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 
 // Helper: try API, fall back to null (caller handles fallback)
 async function apiCall(url, options = {}) {

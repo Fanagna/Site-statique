@@ -1,0 +1,17 @@
+{
+  "name": "arina-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ARINA Association - Site web",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "pg": "^8.13.0"
+  }
+}
