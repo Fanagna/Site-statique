@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { testimonials } from '../data/testimonials';
 
 const initialForm = { name: '', age: '', location: '', role: '', quote: '', story: '' };
@@ -17,7 +18,7 @@ export default function TestimonialsPage() {
     if (!form.name.trim()) errs.name = 'Le nom est requis';
     if (!form.age || form.age < 10 || form.age > 99) errs.age = 'Âge invalide (10-99)';
     if (!form.quote.trim()) errs.quote = 'Le témoignage est requis';
-    if (form.quote.trim().length < 20) errs.quote = 'Minimum 20 caractères';
+    else if (form.quote.trim().length < 20) errs.quote = 'Minimum 20 caractères';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -312,6 +313,7 @@ export default function TestimonialsPage() {
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={500}
                   placeholder="Résumez votre histoire en une ou deux phrases..."
                   value={form.quote}
                   onChange={(e) => setForm({ ...form, quote: e.target.value })}
@@ -371,12 +373,12 @@ export default function TestimonialsPage() {
           <p className="text-white/80 mb-8">
             Chaque geste compte. Rejoignez-nous pour écrire le prochain chapitre de ces jeunes.
           </p>
-          <a
-            href="/#cta"
+          <Link
+            to="/#cta"
             className="inline-flex items-center gap-2 px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-xl"
           >
             ❤️ Soutenir ARINA
-          </a>
+          </Link>
         </div>
       </section>
     </div>
