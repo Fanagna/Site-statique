@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --color-arina-blue: #1A5F7A;
+  --color-arina-blue-dark: #134B61;
+  --color-arina-blue-light: #2180A3;
+  --color-arina-gold: #D4A843;
+  --color-arina-gold-light: #E8C97A;
+  --color-arina-cream: #FDF8F0;
+  --color-arina-warm: #F5EDE0;
+  --color-arina-dark: #1A1A2E;
+  --color-arina-gray: #6B7280;
+  --color-arina-accent: #E8745C;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom gradient utilities */
+.hero-gradient {
+  background: linear-gradient(135deg, rgba(26,95,122,0.85) 0%, rgba(19,75,97,0.92) 100%);
+}
+
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(26, 95, 122, 0.15);
+}
+
+/* Slider dots animation */
+.slider-dot {
+  transition: all 0.3s ease;
+}
+
+/* Stats counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-stat {
+  animation: countUp 0.6s ease forwards;
+}
+
+/* Pulse for CTA */
+@keyframes pulse-soft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.4); }
+  50% { box-shadow: 0 0 0 15px rgba(212, 168, 67, 0); }
+}
+.pulse-gold {
+  animation: pulse-soft 2.5s ease infinite;
+}
+
+/* Partner logo grayscale to color */
+.partner-logo {
+  filter: grayscale(100%) brightness(0.8);
+  transition: all 0.3s ease;
+}
+.partner-logo:hover {
+  filter: grayscale(0%) brightness(1);
+}

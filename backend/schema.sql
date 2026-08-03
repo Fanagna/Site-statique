@@ -1,0 +1,85 @@
+-- ARINA Database Schema
+
+-- News table
+CREATE TABLE IF NOT EXISTS news (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  excerpt TEXT,
+  content TEXT,
+  image_url VARCHAR(500),
+  category VARCHAR(100),
+  views INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Stats table
+CREATE TABLE IF NOT EXISTS stats (
+  id SERIAL PRIMARY KEY,
+  young_accompanied INTEGER DEFAULT 0,
+  insertion_rate INTEGER DEFAULT 0,
+  partners INTEGER DEFAULT 0,
+  years_active INTEGER DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default stats
+INSERT INTO stats (young_accompanied, insertion_rate, partners, years_active)
+VALUES (30, 85, 12, 5)
+ON CONFLICT DO NOTHING;
+
+-- Pillars table
+CREATE TABLE IF NOT EXISTS pillars (
+  id SERIAL PRIMARY KEY,
+  icon VARCHAR(50),
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  color VARCHAR(50),
+  sort_order INTEGER DEFAULT 0
+);
+
+-- Insert default pillars
+INSERT INTO pillars (icon, title, description, color, sort_order) VALUES
+('🏠', 'Hébergement sécurisé', 'Des foyers d''accueil chaleureux et protecteurs pour chaque jeune.', 'emerald', 1),
+('🧠', 'Soutien Psychosocial', 'Reconstruction psychologique et morale par des professionnels.', 'blue', 2),
+('🔧', 'Formation Professionnelle', 'Menuiserie, cuisine, agriculture : des métiers d''avenir.', 'orange', 3),
+('🤝', 'Insertion Sociale', 'Aide à l''emploi, au logement et à l''intégration sociale.', 'purple', 4);
+
+-- Contacts table
+CREATE TABLE IF NOT EXISTS contacts (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Newsletter subscriptions
+CREATE TABLE IF NOT EXISTS newsletters (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Beneficiaries (for admin)
+CREATE TABLE IF NOT EXISTS beneficiaries (
+  id SERIAL PRIMARY KEY,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  birth_date DATE,
+  entry_date DATE DEFAULT CURRENT_DATE,
+  status VARCHAR(50) DEFAULT 'active',
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Finances (for admin)
+CREATE TABLE IF NOT EXISTS finances (
+  id SERIAL PRIMARY KEY,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('income', 'expense')),
+  amount DECIMAL(12,2) NOT NULL,
+  description TEXT,
+  category VARCHAR(100),
+  date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
