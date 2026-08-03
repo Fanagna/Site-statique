@@ -6,25 +6,39 @@ const contactInfo = [
   {
     icon: '📍',
     title: 'Adresse',
-    lines: ['123 Rue de l\'Espoir', 'Antanimena, Antananarivo', 'Madagascar'],
+    lines: [
+      { text: "123 Rue de l'Espoir" },
+      { text: 'Antanimena, Antananarivo' },
+      { text: 'Madagascar' },
+    ],
     color: 'from-blue-500 to-arina-blue',
   },
   {
     icon: '📞',
     title: 'Téléphone',
-    lines: ['+261 34 12 345 67', '+261 33 98 765 43'],
+    lines: [
+      { text: '+261 34 12 345 67', href: 'tel:+261341234567' },
+      { text: '+261 33 98 765 43', href: 'tel:+261339876543' },
+    ],
     color: 'from-green-500 to-emerald-600',
   },
   {
     icon: '📧',
     title: 'Email',
-    lines: ['contact@arina-asso.mg', 'direction@arina-asso.mg'],
+    lines: [
+      { text: 'contact@arina-asso.mg', href: 'mailto:contact@arina-asso.mg' },
+      { text: 'direction@arina-asso.mg', href: 'mailto:direction@arina-asso.mg' },
+    ],
     color: 'from-orange-500 to-red-500',
   },
   {
     icon: '⏰',
     title: 'Horaires',
-    lines: ['Lun - Ven : 8h00 - 17h00', 'Sam : 9h00 - 12h00', 'Dim : Fermé'],
+    lines: [
+      { text: 'Lun - Ven : 8h00 - 17h00' },
+      { text: 'Sam : 9h00 - 12h00' },
+      { text: 'Dim : Fermé' },
+    ],
     color: 'from-purple-500 to-violet-600',
   },
 ];
@@ -51,6 +65,13 @@ export default function ContactPage() {
     if (!validate()) return;
     setSubmitted(true);
     setForm(initialForm);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Send to backend (non-blocking)
+    fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    }).catch(() => {});
   };
 
   return (
@@ -89,7 +110,17 @@ export default function ContactPage() {
                 </div>
                 <h3 className="font-bold text-arina-dark mb-2">{info.title}</h3>
                 {info.lines.map((line, j) => (
-                  <p key={j} className="text-sm text-arina-gray leading-relaxed">{line}</p>
+                  line.href ? (
+                    <a
+                      key={j}
+                      href={line.href}
+                      className="block text-sm text-arina-gray hover:text-arina-blue transition-colors leading-relaxed"
+                    >
+                      {line.text}
+                    </a>
+                  ) : (
+                    <p key={j} className="text-sm text-arina-gray leading-relaxed">{line.text}</p>
+                  )
                 ))}
               </div>
             ))}
