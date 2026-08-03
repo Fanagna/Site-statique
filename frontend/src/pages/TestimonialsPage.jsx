@@ -286,7 +286,7 @@ export default function TestimonialsPage() {
                   <label className="block text-sm font-semibold text-arina-dark mb-1.5">Ville</label>
                   <input
                     type="text"
-                    placeholder="Ex: Antananarivo"
+                    placeholder="Ex: Mahajanga"
                     value={form.location}
                     onChange={(e) => setForm({ ...form, location: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/20 focus:border-arina-blue transition-all"

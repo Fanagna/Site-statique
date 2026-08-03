@@ -7,9 +7,9 @@ const contactInfo = [
     icon: '📍',
     title: 'Adresse',
     lines: [
-      { text: "123 Rue de l'Espoir" },
-      { text: 'Antanimena, Antananarivo' },
-      { text: 'Madagascar' },
+      { text: 'Fokontany Tsaramandroso Ambony' },
+      { text: 'Commune Urbaine de Mahajanga' },
+      { text: 'District de Mahajanga I, Madagascar' },
     ],
     color: 'from-arina-gold to-arina-accent',
   },
@@ -17,8 +17,8 @@ const contactInfo = [
     icon: '📞',
     title: 'Téléphone',
     lines: [
-      { text: '+261 34 12 345 67', href: 'tel:+261341234567' },
-      { text: '+261 33 98 765 43', href: 'tel:+261339876543' },
+      { text: '032 77 374 89', href: 'tel:+261327737489' },
+      { text: '034 31 722 08', href: 'tel:+261347172208' },
     ],
     color: 'from-green-500 to-emerald-600',
   },
@@ -26,8 +26,7 @@ const contactInfo = [
     icon: '📧',
     title: 'Email',
     lines: [
-      { text: 'contact@arina-asso.mg', href: 'mailto:contact@arina-asso.mg' },
-      { text: 'direction@arina-asso.mg', href: 'mailto:direction@arina-asso.mg' },
+      { text: 'rasendrazita@gmail.com', href: 'mailto:rasendrazita@gmail.com' },
     ],
     color: 'from-orange-500 to-red-500',
   },
@@ -129,18 +128,18 @@ export default function ContactPage() {
           {/* Map */}
           <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-100 h-80 lg:h-96">
             <iframe
-              src="https://www.openstreetmap.org/export/embed.html?bbox=47.5100,-18.9200,47.5400,-18.9000&layer=mapnik&marker=-18.9100,47.5250"
+              src="https://www.openstreetmap.org/export/embed.html?bbox=46.2800,-15.7400,46.3500,-15.6900&layer=mapnik&marker=-15.7167,46.3167"
               width="100%"
               height="100%"
               style={{ border: 0 }}
               allowFullScreen
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              title="Carte ARINA - Antananarivo"
+              title="Carte ARINA - Mahajanga"
             />
           </div>
           <p className="text-center text-xs text-arina-gray mt-2">
-            📍 123 Rue de l'Espoir, Antanimena, Antananarivo, Madagascar
+            📍 Fokontany Tsaramandroso Ambony, Commune Urbaine de Mahajanga, Madagascar
           </p>
         </div>
       </section>
@@ -271,10 +270,10 @@ export default function ContactPage() {
                   Disponible du lundi au vendredi, de 8h à 17h.
                 </p>
                 <a
-                  href="tel:+261341234567"
+                  href="tel:+261327737489"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
                 >
-                  📞 +261 34 12 345 67
+                  📞 032 77 374 89
                 </a>
               </div>
 

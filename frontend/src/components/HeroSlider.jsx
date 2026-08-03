@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 const slides = [
   {
     title: "Donner une seconde chance\nà chaque enfant",
-    subtitle: "Depuis 2019, nous accompagnons les jeunes vers un avenir meilleur grâce à l'éducation, la formation et l'insertion sociale.",
+    subtitle: "Depuis 2023, nous accompagnons les jeunes vers un avenir meilleur grâce à l'éducation, la formation et l'insertion sociale.",
     bg: "https://images.unsplash.com/photo-1529390079861-591de354faf5?w=1600&q=80",
     ctas: [
       { label: "Découvrir nos actions", href: "#pillars", primary: false },
@@ -73,7 +73,7 @@ export default function HeroSlider() {
         <div className="max-w-7xl mx-auto px-6 lg:px-12 w-full">
           <div className="max-w-3xl">
             <div className="inline-block mb-6 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
-              ✨ Association ARINA — Depuis 2019
+              ✨ Association ARINA — Depuis 2023
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif font-bold text-white leading-tight mb-6 whitespace-pre-line">
               {slide.title}

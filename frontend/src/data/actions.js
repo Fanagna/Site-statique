@@ -23,13 +23,13 @@ export const pillars = [
     content: [
       { type: 'heading', text: 'Des foyers comme des maisons' },
       { type: 'paragraph', text: "Les foyers ARINA ne sont pas des dortoirs impersonnels. Ce sont de véritables maisons, chaleureuses et accueillantes, où chaque jeune dispose de son espace personnel. Les chambres sont aménagées pour offrir confort et intimité, conditions essentielles pour se sentir en sécurité et commencer à se reconstruire." },
-      { type: 'image', src: 'https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?w=800&q=80', caption: 'Une chambre du foyer d\'Antanimena' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?w=800&q=80', caption: 'Une chambre du foyer de Tsaramandroso' },
       { type: 'heading', text: 'Un cadre structurant' },
       { type: 'paragraph', text: "Au-delà du simple hébergement, nous offrons un cadre de vie structurant : repas partagés, règles de vie communes, participation aux tâches quotidiennes. Ces routines aident les jeunes à retrouver des repères et à développer leur autonomie. Chaque résident participe à la vie du foyer : cuisine, ménage, jardinage. Des activités collectives sont organisées chaque semaine." },
       { type: 'paragraph', text: "Les éducateurs sont présents 24h/24 et 7j/7 pour assurer un accompagnement de proximité. Ils ne sont pas de simples surveillants, mais de véritables référents qui construisent une relation de confiance avec chaque jeune." },
       { type: 'quote', text: "Avoir un toit, c'est la première marche vers la dignité. Sans cela, rien n'est possible.", author: 'Rakoto Andry, Éducateur référent' },
       { type: 'heading', text: 'Deux foyers pour mieux accueillir' },
-      { type: 'paragraph', text: "Le foyer historique d'Antanimena peut accueillir 15 jeunes. Depuis novembre 2024, un second foyer a ouvert ses portes, doublant notre capacité d'accueil. Chaque foyer dispose d'une salle commune, d'une cuisine équipée et d'un jardin potager où les jeunes cultivent leurs propres légumes." },
+      { type: 'paragraph', text: "Le foyer de Tsaramandroso peut accueillir 15 jeunes. Chaque foyer dispose d'une salle commune, d'une cuisine équipée et d'un jardin potager où les jeunes cultivent leurs propres légumes." },
     ],
     programs: [
       { title: 'Accueil d\'urgence', desc: 'Prise en charge immédiate 24h/24 pour les jeunes sans solution d\'hébergement.' },

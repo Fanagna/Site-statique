@@ -18,7 +18,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
-              Accompagner la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar depuis 2019.
+              Accompagner la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar depuis 2023.
             </p>
             <div className="flex gap-3">
               {['Facebook', 'Instagram', 'LinkedIn', 'YouTube'].map((social) => (
@@ -40,15 +40,15 @@ export default function Footer() {
             <ul className="space-y-3 text-gray-400 text-sm">
               <li className="flex items-start gap-2">
                 <span className="mt-0.5">📍</span>
-                <span>123 Rue de l'Espoir,<br />Antananarivo, Madagascar</span>
+                <span>Fokontany Tsaramandroso Ambony,<br />Commune Urbaine de Mahajanga, Madagascar</span>
               </li>
               <li className="flex items-center gap-2">
                 <span>📞</span>
-                <a href="tel:+261341234567" className="hover:text-arina-gold transition-colors">+261 34 12 345 67</a>
+                <a href="tel:+261327737489" className="hover:text-arina-gold transition-colors">032 77 374 89</a>
               </li>
               <li className="flex items-center gap-2">
                 <span>📧</span>
-                <a href="mailto:contact@arina-asso.mg" className="hover:text-arina-gold transition-colors">contact@arina-asso.mg</a>
+                <a href="mailto:rasendrazita@gmail.com" className="hover:text-arina-gold transition-colors">rasendrazita@gmail.com</a>
               </li>
               <li className="flex items-start gap-2">
                 <span>⏰</span>

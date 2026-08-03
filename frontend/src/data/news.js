@@ -210,7 +210,7 @@ export const allNews = [
   },
   {
     id: 5,
-    title: 'Ouverture du nouveau foyer d\'accueil à Antananarivo',
+    title: 'Ouverture du nouveau foyer d\'accueil à Mahajanga',
     slug: 'nouveau-foyer-accueil',
     date: '10/11/2024',
     month: 'Novembre',
@@ -226,7 +226,7 @@ export const allNews = [
     content: [
       {
         type: 'paragraph',
-        text: "C'est une grande étape pour l'association ARINA : un nouveau foyer d'accueil a ouvert ses portes ce 10 novembre dans le quartier d'Antanimena. D'une capacité de 15 places, il vient doubler la capacité d'hébergement de l'association.",
+        text: "C'est une grande étape pour l'association ARINA : un nouveau foyer d'accueil a ouvert ses portes ce 10 novembre dans le quartier de Tsaramandroso Ambony, à Mahajanga. D'une capacité de 15 places, il offre un hébergement digne aux jeunes accompagnés.",
       },
       {
         type: 'paragraph',
@@ -312,7 +312,7 @@ export const allNews = [
       },
       {
         type: 'paragraph',
-        text: "Le secteur de la restauration est l'un des plus dynamiques à Antananarivo. La demande de cuisiniers qualifiés ne cesse de croître, notamment dans les hôtels et les restaurants qui se développent dans la capitale. Cette formation répond à un besoin réel du marché du travail.",
+        text: "Le secteur de la restauration est l'un des plus dynamiques à Mahajanga. La demande de cuisiniers qualifiés ne cesse de croître, notamment dans les hôtels et les restaurants qui se développent dans la ville. Cette formation répond à un besoin réel du marché du travail.",
       },
       {
         type: 'paragraph',

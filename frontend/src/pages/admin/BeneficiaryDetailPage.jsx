@@ -9,7 +9,7 @@ const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline 
 
 /* ── Mock enriched data (until detail API exists) ── */
 const benefDetails = {
-  1: { id: 1, prenom: 'Thomas', nom: 'M.', age: 17, code: 'AR-001', genre: 'Masculin', telephone: '034 12 345 67', region: 'Analamanga', niveauScolaire: '3ème',
+  1: { id: 1, prenom: 'Thomas', nom: 'M.', age: 17, code: 'AR-001', genre: 'Masculin', telephone: '032 77 374 89', region: 'Boeny', niveauScolaire: '3ème',
     situationFamiliale: 'Famille monoparentale', parent: 'Mme R., commerçante', freresSoeurs: 2,
     educateur: 'M. Rakoto', dateEntree: '2024-01-15', motif: 'Sortie de prison', objectifs: 'Autonomie professionnelle, menuiserie', statut: 'Actif',
     assiduite: 85, progression: 75,
@@ -21,7 +21,7 @@ const benefDetails = {
     ],
     notes: '',
   },
-  2: { id: 2, prenom: 'Marie', nom: 'K.', age: 16, code: 'AR-002', genre: 'Féminin', telephone: '033 98 765 43', region: 'Antananarivo', niveauScolaire: '4ème',
+  2: { id: 2, prenom: 'Marie', nom: 'K.', age: 16, code: 'AR-002', genre: 'Féminin', telephone: '034 31 722 08', region: 'Mahajanga', niveauScolaire: '4ème',
     situationFamiliale: 'Orpheline', parent: 'Grand-mère', freresSoeurs: 0,
     educateur: 'Mme. Ravao', dateEntree: '2024-04-20', motif: 'Vulnérabilité', objectifs: 'Formation cuisine, autonomie', statut: 'Actif',
     assiduite: 92, progression: 80,
