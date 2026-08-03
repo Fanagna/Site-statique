@@ -6,7 +6,7 @@ const navLinks = [
   { label: 'Nos Actions', href: '/#pillars' },
   { label: 'Actualités', href: '/actualites' },
   { label: 'Témoignages', href: '/temoignages' },
-  { label: 'Contact', href: '/#footer' },
+  { label: 'Contact', href: '/contact' },
 ];
 
 export default function Navbar() {
