@@ -5,7 +5,7 @@ import { updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 
-const inputClass = 'w-full px-3.5 py-2.5 bg-black/[0.03] border border-black/[0.06] rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-white transition-all';
+const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card transition-all';
 
 /* ── Mock enriched data (until detail API exists) ── */
 const benefDetails = {
@@ -160,7 +160,7 @@ export default function BeneficiaryDetailPage() {
       onLogout={logout}
       actions={
         <>
-          <button onClick={() => setEditing(!editing)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${editing ? 'bg-black/[0.06] text-ios-text hover:bg-black/[0.09]' : 'bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20'}`}>
+          <button onClick={() => setEditing(!editing)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${editing ? 'bg-ios-fill-2 text-ios-text hover:bg-ios-fill-2' : 'bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20'}`}>
             {editing ? 'Annuler' : 'Modifier'}
           </button>
           <button onClick={() => setTab('suivi')} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
@@ -177,7 +177,7 @@ export default function BeneficiaryDetailPage() {
               <div className="card-apple p-6 text-center">
                 <div
                   onClick={handlePhotoClick}
-                  className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-black/10 bg-black/[0.03]'}`}
+                  className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-ios-hairline bg-ios-fill'}`}
                 >
                   {uploading ? (
                     <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
@@ -252,7 +252,7 @@ export default function BeneficiaryDetailPage() {
                   </div>
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600' : '' }].map((r, i) => (
+                    {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600 dark:text-green-400' : '' }].map((r, i) => (
                       <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' ? '🟢 ' : ''}{r.v || '—'}</span></div>
                     ))}
                   </div>
@@ -266,11 +266,11 @@ export default function BeneficiaryDetailPage() {
               <div className="grid sm:grid-cols-2 gap-6">
                 <div>
                   <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Taux d'assiduité</span><span className="font-bold text-ios-text">{editing ? form.assiduite || data.assiduite : data.assiduite}%</span></div>
-                  <div className="w-full h-3 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
+                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Score de progression</span><span className="font-bold text-ios-text">{editing ? form.progression || data.progression : data.progression}%</span></div>
-                  <div className="w-full h-3 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
+                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
                 </div>
               </div>
               {editing && (
@@ -290,7 +290,7 @@ export default function BeneficiaryDetailPage() {
             {cardTitle('file', 'Formations')}
             <div className="space-y-4">
               {(data.formations || []).map((f, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-black/[0.02] rounded-2xl">
+                <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
                   <div className="flex items-center gap-4">
                     <span className="text-2xl">{f.emoji}</span>
                     <div>
@@ -299,7 +299,7 @@ export default function BeneficiaryDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-24 h-2 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
+                    <div className="w-24 h-2 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
                     <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
                   </div>
                 </div>
@@ -320,7 +320,7 @@ export default function BeneficiaryDetailPage() {
                   onChange={(e) => setNewSuivi(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addSuivi()}
                   placeholder="Nouvelle entrée de suivi..."
-                  className="flex-1 px-4 py-2.5 bg-black/[0.03] border border-black/[0.06] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
+                  className="flex-1 px-4 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
                 />
                 <button onClick={addSuivi} className="px-6 py-2.5 bg-arina-blue text-white text-sm font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors">Ajouter</button>
               </div>
@@ -330,8 +330,8 @@ export default function BeneficiaryDetailPage() {
               {cardTitle('activity', 'Suivi individuel')}
               <div className="space-y-3">
                 {suivis.map((s, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
-                    <span className="text-xs font-semibold text-ios-text3 bg-white px-2 py-1 rounded-lg whitespace-nowrap border border-black/[0.06]">{s.date}</span>
+                  <div key={i} className="flex items-start gap-3 p-3 bg-ios-fill rounded-xl">
+                    <span className="text-xs font-semibold text-ios-text3 bg-ios-card px-2 py-1 rounded-lg whitespace-nowrap border border-ios-hairline">{s.date}</span>
                     <div className="flex-1">
                       <span className="text-xs font-semibold text-arina-blue bg-arina-warm px-2 py-0.5 rounded-full">{s.type}</span>
                       <p className="text-sm text-ios-text mt-1">{s.note}</p>
@@ -344,12 +344,12 @@ export default function BeneficiaryDetailPage() {
         )}
 
         {/* Notes confidentielles */}
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 animate-fade-up">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 animate-fade-up">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center"><Icon name="bell" className="w-4 h-4" /></div>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center"><Icon name="bell" className="w-4 h-4" /></div>
             <h3 className="font-bold text-ios-text">🔒 Notes confidentielles</h3>
           </div>
-          <textarea rows={3} className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
+          <textarea rows={3} className="w-full px-4 py-3 bg-ios-card border border-amber-500/30 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
             placeholder="Notes réservées à l'administrateur..."
             value={data.notes} onChange={(e) => setData({ ...data, notes: e.target.value })} />
         </div>

@@ -27,6 +27,18 @@ export default function AdminLayout({
 }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('arina_sidebar') === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem('arina_dark');
+    if (stored !== null) return stored === '1';
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  const toggleDark = () => {
+    setDark((d) => {
+      localStorage.setItem('arina_dark', d ? '0' : '1');
+      return !d;
+    });
+  };
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -59,7 +71,7 @@ export default function AdminLayout({
                   className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
                     active
                       ? 'bg-arina-warm text-arina-blue font-semibold'
-                      : 'text-ios-text2 hover:bg-black/[0.045] hover:text-ios-text'
+                      : 'text-ios-text2 hover:bg-ios-fill hover:text-ios-text'
                   } ${compact ? 'justify-center' : ''}`}
                 >
                   {active && !compact && (
@@ -96,7 +108,7 @@ export default function AdminLayout({
               <Link
                 key={n.key}
                 to={n.to}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ios-text2 hover:bg-black/[0.045] hover:text-ios-text transition-colors ${
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ios-text2 hover:bg-ios-fill hover:text-ios-text transition-colors ${
                   compact ? 'justify-center' : ''
                 }`}
                 title={compact ? n.label : undefined}
@@ -110,7 +122,7 @@ export default function AdminLayout({
                 href={n.href}
                 target={n.external ? '_blank' : undefined}
                 rel="noreferrer"
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ios-text2 hover:bg-black/[0.045] hover:text-ios-text transition-colors ${
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ios-text2 hover:bg-ios-fill hover:text-ios-text transition-colors ${
                   compact ? 'justify-center' : ''
                 }`}
                 title={compact ? n.label : undefined}
@@ -131,7 +143,7 @@ export default function AdminLayout({
           <button
             onClick={onLogout}
             title="Déconnexion"
-            className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors"
+            className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors"
           >
             <Icon name="logout" className="w-[18px] h-[18px]" />
           </button>
@@ -148,7 +160,7 @@ export default function AdminLayout({
           <button
             onClick={onLogout}
             title="Déconnexion"
-            className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors"
+            className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors"
           >
             <Icon name="logout" className="w-[18px] h-[18px]" />
           </button>
@@ -158,7 +170,7 @@ export default function AdminLayout({
   );
 
   return (
-    <div className="min-h-screen bg-ios-bg text-ios-text flex">
+    <div className={`min-h-screen bg-ios-bg text-ios-text flex transition-colors duration-300 ${dark ? 'dark' : ''}`}>
       {/* ── Desktop sidebar ── */}
       <aside
         className={`hidden lg:flex flex-col flex-shrink-0 h-screen sticky top-0 glass border-r border-ios-hairline transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -183,7 +195,7 @@ export default function AdminLayout({
           {!collapsed && (
             <button
               onClick={toggleCollapsed}
-              className="p-1.5 rounded-lg text-ios-text3 hover:bg-black/5 hover:text-ios-text transition-colors"
+              className="p-1.5 rounded-lg text-ios-text3 hover:bg-ios-fill hover:text-ios-text transition-colors"
               title="Réduire la barre latérale"
             >
               <Icon name="chevronLeft" className="w-4 h-4" />
@@ -195,7 +207,7 @@ export default function AdminLayout({
           <div className="flex justify-center py-2 border-b border-ios-hairline">
             <button
               onClick={toggleCollapsed}
-              className="p-1.5 rounded-lg text-ios-text3 hover:bg-black/5 hover:text-ios-text transition-colors"
+              className="p-1.5 rounded-lg text-ios-text3 hover:bg-ios-fill hover:text-ios-text transition-colors"
               title="Agrandir la barre latérale"
             >
               <Icon name="chevronRight" className="w-4 h-4" />
@@ -214,7 +226,7 @@ export default function AdminLayout({
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white flex flex-col shadow-2xl animate-pop">
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-ios-card flex flex-col shadow-2xl animate-pop">
             <div className="flex items-center justify-between h-16 px-4 border-b border-ios-hairline">
               <div className="flex items-center gap-2.5">
                 <img src="/logo-arina.jpg" alt="" className="w-9 h-9 rounded-[10px] object-contain" />
@@ -225,7 +237,7 @@ export default function AdminLayout({
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="p-1.5 rounded-lg text-ios-text3 hover:bg-black/5"
+                className="p-1.5 rounded-lg text-ios-text3 hover:bg-ios-fill"
               >
                 <Icon name="x" className="w-5 h-5" />
               </button>
@@ -242,7 +254,7 @@ export default function AdminLayout({
         <header className="sticky top-0 z-30 glass border-b border-ios-hairline">
           <div className="flex items-center gap-3 h-16 px-4 lg:px-8">
             <button
-              className="lg:hidden p-2 -ml-2 rounded-lg text-ios-text2 hover:bg-black/5 transition-colors"
+              className="lg:hidden p-2 -ml-2 rounded-lg text-ios-text2 hover:bg-ios-fill transition-colors"
               onClick={() => setMobileOpen(true)}
               title="Menu"
             >
@@ -263,10 +275,30 @@ export default function AdminLayout({
                   value={search.value}
                   onChange={(e) => search.onChange(e.target.value)}
                   placeholder={search.placeholder || 'Rechercher…'}
-                  className="w-full pl-9 pr-4 py-2 rounded-full bg-black/[0.05] text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-white transition-all"
+                  className="w-full pl-9 pr-4 py-2 rounded-full bg-ios-fill text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card transition-all"
                 />
               </div>
             )}
+            {/* Dark mode toggle (Apple style) */}
+            <button
+              onClick={toggleDark}
+              className="relative w-9 h-9 flex items-center justify-center rounded-full text-ios-text2 hover:bg-ios-fill transition-colors"
+              title={dark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+              aria-label={dark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            >
+              <Icon
+                name="moon"
+                className={`w-[18px] h-[18px] absolute transition-all duration-300 ${
+                  dark ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 rotate-90 scale-50'
+                }`}
+              />
+              <Icon
+                name="sun"
+                className={`w-[18px] h-[18px] absolute transition-all duration-300 ${
+                  dark ? 'opacity-0 -rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'
+                }`}
+              />
+            </button>
             {actions && <div className="flex items-center gap-1.5">{actions}</div>}
           </div>
         </header>

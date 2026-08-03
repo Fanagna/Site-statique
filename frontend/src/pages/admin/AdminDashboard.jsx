@@ -18,7 +18,7 @@ import { Icon } from '../../components/admin/icons';
    ═══════════════════════════════════════ */
 const formatMGA = (n) => (n || 0).toLocaleString('fr-FR') + ' Ar';
 const today = () => new Date().toISOString().split('T')[0];
-const inputClass = 'w-full px-3.5 py-2.5 bg-black/[0.03] border border-black/[0.06] rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-white focus:border-arina-blue/30 transition-all';
+const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card focus:border-arina-blue/30 transition-all';
 const initials = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const monthKey = (d) => {
@@ -68,7 +68,7 @@ function CountUp({ value, format }) {
 function EmptyState({ icon, text, action }) {
   return (
     <div className="py-12 text-center">
-      <div className="w-12 h-12 mx-auto rounded-2xl bg-black/[0.04] flex items-center justify-center text-ios-text3 mb-3">
+      <div className="w-12 h-12 mx-auto rounded-2xl bg-ios-fill flex items-center justify-center text-ios-text3 mb-3">
         <Icon name={icon} className="w-6 h-6" />
       </div>
       <p className="text-sm text-ios-text2 font-medium max-w-xs mx-auto">{text}</p>
@@ -178,7 +178,7 @@ function CategoryDonut({ finances, loading }) {
     <div className="flex flex-col items-center gap-5 mt-5">
       <div className="relative w-40 h-40">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-          <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth="11" />
+          <circle cx="50" cy="50" r={R} fill="none" stroke="var(--color-ios-hairline)" strokeWidth="11" />
           {data.map(([label, value], i) => {
             const frac = value / total;
             const dash = frac * C;
@@ -496,18 +496,18 @@ export default function AdminDashboard() {
   ];
 
   const quickActions = [
-    { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100', action: () => { setTab('actualites'); setTimeout(() => openNewsForm(null), 120); } },
-    { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FCE3D0]', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
-    { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-    { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 text-red-700 hover:bg-red-100', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-    { label: 'Messages', icon: 'mail', color: 'bg-black/[0.05] text-ios-text hover:bg-black/[0.08]', action: () => setTab('messages') },
-    { label: 'Newsletter', icon: 'send', color: 'bg-black/[0.05] text-ios-text hover:bg-black/[0.08]', action: () => setTab('newsletter') },
+    { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => { setTab('actualites'); setTimeout(() => openNewsForm(null), 120); } },
+    { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FCE3D0] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
+    { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+    { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+    { label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') },
+    { label: 'Newsletter', icon: 'send', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('newsletter') },
   ];
 
   const activityMeta = {
-    news: { icon: 'file', cls: 'bg-purple-100 text-purple-600' },
-    income: { icon: 'trendUp', cls: 'bg-emerald-100 text-emerald-600' },
-    expense: { icon: 'trendDown', cls: 'bg-red-100 text-red-600' },
+    news: { icon: 'file', cls: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400' },
+    income: { icon: 'trendUp', cls: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
+    expense: { icon: 'trendDown', cls: 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400' },
     beneficiary: { icon: 'users', cls: 'bg-arina-warm text-arina-blue' },
   };
 
@@ -529,7 +529,7 @@ export default function AdminDashboard() {
         <>
           <span
             className={`hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full ${
-              apiStatus === 'online' ? 'bg-emerald-50 text-emerald-600' : apiStatus === 'offline' ? 'bg-amber-50 text-amber-600' : 'bg-black/[0.05] text-ios-text3'
+              apiStatus === 'online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : apiStatus === 'offline' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-ios-fill text-ios-text3'
             }`}
             title={apiStatus === 'online' ? 'Base de données connectée' : apiStatus === 'offline' ? 'Mode local — base non joignable' : 'Connexion en cours'}
           >
@@ -541,7 +541,7 @@ export default function AdminDashboard() {
           <div className="relative">
             <button
               onClick={() => setNotifOpen((o) => !o)}
-              className={`relative p-2 rounded-full transition-colors ${notifOpen ? 'bg-black/[0.06]' : 'hover:bg-black/[0.06]'}`}
+              className={`relative p-2 rounded-full transition-colors ${notifOpen ? 'bg-ios-fill-2' : 'hover:bg-ios-fill-2'}`}
               title="Notifications"
             >
               <Icon name="bell" className="w-5 h-5" />
@@ -565,10 +565,10 @@ export default function AdminDashboard() {
                       <button
                         key={i}
                         onClick={() => { if (a.tab) setTab(a.tab); setNotifOpen(false); }}
-                        className="w-full flex items-start gap-3 px-5 py-3.5 text-left hover:bg-black/[0.03] transition-colors border-b border-ios-hairline last:border-0"
+                        className="w-full flex items-start gap-3 px-5 py-3.5 text-left hover:bg-ios-fill transition-colors border-b border-ios-hairline last:border-0"
                       >
                         <span className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          a.level === 'error' ? 'bg-red-100 text-red-600' : a.level === 'warn' ? 'bg-amber-100 text-amber-600' : 'bg-arina-warm text-arina-blue'
+                          a.level === 'error' ? 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400' : a.level === 'warn' ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-arina-warm text-arina-blue'
                         }`}>
                           <Icon name={a.icon} className="w-4 h-4" />
                         </span>
@@ -594,7 +594,7 @@ export default function AdminDashboard() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-ios-hairline text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-ios-card border border-ios-hairline text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
           />
         </div>
       )}
@@ -603,13 +603,13 @@ export default function AdminDashboard() {
       {tab === 'dashboard' && (
         <div className="space-y-6">
           {apiStatus === 'offline' && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2.5 animate-fade-up">
+            <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2.5 animate-fade-up">
               <Icon name="activity" className="w-4 h-4 flex-shrink-0" />
               <span>Mode local — les données proviennent de ce navigateur. Déployez sur Vercel pour lire votre base PostgreSQL.</span>
             </div>
           )}
           {dbEmpty && (
-            <div className="rounded-2xl border border-arina-blue/20 bg-arina-warm/60 px-4 py-3 text-sm text-arina-blue-dark flex items-center gap-2.5 animate-fade-up">
+            <div className="rounded-2xl border border-arina-blue/20 bg-arina-warm/60 px-4 py-3 text-sm text-arina-blue flex items-center gap-2.5 animate-fade-up">
               <Icon name="plus" className="w-4 h-4 flex-shrink-0" />
               <span>Base connectée mais vide — utilisez les actions rapides pour ajouter vos premiers enfants, transactions et actualités.</span>
             </div>
@@ -631,7 +631,7 @@ export default function AdminDashboard() {
                     <Icon name={s.icon} className="w-5 h-5" />
                   </div>
                   {s.delta !== null && (
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${s.delta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${s.delta >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>
                       <Icon name={s.delta >= 0 ? 'trendUp' : 'trendDown'} className="w-3.5 h-3.5" />
                       {Math.abs(s.delta)}%
                     </span>
@@ -677,16 +677,16 @@ export default function AdminDashboard() {
               <h3 className="font-bold">Enfants accompagnés</h3>
               <p className="text-xs text-ios-text3 mt-0.5">Répartition par statut</p>
               <div className="mt-6">
-                <div className="flex h-3.5 rounded-full overflow-hidden bg-black/[0.05]">
+                <div className="flex h-3.5 rounded-full overflow-hidden bg-ios-fill">
                   <div className="bg-green-500 transition-all duration-700" style={{ width: `${benefs.length ? (nbActifs / benefs.length) * 100 : 0}%` }} />
                   <div className="bg-purple-500 transition-all duration-700" style={{ width: `${benefs.length ? (nbDiplomes / benefs.length) * 100 : 0}%` }} />
                   <div className="bg-red-400 transition-all duration-700" style={{ width: `${benefs.length ? (nbInactifs / benefs.length) * 100 : 0}%` }} />
                 </div>
                 <div className="mt-5 space-y-3">
                   {[
-                    { label: 'Actifs', value: nbActifs, dot: 'bg-green-500', text: 'text-green-600' },
-                    { label: 'Diplômés', value: nbDiplomes, dot: 'bg-purple-500', text: 'text-purple-600' },
-                    { label: 'Inactifs', value: nbInactifs, dot: 'bg-red-400', text: 'text-red-500' },
+                    { label: 'Actifs', value: nbActifs, dot: 'bg-green-500', text: 'text-green-600 dark:text-green-400' },
+                    { label: 'Diplômés', value: nbDiplomes, dot: 'bg-purple-500', text: 'text-purple-600 dark:text-purple-400' },
+                    { label: 'Inactifs', value: nbInactifs, dot: 'bg-red-400', text: 'text-red-500 dark:text-red-400' },
                   ].map((r) => (
                     <div key={r.label} className="flex items-center gap-3 text-sm">
                       <span className={`w-2.5 h-2.5 rounded-full ${r.dot}`} />
@@ -713,7 +713,7 @@ export default function AdminDashboard() {
                 {activityFeed.slice(0, 6).map((a, i) => {
                   const metaIcon = activityMeta[a.type] || activityMeta.news;
                   return (
-                    <div key={a.id || i} className="flex items-center gap-3.5 p-2.5 rounded-xl hover:bg-black/[0.025] transition-colors">
+                    <div key={a.id || i} className="flex items-center gap-3.5 p-2.5 rounded-xl hover:bg-ios-fill transition-colors">
                       <span className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${metaIcon.cls}`}>
                         <Icon name={metaIcon.icon} className="w-4 h-4" />
                       </span>
@@ -747,7 +747,7 @@ export default function AdminDashboard() {
       {tab === 'actualites' && (
         <div className="space-y-4 animate-fade-up">
           <div className="flex flex-wrap items-center gap-3">
-            <select value={newsCat} onChange={(e) => setNewsCat(e.target.value)} className="px-3.5 py-2.5 bg-white border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+            <select value={newsCat} onChange={(e) => setNewsCat(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               <option value="">Toutes catégories</option>
               {['Événement', 'Témoignage', 'Rapport', 'Projet'].map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -763,7 +763,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-black/[0.02]">
+                  <thead className="bg-ios-fill">
                     <tr>
                       <Th label="Titre" k="title" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
                       <Th label="Catégorie" k="category" sort={newsSort} onSort={(k) => setNewsSort({ key: k, dir: newsSort.key === k ? -newsSort.dir : 1 })} />
@@ -774,7 +774,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-ios-hairline">
                     {sortedNews.map((n) => (
-                      <tr key={n.id} className="hover:bg-black/[0.015] transition-colors">
+                      <tr key={n.id} className="hover:bg-ios-fill transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
                             {n.image_url ? (
@@ -785,14 +785,14 @@ export default function AdminDashboard() {
                             <span className="font-medium text-ios-text truncate max-w-[280px]">{n.title}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3"><span className="px-2.5 py-1 bg-purple-50 text-purple-600 rounded-full text-xs font-medium">{n.category || 'Article'}</span></td>
+                        <td className="px-4 py-3"><span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full text-xs font-medium">{n.category || 'Article'}</span></td>
                         <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(n.date || n.created_at)}</td>
                         <td className="px-4 py-3 tabular text-ios-text2 whitespace-nowrap"><Icon name="eye" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{n.views || 0}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1.5">
                             <Link to={`/actualites/${n.slug || n.id}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Voir l'article"><Icon name="eye" className="w-4 h-4" /></Link>
                             <button onClick={() => openNewsForm(n)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
-                            <button onClick={() => removeNews(n.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                            <button onClick={() => removeNews(n.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -811,9 +811,9 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: '', value: benefs.length, color: 'text-ios-text', onClick: () => setBenefFilter('') },
-              { label: 'Actif', value: nbActifs, color: 'text-green-600', onClick: () => setBenefFilter('Actif') },
-              { label: 'Diplômé', value: nbDiplomes, color: 'text-purple-600', onClick: () => setBenefFilter('Diplômé') },
-              { label: 'Inactif', value: nbInactifs, color: 'text-red-500', onClick: () => setBenefFilter('Inactif') },
+              { label: 'Actif', value: nbActifs, color: 'text-green-600 dark:text-green-400', onClick: () => setBenefFilter('Actif') },
+              { label: 'Diplômé', value: nbDiplomes, color: 'text-purple-600 dark:text-purple-400', onClick: () => setBenefFilter('Diplômé') },
+              { label: 'Inactif', value: nbInactifs, color: 'text-red-500 dark:text-red-400', onClick: () => setBenefFilter('Inactif') },
             ].map((s, i) => (
               <button key={i} onClick={s.onClick} className={`card-apple card-apple-hover p-4 text-left ${benefFilter === s.label ? 'ring-2 ring-arina-blue/50' : ''}`}>
                 <div className={`text-2xl font-extrabold tabular ${s.color}`}>{benefsLoading ? '—' : s.value}</div>
@@ -822,7 +822,7 @@ export default function AdminDashboard() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select value={benefFilter} onChange={(e) => setBenefFilter(e.target.value)} className="px-3.5 py-2.5 bg-white border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+            <select value={benefFilter} onChange={(e) => setBenefFilter(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               <option value="">Tous les statuts</option>
               <option value="Actif">Actif</option>
               <option value="Diplômé">Diplômé</option>
@@ -840,7 +840,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-black/[0.02]">
+                  <thead className="bg-ios-fill">
                     <tr>
                       <Th label="Élève" k="nom" sort={benefSort} onSort={(k) => setBenefSort({ key: k, dir: benefSort.key === k ? -benefSort.dir : 1 })} />
                       <Th label="Âge" k="age" sort={benefSort} onSort={(k) => setBenefSort({ key: k, dir: benefSort.key === k ? -benefSort.dir : 1 })} />
@@ -852,7 +852,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-ios-hairline">
                     {sortedBenefs.map((b) => (
-                      <tr key={b.id} className="hover:bg-black/[0.015] transition-colors">
+                      <tr key={b.id} className="hover:bg-ios-fill transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-arina-blue/70 to-arina-blue-dark text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -866,7 +866,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-4 py-3 tabular text-ios-text2">{b.age} ans</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${b.statut === 'Actif' ? 'bg-emerald-50 text-emerald-600' : b.statut === 'Diplômé' ? 'bg-purple-50 text-purple-600' : 'bg-red-50 text-red-500'}`}>{b.statut}</span>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${b.statut === 'Actif' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : b.statut === 'Diplômé' ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{b.statut}</span>
                         </td>
                         <td className="px-4 py-3 text-ios-text2">{b.formation || '—'}</td>
                         <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(b.dateEntree)}</td>
@@ -874,7 +874,7 @@ export default function AdminDashboard() {
                           <div className="flex justify-end gap-1.5">
                             <Link to={`/admin/beneficiaire/${b.id}`} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Fiche détaillée"><Icon name="eye" className="w-4 h-4" /></Link>
                             <button onClick={() => openBenefForm(b)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
-                            <button onClick={() => removeBenef(b.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                            <button onClick={() => removeBenef(b.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -892,9 +892,9 @@ export default function AdminDashboard() {
         <div className="space-y-4 animate-fade-up">
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Revenus', value: totalRevenus, c: 'text-emerald-600' },
-              { label: 'Dépenses', value: totalDepenses, c: 'text-red-500' },
-              { label: 'Solde', value: solde, c: solde >= 0 ? 'text-arina-blue' : 'text-red-600' },
+              { label: 'Revenus', value: totalRevenus, c: 'text-emerald-600 dark:text-emerald-400' },
+              { label: 'Dépenses', value: totalDepenses, c: 'text-red-500 dark:text-red-400' },
+              { label: 'Solde', value: solde, c: solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400' },
             ].map((s, i) => (
               <div key={i} className="card-apple p-5">
                 <div className={`text-xl lg:text-2xl font-extrabold tabular ${s.c}`}>{financesLoading ? '—' : formatMGA(s.value)}</div>
@@ -903,12 +903,12 @@ export default function AdminDashboard() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select value={finType} onChange={(e) => setFinType(e.target.value)} className="px-3.5 py-2.5 bg-white border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+            <select value={finType} onChange={(e) => setFinType(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               <option value="">Tous les types</option>
               <option value="Revenu">Revenu</option>
               <option value="Dépense">Dépense</option>
             </select>
-            <select value={finCat} onChange={(e) => setFinCat(e.target.value)} className="px-3.5 py-2.5 bg-white border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+            <select value={finCat} onChange={(e) => setFinCat(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               <option value="">Toutes catégories</option>
               {['Don', 'Subvention', 'Alimentation', 'Équipement', 'Salaire', 'Autre'].map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -924,7 +924,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-black/[0.02]">
+                  <thead className="bg-ios-fill">
                     <tr>
                       <Th label="Type" k="type" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Catégorie" k="categorie" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
@@ -936,19 +936,19 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-ios-hairline">
                     {sortedFinances.map((f) => (
-                      <tr key={f.id} className="hover:bg-black/[0.015] transition-colors">
+                      <tr key={f.id} className="hover:bg-ios-fill transition-colors">
                         <td className="px-4 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${f.type === 'Revenu' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>{f.type}</span>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${f.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{f.type}</span>
                         </td>
                         <td className="px-4 py-3 text-ios-text">{f.categorie || 'Autre'}</td>
-                        <td className={`px-4 py-3 font-semibold tabular ${f.type === 'Revenu' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        <td className={`px-4 py-3 font-semibold tabular ${f.type === 'Revenu' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                           {f.type === 'Revenu' ? '+' : '−'} {formatMGA(f.montant)}
                         </td>
                         <td className="px-4 py-3 text-ios-text2 max-w-[240px] truncate">{f.description || '—'}</td>
                         <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(f.date)}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            <button onClick={() => removeFinance(f.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                            <button onClick={() => removeFinance(f.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -982,7 +982,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="divide-y divide-ios-hairline">
                 {filteredContacts.map((c) => (
-                  <div key={c.id} className="p-5 hover:bg-black/[0.015] transition-colors">
+                  <div key={c.id} className="p-5 hover:bg-ios-fill transition-colors">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-arina-blue/80 to-arina-blue-dark text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
                         {initials(c.name)}
@@ -1031,7 +1031,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="divide-y divide-ios-hairline">
                 {filteredSubs.map((s) => (
-                  <div key={s.id} className="flex items-center gap-4 px-5 py-4 hover:bg-black/[0.015] transition-colors">
+                  <div key={s.id} className="flex items-center gap-4 px-5 py-4 hover:bg-ios-fill transition-colors">
                     <div className="w-9 h-9 rounded-full bg-arina-warm text-arina-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
                       {initials(s.email)}
                     </div>
@@ -1039,7 +1039,7 @@ export default function AdminDashboard() {
                       <div className="text-sm font-medium truncate">{s.email}</div>
                       <div className="text-[11px] text-ios-text3">Inscrit {timeAgo(s.subscribed_at)}</div>
                     </div>
-                    <button onClick={() => removeSub(s.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-50 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                    <button onClick={() => removeSub(s.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
@@ -1052,7 +1052,7 @@ export default function AdminDashboard() {
       {showBenefForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowBenefForm(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="relative w-full max-w-md bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><Icon name="users" className="w-5 h-5" /></div>
               <div>
@@ -1073,7 +1073,7 @@ export default function AdminDashboard() {
               <input type="date" value={benefForm.dateEntree} onChange={(e) => setBenefForm({ ...benefForm, dateEntree: e.target.value })} className={inputClass} />
             </div>
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setShowBenefForm(false)} className="flex-1 py-3 rounded-2xl bg-black/[0.05] font-semibold text-sm hover:bg-black/[0.08] transition-colors">Annuler</button>
+              <button onClick={() => setShowBenefForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveBenef} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
             </div>
           </div>
@@ -1083,7 +1083,7 @@ export default function AdminDashboard() {
       {showFinanceForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFinanceForm(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="relative w-full max-w-md bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><Icon name="wallet" className="w-5 h-5" /></div>
               <div>
@@ -1109,7 +1109,7 @@ export default function AdminDashboard() {
               <input type="date" value={financeForm.date} onChange={(e) => setFinanceForm({ ...financeForm, date: e.target.value })} className={inputClass} />
             </div>
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setShowFinanceForm(false)} className="flex-1 py-3 rounded-2xl bg-black/[0.05] font-semibold text-sm hover:bg-black/[0.08] transition-colors">Annuler</button>
+              <button onClick={() => setShowFinanceForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveFinance} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
             </div>
           </div>
@@ -1119,7 +1119,7 @@ export default function AdminDashboard() {
       {showNewsForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewsForm(false)} />
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="relative w-full max-w-lg bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><Icon name="file" className="w-5 h-5" /></div>
               <div>
@@ -1139,7 +1139,7 @@ export default function AdminDashboard() {
               <input placeholder="URL image" value={newsForm.image_url} onChange={(e) => setNewsForm({ ...newsForm, image_url: e.target.value })} className={inputClass} />
             </div>
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setShowNewsForm(false)} className="flex-1 py-3 rounded-2xl bg-black/[0.05] font-semibold text-sm hover:bg-black/[0.08] transition-colors">Annuler</button>
+              <button onClick={() => setShowNewsForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveNews} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
             </div>
           </div>
