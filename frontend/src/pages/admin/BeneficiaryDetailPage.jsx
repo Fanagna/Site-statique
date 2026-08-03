@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { updateBeneficiaryPhoto } from '../../services/api';
+import AdminLayout from '../../components/admin/AdminLayout';
+import { Icon } from '../../components/admin/icons';
 
-/* ── Mock enriched data ── */
+const inputClass = 'w-full px-3.5 py-2.5 bg-black/[0.03] border border-black/[0.06] rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-white transition-all';
+
+/* ── Mock enriched data (until detail API exists) ── */
 const benefDetails = {
   1: { id: 1, prenom: 'Thomas', nom: 'M.', age: 17, code: 'AR-001', genre: 'Masculin', telephone: '034 12 345 67', region: 'Analamanga', niveauScolaire: '3ème',
     situationFamiliale: 'Famille monoparentale', parent: 'Mme R., commerçante', freresSoeurs: 2,
@@ -44,7 +48,7 @@ export default function BeneficiaryDetailPage() {
     let detail = benefDetails[id];
     if (!detail) {
       const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-      const b = stored.find(x => x.id === Number(id));
+      const b = stored.find((x) => x.id === Number(id));
       if (b) {
         detail = {
           ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
@@ -61,10 +65,10 @@ export default function BeneficiaryDetailPage() {
   }, [id]);
 
   if (!data) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-ios-bg flex items-center justify-center px-4">
       <div className="text-center">
         <div className="text-6xl mb-4">🔍</div>
-        <h2 className="text-xl font-bold text-arina-dark mb-2">Bénéficiaire introuvable</h2>
+        <h2 className="text-xl font-bold text-ios-text mb-2">Bénéficiaire introuvable</h2>
         <button onClick={() => navigate('/admin')} className="px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold mt-4">← Retour</button>
       </div>
     </div>
@@ -101,7 +105,7 @@ export default function BeneficiaryDetailPage() {
       setForm({ ...form, photo: base64 });
       // Persist photo
       const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-      const idx = stored.findIndex(x => x.id === Number(id));
+      const idx = stored.findIndex((x) => x.id === Number(id));
       if (idx >= 0) {
         stored[idx].photo = base64;
         localStorage.setItem('arina_benefs', JSON.stringify(stored));
@@ -119,252 +123,237 @@ export default function BeneficiaryDetailPage() {
     setData(updated);
     setForm({ ...form, photo: undefined });
     const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-    const idx = stored.findIndex(x => x.id === Number(id));
+    const idx = stored.findIndex((x) => x.id === Number(id));
     if (idx >= 0) {
       delete stored[idx].photo;
       localStorage.setItem('arina_benefs', JSON.stringify(stored));
     }
   };
 
-  const sidebarItems = [
-    { key: 'detail', label: 'Détail', icon: '👤' },
-    { key: 'suivi', label: 'Suivi', icon: '📋' },
-    { key: 'formations', label: 'Formations', icon: '🎓' },
+  const groups = [
+    { group: 'Fiche', items: [
+      { key: 'detail', label: 'Détail', icon: 'users' },
+      { key: 'suivi', label: 'Suivi', icon: 'activity' },
+      { key: 'formations', label: 'Formations', icon: 'file' },
+    ] },
   ];
 
+  const cardTitle = (icon, title, sub) => (
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-9 h-9 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><Icon name={icon} className="w-4 h-4" /></div>
+      <div>
+        <h3 className="font-bold">{title}</h3>
+        {sub && <p className="text-xs text-ios-text3">{sub}</p>}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 hidden lg:flex">
-        <div className="p-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <img src="/logo-arina.jpg" alt="" className="w-9 h-9 rounded-xl object-contain shadow" />
-            <div><div className="font-bold text-arina-dark text-sm">ARINA Admin</div><div className="text-xs text-arina-gray">{user?.username}</div></div>
-          </div>
-        </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarItems.map((item) => (
-            <button key={item.key} onClick={() => setTab(item.key)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${tab === item.key ? 'bg-arina-blue text-white shadow-md' : 'text-arina-dark hover:bg-gray-50'}`}>
-              <span>{item.icon}</span><span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="p-3 border-t border-gray-100 space-y-1">
-          <button onClick={() => navigate('/admin')} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-arina-gray hover:text-arina-blue rounded-xl hover:bg-gray-50 transition-all">← Dashboard</button>
-          <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-all">🚪 Déconnexion</button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-auto pb-20 lg:pb-0">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-arina-gray mb-1">
-                <Link to="/admin" className="hover:text-arina-blue">Dashboard</Link><span>/</span><span className="text-arina-dark">Bénéficiaires</span><span>/</span>
-              </div>
-              <h1 className="text-xl font-serif font-bold text-arina-dark flex items-center gap-3">
-                👤 {data.prenom} {data.nom} <span className="text-sm font-normal text-arina-gray">- {data.code}</span>
-              </h1>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setEditing(!editing)} className="px-4 py-2 bg-arina-blue text-white text-sm font-semibold rounded-lg hover:bg-arina-blue-dark transition-colors">{editing ? 'Annuler' : 'Modifier'}</button>
-              <button onClick={() => alert('Historique de suivi')} className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">Suivi</button>
-              <button onClick={() => { if (confirm('Supprimer ?')) navigate('/admin'); }} className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors">Supprimer</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 lg:p-8 space-y-6">
-          {/* ── DÉTAIL TAB ── */}
-          {tab === 'detail' && (
-            <>
-              {/* Top section: Photo + Info */}
-              <div className="grid lg:grid-cols-3 gap-6">
-                {/* Photo card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-                  <div
-                    onClick={handlePhotoClick}
-                    className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-gray-300 bg-gray-100'}`}
-                  >
-                    {uploading ? (
-                      <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
-                    ) : data.photo ? (
-                      <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-gray-400 group-hover:text-arina-blue transition-colors">👤</span>
-                        <span className="text-[10px] text-arina-gray group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
-                      <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity">📷 Modifier</span>
-                    </div>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                  />
-                  <p className="text-sm text-arina-gray mb-1">Photo confidentielle</p>
-                  {data.photo && (
-                    <button onClick={removePhoto} className="text-xs text-red-500 hover:text-red-700 transition-colors">
-                      🗑️ Supprimer la photo
-                    </button>
-                  )}
-                </div>
-
-                {/* Info card */}
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                  <h3 className="font-bold text-arina-dark mb-4">Informations personnelles</h3>
-                  {editing ? (
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {['prenom','nom','age','genre','telephone','region','niveauScolaire'].map(k => (
-                        <input key={k} placeholder={k} value={form[k] || ''} onChange={e => setForm({...form, [k]: e.target.value})}
-                          className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-                      ))}
-                      <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                    </div>
+    <AdminLayout
+      groups={groups}
+      activeKey={tab}
+      onNavigate={setTab}
+      title={`${data.prenom} ${data.nom}`}
+      subtitle={`Bénéficiaire — ${data.code} · ${data.statut}`}
+      footerNav={[{ key: 'dash', label: 'Retour au dashboard', icon: 'grid', to: '/admin' }]}
+      user={user}
+      onLogout={logout}
+      actions={
+        <>
+          <button onClick={() => setEditing(!editing)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${editing ? 'bg-black/[0.06] text-ios-text hover:bg-black/[0.09]' : 'bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20'}`}>
+            {editing ? 'Annuler' : 'Modifier'}
+          </button>
+          <button onClick={() => setTab('suivi')} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
+          <button onClick={() => { if (confirm('Supprimer ce bénéficiaire ?')) navigate('/admin'); }} className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        {/* ── DÉTAIL TAB ── */}
+        {tab === 'detail' && (
+          <>
+            <div className="grid lg:grid-cols-3 gap-6 animate-fade-up">
+              {/* Photo card */}
+              <div className="card-apple p-6 text-center">
+                <div
+                  onClick={handlePhotoClick}
+                  className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-black/10 bg-black/[0.03]'}`}
+                >
+                  {uploading ? (
+                    <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
+                  ) : data.photo ? (
+                    <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{l:'Nom',v:`${data.prenom} ${data.nom}`},{l:'Âge',v:`${data.age} ans`},{l:'Genre',v:data.genre},{l:'Téléphone',v:data.telephone},{l:'Région',v:data.region},{l:'Niveau scolaire',v:data.niveauScolaire}].map((r,i) => (
-                        <div key={i}><span className="text-arina-gray">{r.l} :</span> <span className="font-medium text-arina-dark">{r.v || '—'}</span></div>
-                      ))}
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-gray-400 group-hover:text-arina-blue transition-colors">👤</span>
+                      <span className="text-[10px] text-ios-text3 group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
                     </div>
                   )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
+                    <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity">📷 Modifier</span>
+                  </div>
                 </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                <p className="text-sm text-ios-text3 mb-1">Photo confidentielle</p>
+                {data.photo && (
+                  <button onClick={removePhoto} className="text-xs text-red-500 hover:text-red-700 transition-colors">🗑️ Supprimer la photo</button>
+                )}
               </div>
 
-              {/* Situation familiale */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-arina-dark mb-3">Situation familiale</h3>
+              {/* Info card */}
+              <div className="lg:col-span-2 card-apple p-6">
+                {cardTitle('users', 'Informations personnelles')}
                 {editing ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {['situationFamiliale','parent','freresSoeurs'].map(k => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={e => setForm({...form, [k]: e.target.value})} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    {['prenom', 'nom', 'age', 'genre', 'telephone', 'region', 'niveauScolaire'].map((k) => (
+                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
                     ))}
                     <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
                   </div>
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{l:'Situation',v:data.situationFamiliale},{l:'Parent/Tuteur',v:data.parent},{l:'Frères/sœurs',v:data.freresSoeurs}].map((r,i) => (
-                      <div key={i}><span className="text-arina-gray">{r.l} :</span> <span className="font-medium text-arina-dark">{r.v || '—'}</span></div>
+                    {[{ l: 'Nom', v: `${data.prenom} ${data.nom}` }, { l: 'Âge', v: `${data.age} ans` }, { l: 'Genre', v: data.genre }, { l: 'Téléphone', v: data.telephone }, { l: 'Région', v: data.region }, { l: 'Niveau scolaire', v: data.niveauScolaire }].map((r, i) => (
+                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
+              {/* Situation familiale */}
+              <div className="card-apple p-6">
+                {cardTitle('users', 'Situation familiale')}
+                {editing ? (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {['situationFamiliale', 'parent', 'freresSoeurs'].map((k) => (
+                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
+                    ))}
+                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                    {[{ l: 'Situation', v: data.situationFamiliale }, { l: 'Parent/Tuteur', v: data.parent }, { l: 'Frères/sœurs', v: data.freresSoeurs }].map((r, i) => (
+                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
                     ))}
                   </div>
                 )}
               </div>
 
               {/* Suivi ARINA */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-arina-dark mb-3">Suivi ARINA</h3>
+              <div className="card-apple p-6">
+                {cardTitle('activity', 'Suivi ARINA')}
                 {editing ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {['educateur','dateEntree','motif','objectifs','statut'].map(k => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={e => setForm({...form, [k]: e.target.value})} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    {['educateur', 'dateEntree', 'motif', 'objectifs', 'statut'].map((k) => (
+                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
                     ))}
                     <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
                   </div>
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{l:'Éducateur référent',v:data.educateur},{l:"Date d'entrée",v:data.dateEntree},{l:'Motif',v:data.motif},{l:'Objectifs',v:data.objectifs},{l:'Statut',v:data.statut,color:data.statut==='Actif'?'text-green-600':''}].map((r,i) => (
-                      <div key={i}><span className="text-arina-gray">{r.l} :</span> <span className={`font-medium ${r.color||'text-arina-dark'}`}>{r.statut==='Actif'?'🟢 ':''}{r.v||'—'}</span></div>
+                    {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600' : '' }].map((r, i) => (
+                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' ? '🟢 ' : ''}{r.v || '—'}</span></div>
                     ))}
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* Progression */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-arina-dark mb-4">Progression</h3>
-                <div className="grid sm:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1"><span className="text-arina-gray">Taux d'assiduité</span><span className="font-bold text-arina-dark">{editing ? form.assiduite || data.assiduite : data.assiduite}%</span></div>
-                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{width:`${data.assiduite}%`}} /></div>
+            {/* Progression */}
+            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '160ms' }}>
+              {cardTitle('activity', 'Progression')}
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Taux d'assiduité</span><span className="font-bold text-ios-text">{editing ? form.assiduite || data.assiduite : data.assiduite}%</span></div>
+                  <div className="w-full h-3 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Score de progression</span><span className="font-bold text-ios-text">{editing ? form.progression || data.progression : data.progression}%</span></div>
+                  <div className="w-full h-3 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
+                </div>
+              </div>
+              {editing && (
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <input type="number" placeholder="Assiduité %" value={form.assiduite || ''} onChange={(e) => setForm({ ...form, assiduite: e.target.value })} className={inputClass} />
+                  <input type="number" placeholder="Progression %" value={form.progression || ''} onChange={(e) => setForm({ ...form, progression: e.target.value })} className={inputClass} />
+                  <button onClick={saveEdit} className="col-span-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── FORMATIONS TAB ── */}
+        {tab === 'formations' && (
+          <div className="card-apple p-6 animate-fade-up">
+            {cardTitle('file', 'Formations')}
+            <div className="space-y-4">
+              {(data.formations || []).map((f, i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-black/[0.02] rounded-2xl">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">{f.emoji}</span>
+                    <div>
+                      <div className="font-semibold text-ios-text">{f.nom}</div>
+                      <div className="text-sm text-ios-text3">{f.statut}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="flex justify-between text-sm mb-1"><span className="text-arina-gray">Score de progression</span><span className="font-bold text-arina-dark">{editing ? form.progression || data.progression : data.progression}%</span></div>
-                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{width:`${data.progression}%`}} /></div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 h-2 bg-black/[0.06] rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
+                    <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
                   </div>
                 </div>
-                {editing && (
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <input type="number" placeholder="Assiduité %" value={form.assiduite||''} onChange={e=>setForm({...form,assiduite:e.target.value})} className="px-3 py-2 bg-gray-50 border rounded-lg text-sm" />
-                    <input type="number" placeholder="Progression %" value={form.progression||''} onChange={e=>setForm({...form,progression:e.target.value})} className="px-3 py-2 bg-gray-50 border rounded-lg text-sm" />
-                    <button onClick={saveEdit} className="col-span-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+              ))}
+              {(data.formations || []).length === 0 && <p className="text-ios-text3 text-sm">Aucune formation enregistrée</p>}
+            </div>
+          </div>
+        )}
 
-          {/* ── FORMATIONS TAB ── */}
-          {tab === 'formations' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-bold text-arina-dark mb-4">Formations</h3>
-              <div className="space-y-4">
-                {(data.formations || []).map((f, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl">{f.emoji}</span>
-                      <div>
-                        <div className="font-semibold text-arina-dark">{f.nom}</div>
-                        <div className="text-sm text-arina-gray">{f.statut}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{width:`${f.progression}%`}} /></div>
-                      <span className="text-sm font-bold text-arina-dark">{f.progression}%</span>
+        {/* ── SUIVI TAB ── */}
+        {tab === 'suivi' && (
+          <div className="space-y-6">
+            <div className="card-apple p-6 animate-fade-up">
+              {cardTitle('plus', 'Ajouter un suivi')}
+              <div className="flex gap-3">
+                <input
+                  value={newSuivi}
+                  onChange={(e) => setNewSuivi(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addSuivi()}
+                  placeholder="Nouvelle entrée de suivi..."
+                  className="flex-1 px-4 py-2.5 bg-black/[0.03] border border-black/[0.06] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
+                />
+                <button onClick={addSuivi} className="px-6 py-2.5 bg-arina-blue text-white text-sm font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors">Ajouter</button>
+              </div>
+            </div>
+
+            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
+              {cardTitle('activity', 'Suivi individuel')}
+              <div className="space-y-3">
+                {suivis.map((s, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                    <span className="text-xs font-semibold text-ios-text3 bg-white px-2 py-1 rounded-lg whitespace-nowrap border border-black/[0.06]">{s.date}</span>
+                    <div className="flex-1">
+                      <span className="text-xs font-semibold text-arina-blue bg-arina-warm px-2 py-0.5 rounded-full">{s.type}</span>
+                      <p className="text-sm text-ios-text mt-1">{s.note}</p>
                     </div>
                   </div>
                 ))}
-                {(data.formations || []).length === 0 && <p className="text-arina-gray text-sm">Aucune formation enregistrée</p>}
               </div>
             </div>
-          )}
-
-          {/* ── SUIVI TAB ── */}
-          {tab === 'suivi' && (
-            <div className="space-y-6">
-              {/* Add suivi */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-arina-dark mb-3">➕ Ajouter un suivi</h3>
-                <div className="flex gap-3">
-                  <input value={newSuivi} onChange={e=>setNewSuivi(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addSuivi()} placeholder="Nouvelle entrée de suivi..." className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-                  <button onClick={addSuivi} className="px-6 py-2.5 bg-arina-blue text-white text-sm font-semibold rounded-xl hover:bg-arina-blue-dark">Ajouter</button>
-                </div>
-              </div>
-
-              {/* Suivi entries */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-arina-dark mb-4">📋 Suivi individuel</h3>
-                <div className="space-y-3">
-                  {suivis.map((s, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
-                      <span className="text-xs font-semibold text-arina-gray bg-white px-2 py-1 rounded-lg whitespace-nowrap">{s.date}</span>
-                      <div className="flex-1">
-                        <span className="text-xs font-semibold text-arina-blue bg-arina-blue/10 px-2 py-0.5 rounded-full">{s.type}</span>
-                        <p className="text-sm text-arina-dark mt-1">{s.note}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Notes confidentielles (always visible at bottom) */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
-            <h3 className="font-bold text-arina-dark mb-3">🔒 Notes confidentielles</h3>
-            <textarea rows={3} className="w-full px-4 py-3 bg-white border border-yellow-200 rounded-xl text-sm resize-none"
-              placeholder="Notes réservées à l'administrateur..."
-              value={data.notes} onChange={e => setData({...data, notes: e.target.value})} />
           </div>
+        )}
+
+        {/* Notes confidentielles */}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 animate-fade-up">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center"><Icon name="bell" className="w-4 h-4" /></div>
+            <h3 className="font-bold text-ios-text">🔒 Notes confidentielles</h3>
+          </div>
+          <textarea rows={3} className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
+            placeholder="Notes réservées à l'administrateur..."
+            value={data.notes} onChange={(e) => setData({ ...data, notes: e.target.value })} />
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

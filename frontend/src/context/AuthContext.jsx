@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
     if (apiResult && apiResult.success) {
       const userData = { ...apiResult.user, loginAt: new Date().toISOString() };
       localStorage.setItem('arina_admin', JSON.stringify(userData));
+      if (apiResult.token) localStorage.setItem('arina_admin_key', apiResult.token);
       setUser(userData);
       return { success: true };
     }
@@ -36,6 +37,8 @@ export function AuthProvider({ children }) {
     if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
       const userData = { username, role: 'admin', loginAt: new Date().toISOString() };
       localStorage.setItem('arina_admin', JSON.stringify(userData));
+      // Matches the backend default ADMIN_KEY
+      localStorage.setItem('arina_admin_key', 'arina-admin-key-2024');
       setUser(userData);
       return { success: true };
     }
@@ -45,6 +48,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem('arina_admin');
+    localStorage.removeItem('arina_admin_key');
     setUser(null);
   };
 

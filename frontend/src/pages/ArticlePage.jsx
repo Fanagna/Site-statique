@@ -4,6 +4,7 @@ import ContentBlock from '../components/ContentBlock';
 
 export default function ArticlePage() {
   const { slug } = useParams();
+  const location = useLocation();
   const article = allNews.find((n) => n.slug === slug);
 
   if (!article) {
@@ -29,7 +30,6 @@ export default function ArticlePage() {
     .filter((n) => n.id !== article.id && n.category === article.category)
     .slice(0, 3);
 
-  const location = useLocation();
   const currentUrl = window.location.origin + location.pathname;
   const shareUrl = encodeURIComponent(currentUrl);
   const shareTitle = encodeURIComponent(article.title);

@@ -4,6 +4,13 @@ const { Pool } = require('pg');
 
 const app = express();
 
+// Simple admin guard for sensitive endpoints (contacts, newsletter, activity)
+const ADMIN_KEY = process.env.ADMIN_KEY || 'arina-admin-key-2024';
+function requireAdmin(req, res, next) {
+  if (req.headers['x-admin-key'] === ADMIN_KEY) return next();
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -34,7 +41,7 @@ app.get('/api/health', async (req, res) => {
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   if (username === 'admin' && password === 'arina2024') {
-    res.json({ success: true, user: { username, role: 'admin' } });
+    res.json({ success: true, user: { username, role: 'admin' }, token: ADMIN_KEY });
   } else {
     res.status(401).json({ success: false, error: 'Identifiants incorrects' });
   }
@@ -208,6 +215,59 @@ app.post('/api/newsletter', async (req, res) => {
     );
     res.status(201).json(result.rows[0] || { message: 'Already subscribed' });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ CONTACTS (ADMIN) ═══
+app.get('/api/contacts', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM contacts ORDER BY created_at DESC LIMIT 100');
+    res.json(result.rows);
+  } catch (err) { res.json([]); }
+});
+
+app.delete('/api/contacts/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM contacts WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ NEWSLETTER (ADMIN) ═══
+app.get('/api/newsletter/subscribers', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM newsletters ORDER BY subscribed_at DESC LIMIT 200');
+    res.json(result.rows);
+  } catch (err) { res.json([]); }
+});
+
+app.delete('/api/newsletter/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM newsletters WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ ACTIVITY FEED (ADMIN) ═══
+app.get('/api/activity', requireAdmin, async (req, res) => {
+  try {
+    const [newsR, finR, benefR] = await Promise.all([
+      pool.query("SELECT id, title, created_at FROM news ORDER BY created_at DESC LIMIT 5"),
+      pool.query("SELECT id, type, amount, description, date FROM finances ORDER BY date DESC, id DESC LIMIT 5"),
+      pool.query("SELECT id, first_name, last_name, entry_date FROM beneficiaries ORDER BY id DESC LIMIT 5"),
+    ]);
+    const items = [];
+    newsR.rows.forEach(r => items.push({ id: `n${r.id}`, type: 'news', text: `Actualité publiée : « ${r.title} »`, date: r.created_at }));
+    finR.rows.forEach(r => items.push({
+      id: `f${r.id}`, type: r.type === 'income' ? 'income' : 'expense',
+      text: `${r.type === 'income' ? 'Revenu' : 'Dépense'} : ${Number(r.amount).toLocaleString('fr-FR')} Ar${r.description ? ' — ' + r.description : ''}`,
+      date: r.date,
+    }));
+    benefR.rows.forEach(r => items.push({ id: `b${r.id}`, type: 'beneficiary', text: `Bénéficiaire ajouté : ${r.first_name} ${r.last_name}`, date: r.entry_date }));
+    items.sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json(items.slice(0, 12));
+  } catch (err) { res.json([]); }
 });
 
 module.exports = app;

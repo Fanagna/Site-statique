@@ -4,8 +4,13 @@ const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:50
 // Helper: try API, fall back to null (caller handles fallback)
 async function apiCall(url, options = {}) {
   try {
+    const adminKey = localStorage.getItem('arina_admin_key');
     const res = await fetch(`${API_BASE}${url}`, {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+        ...options.headers,
+      },
       ...options,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -85,4 +90,27 @@ export async function updateNews(id, data) {
 
 export async function deleteNews(id) {
   return await apiCall(`/news/${id}`, { method: 'DELETE' });
+}
+
+/* ── Contacts (admin) ── */
+export async function fetchContacts() {
+  return await apiCall('/contacts');
+}
+
+export async function deleteContact(id) {
+  return await apiCall(`/contacts/${id}`, { method: 'DELETE' });
+}
+
+/* ── Newsletter (admin) ── */
+export async function fetchNewsletterSubscribers() {
+  return await apiCall('/newsletter/subscribers');
+}
+
+export async function deleteNewsletterSubscriber(id) {
+  return await apiCall(`/newsletter/${id}`, { method: 'DELETE' });
+}
+
+/* ── Activity feed (admin) ── */
+export async function fetchActivity() {
+  return await apiCall('/activity');
 }

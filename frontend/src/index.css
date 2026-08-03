@@ -15,8 +15,16 @@
   --color-arina-cream: #FFF8F2;
   --color-arina-warm: #FDEADB;
   --color-arina-gray: #6B7280;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  /* Apple design system */
+  --color-ios-bg: #F5F5F7;
+  --color-ios-text: #1D1D1F;
+  --color-ios-text2: #6E6E73;
+  --color-ios-text3: #86868B;
+  --color-ios-hairline: rgba(0, 0, 0, 0.07);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-serif: 'Playfair Display', Georgia, serif;
+  --shadow-apple: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+  --shadow-apple-lg: 0 2px 4px rgba(0, 0, 0, 0.05), 0 16px 48px rgba(0, 0, 0, 0.09);
 }
 
 /* Smooth scroll */
@@ -73,4 +81,110 @@ body {
 }
 .partner-logo:hover {
   filter: grayscale(0%) brightness(1);
+}
+
+/* ═══════════════════════════════════════
+   Apple design system — admin
+   ═══════════════════════════════════════ */
+
+/* Card surface */
+.card-apple {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.card-apple-hover:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.09);
+  transform: translateY(-2px);
+}
+
+/* Frosted glass */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+.glass-dark {
+  background: rgba(245, 245, 247, 0.85);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Entrance animation */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-pop {
+  animation: popIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Chart bars grow */
+@keyframes growBar {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.animate-bar {
+  transform-origin: bottom;
+  animation: growBar 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes drawDonut {
+  from { stroke-dashoffset: var(--donut-start, 1000); }
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #e9e9ee;
+  border-radius: 10px;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* Dot pulse for status */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-pulse-dot {
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+
+/* Slim scrollbar for panels */
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Apple number tabular for amounts */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
