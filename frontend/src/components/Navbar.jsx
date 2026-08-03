@@ -26,9 +26,11 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-arina-blue rounded-xl flex items-center justify-center text-white font-serif font-bold text-lg lg:text-xl shadow-lg group-hover:bg-arina-blue-dark transition-colors">
-              A
-            </div>
+            <img
+              src="/logo-arina.jpg"
+              alt="ARINA Association"
+              className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-contain shadow-lg group-hover:scale-105 transition-transform"
+            />
             <div className="hidden sm:block">
               <div className="text-sm font-bold text-arina-blue leading-tight">ARINA</div>
               <div className="text-[10px] text-arina-gray leading-tight">Association</div>

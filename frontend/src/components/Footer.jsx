@@ -7,9 +7,11 @@ export default function Footer() {
           {/* About */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-arina-gold rounded-xl flex items-center justify-center text-white font-serif font-bold text-lg">
-                A
-              </div>
+              <img
+                src="/logo-arina.jpg"
+                alt="ARINA Association"
+                className="w-10 h-10 rounded-xl object-contain"
+              />
               <div>
                 <div className="text-lg font-bold text-white">ARINA</div>
                 <div className="text-xs text-gray-400">Association</div>
