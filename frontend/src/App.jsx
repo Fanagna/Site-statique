@@ -6,6 +6,8 @@ import NewsPage from './pages/NewsPage';
 import ArticlePage from './pages/ArticlePage';
 import TestimonialsPage from './pages/TestimonialsPage';
 import ContactPage from './pages/ContactPage';
+import ActionsPage from './pages/ActionsPage';
+import PillarPage from './pages/PillarPage';
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
           <Route path="/actualites/:slug" element={<ArticlePage />} />
           <Route path="/temoignages" element={<TestimonialsPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/actions/:pillar" element={<PillarPage />} />
         </Routes>
         <Footer />
       </div>
