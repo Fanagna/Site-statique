@@ -8,6 +8,7 @@ import TestimonialsPage from './pages/TestimonialsPage';
 import ContactPage from './pages/ContactPage';
 import ActionsPage from './pages/ActionsPage';
 import PillarPage from './pages/PillarPage';
+import SoutenirPage from './pages/SoutenirPage';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/actions" element={<ActionsPage />} />
           <Route path="/actions/:pillar" element={<PillarPage />} />
+          <Route path="/soutenir" element={<SoutenirPage />} />
         </Routes>
         <Footer />
       </div>

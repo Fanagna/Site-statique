@@ -71,7 +71,7 @@ export default function Navbar() {
 
             {/* Donate button */}
             <Link
-              to="/#cta"
+              to="/soutenir"
               className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-red-500 transition-all shadow-md hover:shadow-lg"
             >
               ❤️ Don
@@ -79,7 +79,7 @@ export default function Navbar() {
 
             {/* Volunteer button */}
             <Link
-              to="/#cta"
+              to="/soutenir"
               className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-gold text-white text-sm font-semibold rounded-lg hover:bg-arina-gold-light transition-all shadow-md hover:shadow-lg"
             >
               🤝 Bénévole
@@ -127,10 +127,10 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="flex gap-2 pt-3 px-4 sm:hidden">
-            <Link to="/#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
+            <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
               ❤️ Don
             </Link>
-            <Link to="/#cta" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
+            <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
               🤝 Bénévole
             </Link>
           </div>

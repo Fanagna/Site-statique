@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function CTASection() {
   return (
     <section id="cta" className="py-20 lg:py-28 bg-gradient-to-br from-arina-blue via-arina-blue-dark to-[#0D3B4F] relative overflow-hidden">
@@ -23,24 +25,24 @@ export default function CTASection() {
         </p>
         
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a
-            href="#"
+          <Link
+            to="/soutenir"
             className="w-full sm:w-auto px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-xl hover:shadow-2xl pulse-gold flex items-center justify-center gap-2"
           >
             ❤️ Faire un don
-          </a>
-          <a
-            href="#"
+          </Link>
+          <Link
+            to="/soutenir"
             className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur-sm text-white text-lg font-semibold rounded-xl border-2 border-white/30 hover:bg-white/20 hover:border-white/50 transition-all flex items-center justify-center gap-2"
           >
             🤝 Devenir bénévole
-          </a>
-          <a
-            href="#"
+          </Link>
+          <Link
+            to="/soutenir"
             className="w-full sm:w-auto px-8 py-4 bg-white/5 backdrop-blur-sm text-white text-lg font-semibold rounded-xl border-2 border-white/20 hover:bg-white/15 hover:border-white/40 transition-all flex items-center justify-center gap-2"
           >
             📧 Newsletter
-          </a>
+          </Link>
         </div>
       </div>
     </section>

@@ -374,7 +374,7 @@ export default function TestimonialsPage() {
             Chaque geste compte. Rejoignez-nous pour écrire le prochain chapitre de ces jeunes.
           </p>
           <Link
-            to="/#cta"
+            to="/soutenir"
             className="inline-flex items-center gap-2 px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-xl"
           >
             ❤️ Soutenir ARINA

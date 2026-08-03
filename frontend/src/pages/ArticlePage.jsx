@@ -170,13 +170,13 @@ export default function ArticlePage() {
           <p className="text-white/80 mb-6">Soutenez nos actions pour continuer à changer des vies.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              to="/#cta"
+              to="/soutenir"
               className="px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
             >
               ❤️ Faire un don
             </Link>
             <Link
-              to="/#cta"
+              to="/soutenir"
               className="px-6 py-3 bg-white/15 text-white font-semibold rounded-xl border border-white/30 hover:bg-white/25 transition-colors"
             >
               🤝 Devenir bénévole

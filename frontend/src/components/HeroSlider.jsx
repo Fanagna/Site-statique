@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 const slides = [
   {
@@ -7,7 +8,7 @@ const slides = [
     bg: "https://images.unsplash.com/photo-1529390079861-591de354faf5?w=1600&q=80",
     ctas: [
       { label: "Découvrir nos actions", href: "#pillars", primary: false },
-      { label: "Faire un don", href: "#cta", primary: true },
+      { label: "Faire un don", href: "/soutenir", primary: true },
     ],
   },
   {
@@ -16,7 +17,7 @@ const slides = [
     bg: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80",
     ctas: [
       { label: "Nos formations", href: "#pillars", primary: false },
-      { label: "Devenir bénévole", href: "#cta", primary: true },
+      { label: "Devenir bénévole", href: "/soutenir", primary: true },
     ],
   },
   {
@@ -25,7 +26,7 @@ const slides = [
     bg: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1600&q=80",
     ctas: [
       { label: "Voir les actus", href: "#news", primary: false },
-      { label: "Nous soutenir", href: "#cta", primary: true },
+      { label: "Nous soutenir", href: "/soutenir", primary: true },
     ],
   },
 ];
@@ -82,9 +83,9 @@ export default function HeroSlider() {
             </p>
             <div className="flex flex-wrap gap-4">
               {slide.ctas.map((cta, i) => (
-                <a
+                <Link
                   key={i}
-                  href={cta.href}
+                  to={cta.href}
                   className={`px-8 py-4 rounded-lg font-semibold text-base transition-all duration-300 transform hover:-translate-y-0.5 ${
                     cta.primary
                       ? 'bg-arina-gold text-white shadow-xl hover:bg-arina-gold-light hover:shadow-2xl pulse-gold'
@@ -92,7 +93,7 @@ export default function HeroSlider() {
                   }`}
                 >
                   {cta.label}
-                </a>
+                </Link>
               ))}
             </div>
           </div>
