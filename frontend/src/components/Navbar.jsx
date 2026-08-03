@@ -5,7 +5,7 @@ const navLinks = [
   { label: 'Accueil', href: '/' },
   { label: 'Nos Actions', href: '/#pillars' },
   { label: 'Actualités', href: '/actualites' },
-  { label: 'Témoignages', href: '/#testimonials' },
+  { label: 'Témoignages', href: '/temoignages' },
   { label: 'Contact', href: '/#footer' },
 ];
 
