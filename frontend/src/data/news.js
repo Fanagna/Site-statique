@@ -8,8 +8,48 @@ export const allNews = [
     year: 2024,
     views: 150,
     category: 'Événement',
-    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=600&q=80',
+    author: 'Équipe ARINA',
+    readTime: '5 min',
+    tags: ['menuiserie', 'formation', 'atelier', 'jeunes'],
+    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=1200&q=80',
+    imageCaption: 'Les jeunes de l\'atelier menuiserie présentant leurs créations',
     excerpt: "Un atelier pratique qui permet aux jeunes d'acquérir des compétences techniques tout en développant leur créativité. 25 jeunes ont participé à cette session intensive.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Le centre ARINA a organisé le week-end dernier un atelier de menuiserie qui a réuni 25 jeunes participants. Pendant trois jours, encadrés par des artisans professionnels, ils ont appris les bases du travail du bois : mesurer, découper, assembler et poncer.",
+      },
+      {
+        type: 'paragraph',
+        text: "« C'est la première fois que je fabrique quelque chose de mes propres mains. Je suis fier de ce que j'ai fait », témoigne Kévin, 17 ans, en montrant la petite table qu'il a réalisée. Cette fierté se lisait sur tous les visages à la fin de l'atelier.",
+      },
+      {
+        type: 'image',
+        src: 'https://images.unsplash.com/photo-1581539250439-c96689b516dd?w=800&q=80',
+        caption: 'Un participant appliquant les finitions sur son meuble',
+      },
+      {
+        type: 'heading',
+        text: 'Des compétences pour l\'avenir',
+      },
+      {
+        type: 'paragraph',
+        text: "Au-delà de l'aspect technique, cet atelier vise à redonner confiance aux jeunes. La menuiserie, comme d'autres métiers manuels, offre des débouchés concrets. Plusieurs participants ont exprimé le souhait de poursuivre dans cette voie, et l'association étudie la possibilité de mettre en place une formation certifiante.",
+      },
+      {
+        type: 'paragraph',
+        text: "Les meubles fabriqués seront utilisés pour aménager le nouveau foyer d'accueil qui ouvrira ses portes en janvier 2025. Une belle façon de contribuer à l'association tout en apprenant un métier.",
+      },
+      {
+        type: 'quote',
+        text: "Voir ces jeunes retrouver le sourire et la confiance en eux à travers le travail manuel, c'est toute la mission d'ARINA.",
+        author: 'Rakoto Andry, Éducateur ARINA',
+      },
+      {
+        type: 'paragraph',
+        text: "L'atelier s'est clôturé par une petite cérémonie où chaque participant a reçu un certificat de participation et a pu repartir avec sa création. Les familles présentes n'ont pas caché leur émotion.",
+      },
+    ],
     featured: true,
   },
   {
@@ -21,8 +61,39 @@ export const allNews = [
     year: 2024,
     views: 230,
     category: 'Événement',
-    image: 'https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?w=600&q=80',
+    author: 'Service Communication',
+    readTime: '4 min',
+    tags: ['ministre', 'visite', 'officiel', 'justice'],
+    image: 'https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?w=1200&q=80',
+    imageCaption: 'Le Ministre de la Justice en visite au centre ARINA',
     excerpt: "Une visite officielle qui souligne l'importance du travail accompli par l'association pour la réinsertion des jeunes.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Le Ministre de la Justice a effectué une visite officielle au centre ARINA ce lundi 1er décembre. Accompagné de sa délégation, il a pu découvrir les différentes installations et échanger avec les équipes éducatives ainsi qu'avec les jeunes bénéficiaires.",
+      },
+      {
+        type: 'paragraph',
+        text: "« Le travail accompli par l'association ARINA est remarquable. La réinsertion des mineurs est une priorité nationale et je salue l'engagement de tous ceux qui œuvrent au quotidien pour offrir une seconde chance à ces jeunes », a déclaré le Ministre lors de son allocution.",
+      },
+      {
+        type: 'heading',
+        text: 'Des annonces importantes',
+      },
+      {
+        type: 'paragraph',
+        text: "Au cours de cette visite, le Ministre a annoncé le déblocage d'un fonds spécial de 50 millions d'Ariary pour soutenir les programmes de formation professionnelle destinés aux jeunes en réinsertion. Une subvention qui permettra d'équiper deux nouveaux ateliers : un atelier de couture et un atelier d'informatique.",
+      },
+      {
+        type: 'quote',
+        text: "L'État ne peut pas tout faire seul. Les associations comme ARINA sont des partenaires indispensables pour la réinsertion des jeunes.",
+        author: 'Le Ministre de la Justice',
+      },
+      {
+        type: 'paragraph',
+        text: "La visite s'est conclue par un déjeuner préparé par les jeunes de l'atelier cuisine, une occasion informelle d'échanges riches entre le Ministre, son équipe et le personnel d'ARINA.",
+      },
+    ],
     featured: false,
   },
   {
@@ -34,8 +105,59 @@ export const allNews = [
     year: 2024,
     views: 450,
     category: 'Témoignage',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=80',
+    author: 'Service Communication',
+    readTime: '6 min',
+    tags: ['témoignage', 'réinsertion', 'parcours', 'espoir'],
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&q=80',
+    imageCaption: 'Jean, 17 ans, bénéficiaire du programme ARINA',
     excerpt: "Découvrez le parcours inspirant de Jean qui, grâce à l'association, a trouvé sa voie professionnelle en menuiserie.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Jean a 17 ans. Il y a encore un an, il était dans un centre pénitentiaire pour mineurs, sans perspective d'avenir. Aujourd'hui, il est apprenti menuisier et prépare son CAP. Un parcours qu'il doit en grande partie à l'association ARINA.",
+      },
+      {
+        type: 'heading',
+        text: "Le déclic",
+      },
+      {
+        type: 'paragraph',
+        text: "« Quand je suis sorti, je ne savais pas où aller. Ma famille m'avait rejeté. Je me suis retrouvé à la rue pendant deux semaines. C'est un éducateur du centre qui m'a parlé d'ARINA », raconte Jean, le regard tourné vers le sol, comme si les souvenirs étaient encore douloureux.",
+      },
+      {
+        type: 'paragraph',
+        text: "Dès son arrivée au foyer, Jean a été pris en charge par une équipe pluridisciplinaire : éducateur, psychologue, assistant social. « Pour la première fois, quelqu'un m'écoutait vraiment. On ne me jugeait pas sur mon passé. »",
+      },
+      {
+        type: 'quote',
+        text: "Pour la première fois, quelqu'un m'écoutait vraiment. On ne me jugeait pas sur mon passé.",
+        author: 'Jean, 17 ans',
+      },
+      {
+        type: 'heading',
+        text: 'La découverte de la menuiserie',
+      },
+      {
+        type: 'paragraph',
+        text: "C'est lors d'un atelier découverte que Jean a touché pour la première fois à la menuiserie. « J'ai tout de suite accroché. Travailler le bois, voir un objet prendre forme entre mes mains, ça m'a donné un but. »",
+      },
+      {
+        type: 'paragraph',
+        text: "Six mois plus tard, Jean maîtrise les bases du métier et a intégré un programme d'apprentissage en alternance chez un artisan partenaire. Il perçoit une petite rémunération et a pu louer une chambre.",
+      },
+      {
+        type: 'heading',
+        text: "Et maintenant ?",
+      },
+      {
+        type: 'paragraph',
+        text: "« Mon rêve, c'est d'ouvrir mon propre atelier un jour. Et peut-être, plus tard, embaucher des jeunes qui ont eu le même parcours que moi. » Un sourire éclaire son visage. « ARINA m'a sauvé la vie. Maintenant, je veux rendre ce qu'on m'a donné. »",
+      },
+      {
+        type: 'paragraph',
+        text: "Jean fait partie des 30 jeunes actuellement accompagnés par ARINA. Son histoire illustre la mission de l'association : donner une seconde chance à chaque enfant.",
+      },
+    ],
     featured: false,
   },
   {
@@ -47,8 +169,43 @@ export const allNews = [
     year: 2024,
     views: 89,
     category: 'Rapport',
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&q=80',
+    author: 'Direction ARINA',
+    readTime: '5 min',
+    tags: ['bilan', 'rapport', 'chiffres', 'impact'],
+    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80',
+    imageCaption: 'Rapport annuel 2024 de l\'association ARINA',
     excerpt: "Le rapport annuel 2024 présente les résultats encourageants de nos programmes d'accompagnement et de formation.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "L'association ARINA publie son rapport annuel 2024, une année marquée par une croissance significative de ses activités. Avec 45 jeunes accompagnés (contre 30 en 2023), l'association confirme son rôle essentiel dans le paysage de la réinsertion à Madagascar.",
+      },
+      {
+        type: 'heading',
+        text: 'Chiffres clés 2024',
+      },
+      {
+        type: 'paragraph',
+        text: "Parmi les indicateurs les plus marquants : 85 % des jeunes suivis ont retrouvé une activité (emploi, formation ou stage) dans les 6 mois suivant leur prise en charge. 12 jeunes ont obtenu une certification professionnelle en menuiserie, cuisine ou agriculture. 3 nouveaux partenariats ont été signés avec des entreprises locales.",
+      },
+      {
+        type: 'paragraph',
+        text: "Le taux d'abandon des programmes est tombé à 8 %, contre 15 % l'année précédente, témoignant d'un accompagnement de plus en plus efficace et personnalisé.",
+      },
+      {
+        type: 'heading',
+        text: 'Perspectives 2025',
+      },
+      {
+        type: 'paragraph',
+        text: "Pour 2025, ARINA ambitionne d'accompagner 60 jeunes et d'ouvrir un deuxième foyer d'accueil. L'association prévoit également de lancer un programme de mentorat avec des professionnels bénévoles et d'étendre ses formations à de nouveaux métiers comme l'informatique et la couture.",
+      },
+      {
+        type: 'quote',
+        text: "Ces résultats sont le fruit du travail acharné de toute notre équipe et du soutien indéfectible de nos partenaires et donateurs.",
+        author: 'La Direction ARINA',
+      },
+    ],
     featured: false,
   },
   {
@@ -60,9 +217,35 @@ export const allNews = [
     year: 2024,
     views: 67,
     category: 'Projet',
-    image: 'https://images.unsplash.com/photo-1516156008625-3a9d6067fab5?w=600&q=80',
+    author: 'Équipe ARINA',
+    readTime: '3 min',
+    tags: ['foyer', 'hébergement', 'inauguration', 'nouveauté'],
+    image: 'https://images.unsplash.com/photo-1516156008625-3a9d6067fab5?w=1200&q=80',
+    imageCaption: 'Le nouveau foyer d\'accueil ARINA',
     excerpt: "Un nouveau foyer pouvant accueillir 15 jeunes supplémentaires a ouvert ses portes grâce au soutien de nos partenaires.",
-    featured: false,
+    content: [
+      {
+        type: 'paragraph',
+        text: "C'est une grande étape pour l'association ARINA : un nouveau foyer d'accueil a ouvert ses portes ce 10 novembre dans le quartier d'Antanimena. D'une capacité de 15 places, il vient doubler la capacité d'hébergement de l'association.",
+      },
+      {
+        type: 'paragraph',
+        text: "Le bâtiment, entièrement rénové grâce aux dons de nos partenaires, comprend 5 chambres, une salle commune, une cuisine équipée et un petit jardin potager où les jeunes pourront cultiver leurs propres légumes.",
+      },
+      {
+        type: 'heading',
+        text: 'Une inauguration émouvante',
+      },
+      {
+        type: 'paragraph',
+        text: "La cérémonie d'inauguration a réuni les équipes d'ARINA, les partenaires financiers, les autorités locales et les premiers résidents. Des jeunes déjà accompagnés par l'association ont témoigné de l'importance d'avoir un toit pour se reconstruire.",
+      },
+      {
+        type: 'paragraph',
+        text: "Le foyer accueille déjà 8 jeunes et atteindra sa pleine capacité d'ici la fin du mois. Chaque résident bénéficie d'un accompagnement personnalisé avec un projet de vie construit avec son éducateur référent.",
+      },
+    ],
+    featured: true,
   },
   {
     id: 6,
@@ -73,8 +256,34 @@ export const allNews = [
     year: 2024,
     views: 124,
     category: 'Événement',
-    image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600&q=80',
+    author: 'Équipe ARINA',
+    readTime: '4 min',
+    tags: ['sortie', 'nature', 'éducation', 'Andasibe'],
+    image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=1200&q=80',
+    imageCaption: 'Les jeunes d\'ARINA au Parc National d\'Andasibe',
     excerpt: "Une journée inoubliable pour nos jeunes qui ont découvert la richesse de la biodiversité malgache.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Vingt jeunes du centre ARINA ont eu la chance de participer à une sortie éducative au Parc National d'Andasibe, l'un des joyaux de la biodiversité malgache. Une journée placée sous le signe de la découverte et de l'émerveillement.",
+      },
+      {
+        type: 'paragraph',
+        text: "Accompagnés par un guide naturaliste, les jeunes ont pu observer les célèbres lémuriens Indri indri, entendre leurs chants caractéristiques et découvrir la flore exceptionnelle de la forêt primaire. « Je n'avais jamais vu la forêt de cette façon. C'est magnifique », s'étonne Lala, 15 ans.",
+      },
+      {
+        type: 'heading',
+        text: "L'éducation à l'environnement",
+      },
+      {
+        type: 'paragraph',
+        text: "Cette sortie s'inscrit dans le volet éducatif du programme ARINA. L'objectif est double : offrir une expérience enrichissante aux jeunes et les sensibiliser à la protection de l'environnement, un enjeu crucial pour Madagascar.",
+      },
+      {
+        type: 'paragraph',
+        text: "La journée s'est conclue par un pique-nique en pleine nature et des jeux collectifs. « Des moments comme celui-ci sont essentiels. Ils permettent aux jeunes de s'évader, de rêver, et de créer des souvenirs positifs », souligne l'éducateur responsable de la sortie.",
+      },
+    ],
     featured: false,
   },
   {
@@ -86,8 +295,35 @@ export const allNews = [
     year: 2024,
     views: 203,
     category: 'Rapport',
-    image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&q=80',
+    author: 'Direction ARINA',
+    readTime: '4 min',
+    tags: ['cuisine', 'formation', 'programme', 'métier'],
+    image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=1200&q=80',
+    imageCaption: 'La nouvelle cuisine pédagogique du centre ARINA',
     excerpt: "Le nouveau programme de formation en cuisine débutera en janvier 2025 avec 20 places disponibles.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "L'association ARINA lance son tout nouveau programme de formation en cuisine pour la saison 2024-2025. Avec 20 places disponibles, cette formation certifiante de 6 mois ouvrira ses portes en janvier 2025.",
+      },
+      {
+        type: 'heading',
+        text: 'Un métier qui recrute',
+      },
+      {
+        type: 'paragraph',
+        text: "Le secteur de la restauration est l'un des plus dynamiques à Antananarivo. La demande de cuisiniers qualifiés ne cesse de croître, notamment dans les hôtels et les restaurants qui se développent dans la capitale. Cette formation répond à un besoin réel du marché du travail.",
+      },
+      {
+        type: 'paragraph',
+        text: "Les apprentis apprendront les techniques de base (découpe, cuissons, sauces), l'hygiène alimentaire, la gestion des stocks, et réaliseront des stages pratiques dans des restaurants partenaires. Une cuisine pédagogique entièrement équipée a été aménagée dans les locaux d'ARINA.",
+      },
+      {
+        type: 'quote',
+        text: "La cuisine est un métier de passion et de partage. C'est aussi une voie rapide vers l'emploi et l'autonomie.",
+        author: 'Chef Rakoto, Formateur cuisine ARINA',
+      },
+    ],
     featured: false,
   },
   {
@@ -99,8 +335,43 @@ export const allNews = [
     year: 2024,
     views: 312,
     category: 'Témoignage',
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&q=80',
+    author: 'Service Communication',
+    readTime: '5 min',
+    tags: ['témoignage', 'cuisine', 'parcours', 'réussite'],
+    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=1200&q=80',
+    imageCaption: 'Marie, 16 ans, passionnée de cuisine',
     excerpt: "Après 6 mois au centre ARINA, Marie a découvert sa passion pour la cuisine et prépare son CAP.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Marie a 16 ans et un rêve : devenir cheffe cuisinière. Un rêve qui semblait inaccessible il y a encore quelques mois, lorsqu'elle est arrivée au centre ARINA, perdue et désorientée après un parcours difficile.",
+      },
+      {
+        type: 'paragraph',
+        text: "« La cuisine, c'est ma grand-mère qui me l'a transmise. Quand j'étais petite, je la regardais préparer les repas. C'est mon seul bon souvenir d'enfance », confie Marie, les yeux brillants.",
+      },
+      {
+        type: 'heading',
+        text: "De la rue aux fourneaux",
+      },
+      {
+        type: 'paragraph',
+        text: "Arrivée à ARINA il y a 6 mois, Marie a d'abord été hébergée au foyer, puis orientée vers l'atelier cuisine. « Dès le premier jour, j'ai su que c'était ma place. Couper, mélanger, assaisonner... je me sens utile. »",
+      },
+      {
+        type: 'paragraph',
+        text: "Aujourd'hui, Marie maîtrise les bases et prépare un CAP cuisine. Elle effectue également des stages dans un restaurant partenaire chaque week-end. « Le chef dit que j'apprends vite. Il m'a même demandé de rester après mon stage ! »",
+      },
+      {
+        type: 'quote',
+        text: "La cuisine m'a sauvée. Dans les fourneaux, j'oublie tout le reste. Je pense juste à créer, à faire plaisir.",
+        author: 'Marie, 16 ans',
+      },
+      {
+        type: 'paragraph',
+        text: "Son parcours inspire déjà d'autres jeunes du centre. Marie participe désormais comme « mentor junior » pour les nouveaux arrivants, partageant son expérience et sa détermination.",
+      },
+    ],
     featured: false,
   },
   {
@@ -112,8 +383,35 @@ export const allNews = [
     year: 2024,
     views: 178,
     category: 'Projet',
-    image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&q=80',
+    author: 'Direction ARINA',
+    readTime: '4 min',
+    tags: ['UNICEF', 'partenariat', 'éducation', 'filles'],
+    image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1200&q=80',
+    imageCaption: 'Signature du partenariat ARINA-UNICEF',
     excerpt: "Un nouveau partenariat ambitieux pour garantir l'accès à l'éducation des jeunes filles vulnérables.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "L'association ARINA et l'UNICEF Madagascar ont signé ce 12 octobre un accord de partenariat visant à améliorer l'accès à l'éducation des jeunes filles vulnérables. Ce programme, d'une durée de 3 ans, bénéficiera à 100 jeunes filles.",
+      },
+      {
+        type: 'heading',
+        text: "Un programme sur mesure",
+      },
+      {
+        type: 'paragraph',
+        text: "Le programme prévoit : des bourses scolaires, du soutien scolaire, un accompagnement psychosocial, et des formations aux compétences de vie. L'accent sera mis sur les filles sortant des établissements pénitentiaires ou en situation de rue.",
+      },
+      {
+        type: 'paragraph',
+        text: "« Les filles sont particulièrement vulnérables et souvent oubliées dans les programmes de réinsertion. Ce partenariat avec l'UNICEF nous permet de leur offrir une chance réelle de se reconstruire par l'éducation », explique la directrice d'ARINA.",
+      },
+      {
+        type: 'quote',
+        text: "Éduquer une fille, c'est éduquer toute une génération. Ce partenariat est un investissement dans l'avenir de Madagascar.",
+        author: 'Représentant UNICEF Madagascar',
+      },
+    ],
     featured: false,
   },
   {
@@ -125,8 +423,38 @@ export const allNews = [
     year: 2024,
     views: 267,
     category: 'Événement',
-    image: 'https://images.unsplash.com/photo-1523050854058-8df90910fa58?w=600&q=80',
+    author: 'Service Communication',
+    readTime: '5 min',
+    tags: ['diplômes', 'cérémonie', 'réussite', 'promotion'],
+    image: 'https://images.unsplash.com/photo-1523050854058-8df90910fa58?w=1200&q=80',
+    imageCaption: 'Les diplômés de la promotion 2024',
     excerpt: "18 jeunes ont reçu leur certification professionnelle lors d'une cérémonie émouvante.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Dix-huit jeunes du centre ARINA ont reçu leur certification professionnelle lors d'une cérémonie riche en émotions ce samedi 5 octobre. Menuiserie, cuisine, agriculture : trois filières étaient représentées.",
+      },
+      {
+        type: 'paragraph',
+        text: "Familles, éducateurs, partenaires et autorités locales étaient présents pour célébrer cette réussite collective. « C'est le plus beau jour de ma vie », confie Toky, 18 ans, certifié en agriculture, les larmes aux yeux.",
+      },
+      {
+        type: 'heading',
+        text: 'Des parcours inspirants',
+      },
+      {
+        type: 'paragraph',
+        text: "Chaque diplômé a un parcours unique, marqué par des difficultés mais aussi par une résilience exceptionnelle. La cérémonie a été l'occasion de rappeler que la réinsertion est possible, quand on donne aux jeunes les moyens de réussir.",
+      },
+      {
+        type: 'paragraph',
+        text: "Sur les 18 diplômés, 12 ont déjà trouvé un emploi ou poursuivent une formation complémentaire. Les 6 autres sont en recherche active, accompagnés par le service d'insertion professionnelle d'ARINA.",
+      },
+      {
+        type: 'paragraph',
+        text: "La cérémonie s'est terminée par un buffet préparé par les jeunes de l'atelier cuisine, suivi d'une animation musicale. Une journée mémorable qui restera gravée dans les mémoires.",
+      },
+    ],
     featured: true,
   },
   {
@@ -138,8 +466,30 @@ export const allNews = [
     year: 2024,
     views: 56,
     category: 'Rapport',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80',
+    author: 'Direction ARINA',
+    readTime: '4 min',
+    tags: ['rapport', 'trimestriel', 'indicateurs', 'T3'],
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80',
+    imageCaption: 'Rapport trimestriel T3 2024',
     excerpt: "Le troisième trimestre 2024 montre une progression constante de nos indicateurs de réinsertion.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "Le rapport du troisième trimestre 2024 confirme la dynamique positive de l'association ARINA. Les indicateurs de réinsertion sont en progression constante, avec un taux d'insertion de 87 % sur la période juillet-septembre.",
+      },
+      {
+        type: 'heading',
+        text: 'Faits marquants du T3',
+      },
+      {
+        type: 'paragraph',
+        text: "Parmi les moments forts : 12 nouveaux jeunes accueillis, le lancement d'un atelier couture, la signature d'un partenariat avec un hôtel pour les stages en cuisine, et la formation de 3 éducateurs supplémentaires. Le budget a été respecté à 95 %.",
+      },
+      {
+        type: 'paragraph',
+        text: "Les défis identifiés concernent principalement la recherche de stages pour les jeunes en formation et le besoin de renforcer l'équipe de psychologues. Des pistes d'amélioration sont déjà à l'étude pour le prochain trimestre.",
+      },
+    ],
     featured: false,
   },
   {
@@ -151,8 +501,34 @@ export const allNews = [
     year: 2024,
     views: 198,
     category: 'Projet',
-    image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=80',
+    author: 'Équipe ARINA',
+    readTime: '4 min',
+    tags: ['mentorat', 'bénévoles', 'programme', 'accompagnement'],
+    image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&q=80',
+    imageCaption: 'Première rencontre entre mentors et jeunes',
     excerpt: "Un nouveau programme qui met en relation des professionnels bénévoles avec nos jeunes pour du mentorat.",
+    content: [
+      {
+        type: 'paragraph',
+        text: "L'association ARINA innove avec le lancement de son programme de mentorat bénévole. Le principe est simple : mettre en relation un jeune accompagné par ARINA avec un professionnel bénévole qui le guide dans son projet professionnel.",
+      },
+      {
+        type: 'heading',
+        text: 'Comment ça fonctionne ?',
+      },
+      {
+        type: 'paragraph',
+        text: "Chaque binôme mentor-mentoré se rencontre une fois par semaine pendant 6 mois. Le mentor partage son expérience, ses conseils, son réseau, et aide le jeune à construire son projet. Les premiers retours sont très positifs.",
+      },
+      {
+        type: 'paragraph',
+        text: "« Avoir un mentor, c'est comme avoir un grand frère qui croit en toi. Il me montre que c'est possible, que je peux y arriver », témoigne un jeune participant. Actuellement, 15 binômes sont actifs et l'association recherche de nouveaux mentors.",
+      },
+      {
+        type: 'paragraph',
+        text: "Les professionnels intéressés peuvent candidater sur le site d'ARINA. Aucune compétence spécifique n'est requise, seulement de la bienveillance et l'envie d'aider un jeune à construire son avenir.",
+      },
+    ],
     featured: false,
   },
 ];

@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import NewsPage from './pages/NewsPage';
+import ArticlePage from './pages/ArticlePage';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/actualites" element={<NewsPage />} />
+          <Route path="/actualites/:slug" element={<ArticlePage />} />
         </Routes>
         <Footer />
       </div>
