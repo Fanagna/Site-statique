@@ -53,7 +53,7 @@ export default function SoutenirPage() {
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-[#0D3B4F] py-16 lg:py-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark py-16 lg:py-24 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 w-80 h-80 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />

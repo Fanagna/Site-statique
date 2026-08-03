@@ -33,7 +33,7 @@ export default function TestimonialsPage() {
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero Banner */}
-      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-[#0D3B4F] py-20 lg:py-28 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-arina-blue via-arina-blue-dark to-arina-dark py-20 lg:py-28 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-10 right-10 w-96 h-96 bg-arina-gold rounded-full blur-3xl" />
