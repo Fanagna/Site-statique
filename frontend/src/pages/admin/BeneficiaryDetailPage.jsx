@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { updateBeneficiaryPhoto } from '../../services/api';
 
 /* ── Mock enriched data ── */
 const benefDetails = {
@@ -36,6 +37,8 @@ export default function BeneficiaryDetailPage() {
   const [form, setForm] = useState({});
   const [suivis, setSuivis] = useState([]);
   const [newSuivi, setNewSuivi] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let detail = benefDetails[id];
@@ -76,6 +79,51 @@ export default function BeneficiaryDetailPage() {
     if (!newSuivi.trim()) return;
     setSuivis([{ date: new Date().toLocaleDateString('fr-FR'), type: 'Suivi', note: newSuivi }, ...suivis]);
     setNewSuivi('');
+  };
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image trop volumineuse (max 5MB)');
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result;
+      const updated = { ...data, photo: base64 };
+      setData(updated);
+      setForm({ ...form, photo: base64 });
+      // Persist photo
+      const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+      const idx = stored.findIndex(x => x.id === Number(id));
+      if (idx >= 0) {
+        stored[idx].photo = base64;
+        localStorage.setItem('arina_benefs', JSON.stringify(stored));
+      }
+      // Try API
+      updateBeneficiaryPhoto(id, base64).catch(() => {});
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto = () => {
+    const updated = { ...data };
+    delete updated.photo;
+    setData(updated);
+    setForm({ ...form, photo: undefined });
+    const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+    const idx = stored.findIndex(x => x.id === Number(id));
+    if (idx >= 0) {
+      delete stored[idx].photo;
+      localStorage.setItem('arina_benefs', JSON.stringify(stored));
+    }
   };
 
   const sidebarItems = [
@@ -137,10 +185,37 @@ export default function BeneficiaryDetailPage() {
               <div className="grid lg:grid-cols-3 gap-6">
                 {/* Photo card */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-                  <div className="w-24 h-24 mx-auto bg-gray-200 rounded-full flex items-center justify-center text-4xl text-gray-400 mb-3">
-                    👤
+                  <div
+                    onClick={handlePhotoClick}
+                    className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-gray-300 bg-gray-100'}`}
+                  >
+                    {uploading ? (
+                      <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
+                    ) : data.photo ? (
+                      <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-gray-400 group-hover:text-arina-blue transition-colors">👤</span>
+                        <span className="text-[10px] text-arina-gray group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
+                      <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity">📷 Modifier</span>
+                    </div>
                   </div>
-                  <p className="text-sm text-arina-gray">Photo confidentielle</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  <p className="text-sm text-arina-gray mb-1">Photo confidentielle</p>
+                  {data.photo && (
+                    <button onClick={removePhoto} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                      🗑️ Supprimer la photo
+                    </button>
+                  )}
                 </div>
 
                 {/* Info card */}

@@ -85,6 +85,19 @@ app.put('/api/beneficiaries/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT photo
+app.put('/api/beneficiaries/:id/photo', async (req, res) => {
+  try {
+    const { photo } = req.body;
+    const result = await pool.query(
+      'UPDATE beneficiaries SET photo_url=$1 WHERE id=$2 RETURNING *',
+      [photo, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/beneficiaries/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM beneficiaries WHERE id=$1 RETURNING *', [req.params.id]);

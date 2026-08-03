@@ -47,6 +47,13 @@ export async function deleteBeneficiary(id) {
   return await apiCall(`/beneficiaries/${id}`, { method: 'DELETE' });
 }
 
+export async function updateBeneficiaryPhoto(id, photoData) {
+  return await apiCall(`/beneficiaries/${id}/photo`, {
+    method: 'PUT',
+    body: JSON.stringify({ photo: photoData }),
+  });
+}
+
 /* ── Finances ── */
 export async function fetchFinances() {
   return await apiCall('/finances');
