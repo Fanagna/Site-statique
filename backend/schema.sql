@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS finances (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Volunteer applications (with motivation letter attachment)
+-- Volunteer applications (motivation letter + CV attachments)
 CREATE TABLE IF NOT EXISTS volunteers (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -102,5 +102,15 @@ CREATE TABLE IF NOT EXISTS volunteers (
   file_type VARCHAR(100),
   file_size INTEGER,
   file_data TEXT,
+  cv_name VARCHAR(255),
+  cv_type VARCHAR(100),
+  cv_size INTEGER,
+  cv_data TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration for existing databases (idempotent)
+ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_name VARCHAR(255);
+ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_type VARCHAR(100);
+ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_size INTEGER;
+ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_data TEXT;

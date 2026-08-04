@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
-  Bitcoin, Check, Copy, FileText, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone, Upload, X,
+  Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone,
 } from 'lucide-react';
 import AppIcon from '../components/icons';
+import FileDropzone from '../components/FileDropzone';
 import { paymentMethods } from '../data/donations';
 import { submitVolunteer } from '../services/api';
 
@@ -20,7 +21,9 @@ export default function SoutenirPage() {
   const [donorErrors, setDonorErrors] = useState({});
   const [volErrors, setVolErrors] = useState({});
   const [volunteerFile, setVolunteerFile] = useState(null);
+  const [volunteerCv, setVolunteerCv] = useState(null);
   const [fileError, setFileError] = useState('');
+  const [cvError, setCvError] = useState('');
   const [method, setMethod] = useState('orange');
   const [copied, setCopied] = useState(null);
 
@@ -48,26 +51,25 @@ export default function SoutenirPage() {
     if (!volunteer.email.trim()) e.email = "L'email est requis";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volunteer.email)) e.email = 'Email invalide';
     if (!volunteerFile) e.file = 'Veuillez joindre votre lettre de motivation (PDF, DOC ou DOCX)';
+    if (!volunteerCv) e.cv = 'Veuillez joindre votre CV (PDF, DOC ou DOCX)';
     setVolErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
+  const handleFile = (setFile, setErr) => (f) => {
     if (!f) return;
     if (!/\.(pdf|doc|docx)$/i.test(f.name)) {
-      setFileError('Format non accepté — utilisez un PDF, DOC ou DOCX.');
+      setErr('Format non accepté — utilisez un PDF, DOC ou DOCX.');
       return;
     }
     if (f.size > 5 * 1024 * 1024) {
-      setFileError('Fichier trop volumineux (maximum 5 Mo).');
+      setErr('Fichier trop volumineux (maximum 5 Mo).');
       return;
     }
-    setFileError('');
+    setErr('');
     const reader = new FileReader();
     reader.onload = () => {
-      setVolunteerFile({
+      setFile({
         name: f.name,
         type: f.type || 'application/octet-stream',
         size: f.size,
@@ -89,9 +91,11 @@ export default function SoutenirPage() {
     setVolSubmitted(true);
     setVolunteer(volunteerInit);
     setVolunteerFile(null);
+    setVolunteerCv(null);
     setFileError('');
-    // Envoi au backend (non bloquant) — l'admin reçoit la candidature + la pièce jointe
-    submitVolunteer({ ...volunteer, file: volunteerFile }).catch(() => {});
+    setCvError('');
+    // Envoi au backend (non bloquant) — l'admin reçoit la candidature + lettre de motivation + CV
+    submitVolunteer({ ...volunteer, file: volunteerFile, cv: volunteerCv }).catch(() => {});
   };
 
   const inputClass = (err) =>
@@ -351,7 +355,7 @@ export default function SoutenirPage() {
                   <PartyPopper className="w-14 h-14 mx-auto text-arina-gold mb-4" />
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">Merci pour votre engagement !</h2>
                   <p className="text-arina-gray mb-6 max-w-md mx-auto">
-                    Notre équipe vous contactera dans les 48h pour discuter de votre mission bénévole. Votre lettre de motivation a bien été transmise à l'équipe ARINA.
+                    Notre équipe vous contactera dans les 48h pour discuter de votre mission bénévole. Votre lettre de motivation et votre CV ont bien été transmis à l'équipe ARINA.
                   </p>
                   <button onClick={() => setVolSubmitted(false)} className="px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors">
                     Envoyer une autre candidature
@@ -431,48 +435,26 @@ export default function SoutenirPage() {
                       <p className="text-xs text-arina-gray text-right mt-1">{volunteer.motivation.length}/500</p>
                     </div>
 
-                    {/* Lettre de motivation (pièce jointe) */}
-                    <div>
-                      <label className="block text-sm font-semibold text-arina-dark mb-1.5">
-                        Lettre de motivation (pièce jointe) <span className="text-arina-accent">*</span>
-                      </label>
-                      <label
-                        className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition-all bg-gray-50 ${
-                          fileError
-                            ? 'border-red-300'
-                            : volunteerFile
-                              ? 'border-arina-accent bg-arina-accent/5'
-                              : 'border-gray-300 hover:border-arina-accent/50 hover:bg-arina-warm/40'
-                        }`}
-                      >
-                        <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileChange} className="hidden" />
-                        {volunteerFile ? (
-                          <div className="flex items-center gap-3">
-                            <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-arina-accent text-white shrink-0"><FileText className="w-5 h-5" /></span>
-                            <div className="text-left">
-                              <div className="text-sm font-bold text-arina-dark break-all max-w-[280px]">{volunteerFile.name}</div>
-                              <div className="text-xs text-arina-gray">{Math.max(1, Math.round(volunteerFile.size / 1024))} Ko — cliquer pour remplacer</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-arina-blue/10 text-arina-blue"><Upload className="w-6 h-6" /></span>
-                            <span className="text-sm font-semibold text-arina-dark">Cliquez pour joindre votre lettre de motivation</span>
-                            <span className="text-xs text-arina-gray">PDF, DOC ou DOCX — maximum 5 Mo</span>
-                          </>
-                        )}
-                      </label>
-                      {volunteerFile && (
-                        <button
-                          type="button"
-                          onClick={() => { setVolunteerFile(null); setFileError(''); }}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" /> Retirer la pièce jointe
-                        </button>
-                      )}
-                      {fileError && <p className="text-red-500 text-xs mt-1">{fileError}</p>}
-                      {volErrors.file && <p className="text-red-500 text-xs mt-1">{volErrors.file}</p>}
+                    {/* Pièces jointes : lettre de motivation + CV */}
+                    <div className="grid sm:grid-cols-2 gap-5">
+                      <FileDropzone
+                        label="Lettre de motivation"
+                        required
+                        hint="Cliquez pour joindre votre lettre"
+                        file={volunteerFile}
+                        error={fileError || volErrors.file}
+                        onFile={handleFile(setVolunteerFile, setFileError)}
+                        onRemove={() => { setVolunteerFile(null); setFileError(''); }}
+                      />
+                      <FileDropzone
+                        label="CV"
+                        required
+                        hint="Cliquez pour joindre votre CV"
+                        file={volunteerCv}
+                        error={cvError || volErrors.cv}
+                        onFile={handleFile(setVolunteerCv, setCvError)}
+                        onRemove={() => { setVolunteerCv(null); setCvError(''); }}
+                      />
                     </div>
 
                     <button

@@ -217,14 +217,15 @@ app.post('/api/newsletter', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ═══ VOLUNTEERS (candidatures + lettre de motivation) ═══
+// ═══ VOLUNTEERS (candidatures + lettre de motivation + CV) ═══
 app.post('/api/volunteers', async (req, res) => {
   try {
-    const { name, email, phone, skills, availability, motivation, file } = req.body;
+    const { name, email, phone, skills, availability, motivation, file, cv } = req.body;
     const result = await pool.query(
-      'INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+      'INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, cv_name, cv_type, cv_size, cv_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
       [name, email, phone, skills, availability, motivation,
-       file?.name || null, file?.type || null, file?.size || null, file?.data || null]
+       file?.name || null, file?.type || null, file?.size || null, file?.data || null,
+       cv?.name || null, cv?.type || null, cv?.size || null, cv?.data || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -232,7 +233,7 @@ app.post('/api/volunteers', async (req, res) => {
 
 app.get('/api/volunteers', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
+    const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, cv_name, cv_type, cv_size, cv_data, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (err) { res.json([]); }
 });

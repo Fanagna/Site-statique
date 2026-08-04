@@ -284,19 +284,24 @@ export default function AdminDashboard() {
   const removeContact = async (id) => { if (!confirm('Supprimer ce message ?')) return; await deleteContact(id); setContacts(contacts.filter((c) => c.id !== id)); };
   const removeSub = async (id) => { if (!confirm("Supprimer cet abonné ?")) return; await deleteNewsletterSubscriber(id); setSubs(subs.filter((s) => s.id !== id)); };
   const removeVolunteer = async (id) => { if (!confirm('Supprimer cette candidature ?')) return; await deleteVolunteer(id); setVolunteers(volunteers.filter((v) => v.id !== id)); };
-  const openAttachment = (v) => {
-    if (!v.file_data) return;
-    const url = `data:${v.file_type || 'application/octet-stream'};base64,${v.file_data}`;
+  const openAttachment = (v, kind = 'file') => {
+    const data = kind === 'cv' ? v.cv_data : v.file_data;
+    const type = kind === 'cv' ? v.cv_type : v.file_type;
+    const name = kind === 'cv' ? v.cv_name : v.file_name;
+    if (!data) return;
+    const url = `data:${type || 'application/octet-stream'};base64,${data}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = v.file_name || 'lettre-de-motivation';
+    a.download = name || (kind === 'cv' ? 'cv' : 'lettre-de-motivation');
     document.body.appendChild(a);
     a.click();
     a.remove();
   };
-  const previewAttachment = (v) => {
-    if (!v.file_data) return;
-    window.open(`data:${v.file_type || 'application/pdf'};base64,${v.file_data}`, '_blank');
+  const previewAttachment = (v, kind = 'file') => {
+    const data = kind === 'cv' ? v.cv_data : v.file_data;
+    const type = kind === 'cv' ? v.cv_type : v.file_type;
+    if (!data) return;
+    window.open(`data:${type || 'application/pdf'};base64,${data}`, '_blank');
   };
 
   /* ── Computed ── */
@@ -921,7 +926,7 @@ export default function AdminDashboard() {
             {[
               { label: 'Candidatures reçues', value: volunteers.length },
               { label: 'Cette semaine', value: volunteers.filter((v) => v.created_at && Date.now() - new Date(v.created_at) < 7 * 864e5).length },
-              { label: 'Avec pièce jointe', value: volunteers.filter((v) => v.file_data).length },
+              { label: 'Avec pièces jointes', value: volunteers.filter((v) => v.file_data || v.cv_data).length },
             ].map((s, i) => (
               <div key={i} className="card-apple p-5">
                 <div className="text-2xl font-extrabold tabular">{s.value}</div>
@@ -956,17 +961,29 @@ export default function AdminDashboard() {
                         {v.motivation && (
                           <p className={`text-sm text-ios-text2 mt-2 leading-relaxed ${expandedVol === v.id ? '' : 'line-clamp-2'}`}>{v.motivation}</p>
                         )}
-                        <div className="mt-2.5 flex flex-wrap items-center gap-4">
+                        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
                           {v.file_name && (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-ios-text2 font-medium max-w-[220px]">
-                              <Icon name="file" className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate">{v.file_name}</span>
+                            <span className="inline-flex items-center gap-1.5 text-xs text-ios-text2 font-medium max-w-[200px]">
+                              <Icon name="file" className="w-3.5 h-3.5 shrink-0 text-arina-accent" />
+                              <span className="truncate">Lettre : {v.file_name}</span>
                             </span>
                           )}
                           {v.file_data && (
                             <>
-                              <button onClick={() => openAttachment(v)} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger la pièce jointe</button>
-                              <button onClick={() => previewAttachment(v)} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>
+                              <button onClick={() => openAttachment(v, 'file')} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger</button>
+                              <button onClick={() => previewAttachment(v, 'file')} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>
+                            </>
+                          )}
+                          {v.cv_name && (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-ios-text2 font-medium max-w-[200px]">
+                              <Icon name="file" className="w-3.5 h-3.5 shrink-0 text-arina-gold" />
+                              <span className="truncate">CV : {v.cv_name}</span>
+                            </span>
+                          )}
+                          {v.cv_data && (
+                            <>
+                              <button onClick={() => openAttachment(v, 'cv')} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger</button>
+                              <button onClick={() => previewAttachment(v, 'cv')} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>
                             </>
                           )}
                           {v.motivation && (
