@@ -305,10 +305,13 @@ app.post('/api/contact', async (req, res) => {
 
 app.post('/api/newsletter', async (req, res) => {
   try {
-    const { email } = req.body;
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
     const result = await pool.query(
       'INSERT INTO newsletters (email) VALUES ($1) ON CONFLICT (email) DO NOTHING RETURNING *',
-      [email]
+      [normalized]
     );
     res.status(201).json(result.rows[0] || { message: 'Already subscribed' });
   } catch (err) { res.status(500).json({ error: err.message }); }

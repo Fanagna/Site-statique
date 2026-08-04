@@ -1,6 +1,36 @@
+import { useState } from 'react';
 import { MapPin, Phone, Mail, Clock, Lock } from 'lucide-react';
+import { subscribeNewsletter } from '../services/api';
 
 export default function Footer() {
+  const [nlEmail, setNlEmail] = useState('');
+  const [nlStatus, setNlStatus] = useState('idle'); // idle | loading | success | duplicate | error
+  const [nlError, setNlError] = useState('');
+
+  const handleSubscribe = async (e) => {
+    e.preventDefault();
+    const email = nlEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNlStatus('error');
+      setNlError('Veuillez saisir une adresse email valide.');
+      return;
+    }
+    setNlStatus('loading');
+    setNlError('');
+    const res = await subscribeNewsletter(email);
+    if (!res.ok) {
+      setNlStatus('error');
+      setNlError(res.error || 'Une erreur est survenue, réessayez.');
+      return;
+    }
+    if (res.data && res.data.message === 'Already subscribed') {
+      setNlStatus('duplicate');
+      return;
+    }
+    setNlStatus('success');
+    setNlEmail('');
+  };
+
   return (
     <footer id="footer" className="bg-arina-dark text-white">
       {/* Main footer */}
@@ -77,16 +107,32 @@ export default function Footer() {
             <p className="text-gray-400 text-sm mb-4">
               Recevez nos actualités et histoires inspirantes.
             </p>
-            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
+            <form className="flex gap-2" onSubmit={handleSubscribe}>
               <input
                 type="email"
+                value={nlEmail}
+                onChange={(e) => { setNlEmail(e.target.value); if (nlStatus !== 'loading') setNlStatus('idle'); }}
                 placeholder="Votre email"
-                className="flex-1 px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-arina-gold transition-colors"
+                disabled={nlStatus === 'loading'}
+                className="flex-1 min-w-0 px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-arina-gold transition-colors disabled:opacity-60"
               />
-              <button className="px-4 py-2.5 bg-arina-gold text-white rounded-lg text-sm font-semibold hover:bg-arina-gold-light transition-colors">
-                OK
+              <button
+                type="submit"
+                disabled={nlStatus === 'loading'}
+                className="px-4 py-2.5 bg-arina-gold text-white rounded-lg text-sm font-semibold hover:bg-arina-gold-light transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {nlStatus === 'loading' ? '…' : 'OK'}
               </button>
             </form>
+            {nlStatus === 'success' && (
+              <p role="status" className="text-emerald-400 text-xs mt-2.5">Merci ! Vous êtes bien inscrit(e) à la newsletter.</p>
+            )}
+            {nlStatus === 'duplicate' && (
+              <p role="status" className="text-amber-300 text-xs mt-2.5">Cet email est déjà inscrit à la newsletter.</p>
+            )}
+            {nlStatus === 'error' && (
+              <p role="status" className="text-red-400 text-xs mt-2.5">{nlError}</p>
+            )}
           </div>
         </div>
       </div>
