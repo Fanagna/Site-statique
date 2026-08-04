@@ -24,7 +24,7 @@ const contactInfo = [
       { text: '032 77 374 89', href: 'tel:+261327737489' },
       { text: '034 31 722 08', href: 'tel:+261347172208' },
     ],
-    color: 'from-green-500 to-emerald-600',
+    color: 'from-rose-400 to-pink-500',
   },
   {
     icon: 'mail',
@@ -32,7 +32,7 @@ const contactInfo = [
     lines: [
       { text: 'rasendrazita@gmail.com', href: 'mailto:rasendrazita@gmail.com' },
     ],
-    color: 'from-orange-500 to-red-500',
+    color: 'from-amber-400 to-orange-500',
   },
   {
     icon: 'clock',
@@ -42,7 +42,7 @@ const contactInfo = [
       { text: 'Sam : 9h00 - 12h00' },
       { text: 'Dim : Fermé' },
     ],
-    color: 'from-purple-500 to-violet-600',
+    color: 'from-violet-400 to-purple-500',
   },
 ];
 
