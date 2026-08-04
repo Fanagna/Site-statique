@@ -7,6 +7,7 @@ import {
   fetchNews,
   fetchContacts, deleteContact,
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
+  fetchVolunteers, deleteVolunteer,
   fetchActivity,
 } from '../../services/api';
 import { allNews } from '../../data/news';
@@ -186,6 +187,7 @@ export default function AdminDashboard() {
   const [news, setNews] = useState(allNews);
   const [contacts, setContacts] = useState([]);
   const [subs, setSubs] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
   const [activity, setActivity] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
   const [financesLoading, setFinancesLoading] = useState(true);
@@ -194,6 +196,7 @@ export default function AdminDashboard() {
   const [query, setQuery] = useState('');
   const [notifOpen, setNotifOpen] = useState(false);
   const [expandedMsg, setExpandedMsg] = useState(null);
+  const [expandedVol, setExpandedVol] = useState(null);
 
   /* ── Benef CRUD ── */
   const [showBenefForm, setShowBenefForm] = useState(false);
@@ -240,6 +243,10 @@ export default function AdminDashboard() {
     if (subFromApi !== null) { if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
     else { const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
 
+    const vFromApi = await fetchVolunteers();
+    if (vFromApi !== null) { if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
+    else { const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+
     const actFromApi = await fetchActivity();
     if (actFromApi?.length) setActivity(actFromApi);
   }, []);
@@ -276,6 +283,21 @@ export default function AdminDashboard() {
 
   const removeContact = async (id) => { if (!confirm('Supprimer ce message ?')) return; await deleteContact(id); setContacts(contacts.filter((c) => c.id !== id)); };
   const removeSub = async (id) => { if (!confirm("Supprimer cet abonné ?")) return; await deleteNewsletterSubscriber(id); setSubs(subs.filter((s) => s.id !== id)); };
+  const removeVolunteer = async (id) => { if (!confirm('Supprimer cette candidature ?')) return; await deleteVolunteer(id); setVolunteers(volunteers.filter((v) => v.id !== id)); };
+  const openAttachment = (v) => {
+    if (!v.file_data) return;
+    const url = `data:${v.file_type || 'application/octet-stream'};base64,${v.file_data}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = v.file_name || 'lettre-de-motivation';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  const previewAttachment = (v) => {
+    if (!v.file_data) return;
+    window.open(`data:${v.file_type || 'application/pdf'};base64,${v.file_data}`, '_blank');
+  };
 
   /* ── Computed ── */
   const totalRevenus = finances.filter((f) => f.type === 'Revenu').reduce((s, f) => s + f.montant, 0);
@@ -333,6 +355,10 @@ export default function AdminDashboard() {
     if (!q) return subs;
     return subs.filter((s) => s.email.toLowerCase().includes(q));
   }, [subs, q]);
+  const filteredVolunteers = useMemo(() => {
+    if (!q) return volunteers;
+    return volunteers.filter((v) => `${v.name} ${v.email} ${v.skills} ${v.motivation}`.toLowerCase().includes(q));
+  }, [volunteers, q]);
 
   /* Activity feed (real from API, else derived from loaded data) */
   const localActivity = useMemo(() => [
@@ -349,9 +375,10 @@ export default function AdminDashboard() {
     else if (finances.length > 0 && totalDepenses > totalRevenus) a.push({ level: 'warn', icon: 'bell', text: 'Les dépenses dépassent les revenus', tab: 'finances' });
     if (finances.length === 0) a.push({ level: 'info', icon: 'wallet', text: 'Aucune transaction — ajoutez un premier revenu', tab: 'finances' });
     if (contacts.length > 0) a.push({ level: 'info', icon: 'mail', text: `${contacts.length} message${contacts.length > 1 ? 's' : ''} reçu${contacts.length > 1 ? 's' : ''} via le formulaire`, tab: 'messages' });
+    if (volunteers.length > 0) a.push({ level: 'info', icon: 'users', text: `${volunteers.length} candidature${volunteers.length > 1 ? 's' : ''} bénévole${volunteers.length > 1 ? 's' : ''} avec lettre de motivation`, tab: 'volunteers' });
     if (news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', to: '/admin/actualites' });
     return a;
-  }, [solde, finances.length, totalDepenses, totalRevenus, contacts.length, news.length]);
+  }, [solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length]);
 
   const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && news.length === 0;
 
@@ -365,6 +392,7 @@ export default function AdminDashboard() {
     ] },
     { group: 'Communication', items: [
       { key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length },
+      { key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length },
       { key: 'newsletter', label: 'Newsletter', icon: 'send', badge: () => subs.length },
     ] },
   ];
@@ -373,6 +401,7 @@ export default function AdminDashboard() {
     enfants: { title: 'Enfants', subtitle: 'Bénéficiaires accompagnés par ARINA' },
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
+    volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
     newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
   };
   const currentMeta = meta[tab] || meta.dashboard;
@@ -381,6 +410,7 @@ export default function AdminDashboard() {
     enfants: 'Rechercher un enfant…',
     finances: 'Rechercher une transaction…',
     messages: 'Rechercher un message…',
+    volunteers: 'Rechercher un bénévole…',
     newsletter: 'Rechercher un e-mail…',
   }[tab] || 'Rechercher…';
 
@@ -398,6 +428,7 @@ export default function AdminDashboard() {
     { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     { label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') },
+    { label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') },
     { label: 'Newsletter', icon: 'send', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('newsletter') },
   ];
 
@@ -875,6 +906,78 @@ export default function AdminDashboard() {
                       <div className="text-[11px] text-ios-text3">Inscrit {timeAgo(s.subscribed_at)}</div>
                     </div>
                     <button onClick={() => removeSub(s.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ VOLUNTEERS ═══════════ */}
+      {tab === 'volunteers' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { label: 'Candidatures reçues', value: volunteers.length },
+              { label: 'Cette semaine', value: volunteers.filter((v) => v.created_at && Date.now() - new Date(v.created_at) < 7 * 864e5).length },
+              { label: 'Avec pièce jointe', value: volunteers.filter((v) => v.file_data).length },
+            ].map((s, i) => (
+              <div key={i} className="card-apple p-5">
+                <div className="text-2xl font-extrabold tabular">{s.value}</div>
+                <div className="text-xs text-ios-text3 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="card-apple overflow-hidden">
+            {filteredVolunteers.length === 0 ? (
+              <EmptyState icon="users" text={volunteers.length === 0 ? 'Aucune candidature pour le moment — les demandes bénévoles avec leur lettre de motivation apparaîtront ici.' : 'Aucune candidature ne correspond à votre recherche.'} />
+            ) : (
+              <div className="divide-y divide-ios-hairline">
+                {filteredVolunteers.map((v) => (
+                  <div key={v.id} className="p-5 hover:bg-ios-fill transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-arina-blue/80 to-arina-blue-dark text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {initials(v.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-semibold text-sm truncate">{v.name}</span>
+                            <a href={`mailto:${v.email}`} className="text-xs text-ios-text3 hover:text-arina-blue truncate">{v.email}</a>
+                          </div>
+                          <span className="text-[11px] text-ios-text3 whitespace-nowrap">{timeAgo(v.created_at)}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          {v.phone && <span className="text-[11px] text-ios-text2">{v.phone}</span>}
+                          {v.skills && <span className="px-2 py-0.5 bg-arina-warm text-arina-blue text-[11px] font-semibold rounded-full">{v.skills}</span>}
+                          {v.availability && <span className="px-2 py-0.5 bg-ios-fill text-ios-text2 text-[11px] font-semibold rounded-full">{v.availability}</span>}
+                        </div>
+                        {v.motivation && (
+                          <p className={`text-sm text-ios-text2 mt-2 leading-relaxed ${expandedVol === v.id ? '' : 'line-clamp-2'}`}>{v.motivation}</p>
+                        )}
+                        <div className="mt-2.5 flex flex-wrap items-center gap-4">
+                          {v.file_name && (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-ios-text2 font-medium max-w-[220px]">
+                              <Icon name="file" className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{v.file_name}</span>
+                            </span>
+                          )}
+                          {v.file_data && (
+                            <>
+                              <button onClick={() => openAttachment(v)} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger la pièce jointe</button>
+                              <button onClick={() => previewAttachment(v)} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>
+                            </>
+                          )}
+                          {v.motivation && (
+                            <button onClick={() => setExpandedVol(expandedVol === v.id ? null : v.id)} className="text-xs font-semibold text-arina-blue hover:underline">
+                              {expandedVol === v.id ? 'Réduire' : 'Lire la suite'}
+                            </button>
+                          )}
+                          <button onClick={() => removeVolunteer(v.id)} className="text-xs font-semibold text-red-500 hover:underline">Supprimer</button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -15,7 +15,7 @@ function requireAdmin(req, res, next) {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // supporte les pièces jointes en base64
 
 // Database connection
 const pool = new Pool({
@@ -292,6 +292,47 @@ app.post('/api/newsletter', async (req, res) => {
       [email]
     );
     res.status(201).json(result.rows[0] || { message: 'Already subscribed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// VOLUNTEERS (candidatures + lettre de motivation)
+// ═══════════════════════════════════════
+
+// POST public — reçoit une candidature bénévole avec pièce jointe (base64)
+app.post('/api/volunteers', async (req, res) => {
+  try {
+    const { name, email, phone, skills, availability, motivation, file } = req.body;
+    const result = await pool.query(
+      `INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, email, phone, skills, availability, motivation,
+       file?.name || null, file?.type || null, file?.size || null, file?.data || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET admin
+app.get('/api/volunteers', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
+    res.json(result.rows);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// DELETE admin
+app.delete('/api/volunteers/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM volunteers WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

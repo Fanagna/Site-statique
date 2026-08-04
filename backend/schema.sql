@@ -88,3 +88,19 @@ CREATE TABLE IF NOT EXISTS finances (
   date DATE DEFAULT CURRENT_DATE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Volunteer applications (with motivation letter attachment)
+CREATE TABLE IF NOT EXISTS volunteers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  skills TEXT,
+  availability VARCHAR(100),
+  motivation TEXT,
+  file_name VARCHAR(255),
+  file_type VARCHAR(100),
+  file_size INTEGER,
+  file_data TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

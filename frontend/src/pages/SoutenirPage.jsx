@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
-  Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone,
+  Bitcoin, Check, Copy, FileText, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone, Upload, X,
 } from 'lucide-react';
 import AppIcon from '../components/icons';
 import { paymentMethods } from '../data/donations';
+import { submitVolunteer } from '../services/api';
 
 const methodIcons = { smartphone: Smartphone, bitcoin: Bitcoin, landmark: Landmark };
 
@@ -18,6 +19,8 @@ export default function SoutenirPage() {
   const [volSubmitted, setVolSubmitted] = useState(false);
   const [donorErrors, setDonorErrors] = useState({});
   const [volErrors, setVolErrors] = useState({});
+  const [volunteerFile, setVolunteerFile] = useState(null);
+  const [fileError, setFileError] = useState('');
   const [method, setMethod] = useState('orange');
   const [copied, setCopied] = useState(null);
 
@@ -44,9 +47,34 @@ export default function SoutenirPage() {
     if (!volunteer.name.trim()) e.name = 'Le nom est requis';
     if (!volunteer.email.trim()) e.email = "L'email est requis";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volunteer.email)) e.email = 'Email invalide';
-    if (!volunteer.motivation.trim()) e.motivation = 'Dites-nous pourquoi vous voulez aider';
+    if (!volunteerFile) e.file = 'Veuillez joindre votre lettre de motivation (PDF, DOC, DOCX, JPG ou PNG)';
     setVolErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(f.name)) {
+      setFileError('Format non accepté — utilisez un PDF, DOC, DOCX, JPG ou PNG.');
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setFileError('Fichier trop volumineux (maximum 5 Mo).');
+      return;
+    }
+    setFileError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setVolunteerFile({
+        name: f.name,
+        type: f.type || 'application/octet-stream',
+        size: f.size,
+        data: String(reader.result).split(',')[1],
+      });
+    };
+    reader.readAsDataURL(f);
   };
 
   const handleDonor = (e) => {
@@ -60,6 +88,10 @@ export default function SoutenirPage() {
     if (!validateVolunteer()) return;
     setVolSubmitted(true);
     setVolunteer(volunteerInit);
+    setVolunteerFile(null);
+    setFileError('');
+    // Envoi au backend (non bloquant) — l'admin reçoit la candidature + la pièce jointe
+    submitVolunteer({ ...volunteer, file: volunteerFile }).catch(() => {});
   };
 
   const inputClass = (err) =>
@@ -319,7 +351,7 @@ export default function SoutenirPage() {
                   <PartyPopper className="w-14 h-14 mx-auto text-arina-gold mb-4" />
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">Merci pour votre engagement !</h2>
                   <p className="text-arina-gray mb-6 max-w-md mx-auto">
-                    Notre équipe vous contactera dans les 48h pour discuter de votre mission bénévole.
+                    Notre équipe vous contactera dans les 48h pour discuter de votre mission bénévole. Votre lettre de motivation a bien été transmise à l'équipe ARINA.
                   </p>
                   <button onClick={() => setVolSubmitted(false)} className="px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors">
                     Envoyer une autre candidature
@@ -386,21 +418,63 @@ export default function SoutenirPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-arina-dark mb-1.5">
-                        Pourquoi voulez-vous devenir bénévole ? <span className="text-arina-accent">*</span>
+                        Votre motivation en quelques mots <span className="text-arina-gray font-normal">(optionnel)</span>
                       </label>
                       <textarea
-                        rows={4}
+                        rows={3}
                         maxLength={500}
-                        placeholder="Parlez-nous de vos motivations..."
+                        placeholder="Résumez vos motivations — elles seront détaillées dans votre lettre ci-jointe..."
                         value={volunteer.motivation}
                         onChange={(e) => setVolunteer({ ...volunteer, motivation: e.target.value })}
-                        className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all resize-none ${
-                          volErrors.motivation ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-arina-blue/20 focus:border-arina-blue'
-                        }`}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/20 focus:border-arina-blue transition-all resize-none"
                       />
-                      {volErrors.motivation && <p className="text-red-500 text-xs mt-1">{volErrors.motivation}</p>}
                       <p className="text-xs text-arina-gray text-right mt-1">{volunteer.motivation.length}/500</p>
                     </div>
+
+                    {/* Lettre de motivation (pièce jointe) */}
+                    <div>
+                      <label className="block text-sm font-semibold text-arina-dark mb-1.5">
+                        Lettre de motivation (pièce jointe) <span className="text-arina-accent">*</span>
+                      </label>
+                      <label
+                        className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition-all bg-gray-50 ${
+                          fileError
+                            ? 'border-red-300'
+                            : volunteerFile
+                              ? 'border-arina-accent bg-arina-accent/5'
+                              : 'border-gray-300 hover:border-arina-accent/50 hover:bg-arina-warm/40'
+                        }`}
+                      >
+                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} className="hidden" />
+                        {volunteerFile ? (
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-arina-accent text-white shrink-0"><FileText className="w-5 h-5" /></span>
+                            <div className="text-left">
+                              <div className="text-sm font-bold text-arina-dark break-all max-w-[280px]">{volunteerFile.name}</div>
+                              <div className="text-xs text-arina-gray">{Math.max(1, Math.round(volunteerFile.size / 1024))} Ko — cliquer pour remplacer</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-arina-blue/10 text-arina-blue"><Upload className="w-6 h-6" /></span>
+                            <span className="text-sm font-semibold text-arina-dark">Cliquez pour joindre votre lettre de motivation</span>
+                            <span className="text-xs text-arina-gray">PDF, DOC, DOCX, JPG ou PNG — maximum 5 Mo</span>
+                          </>
+                        )}
+                      </label>
+                      {volunteerFile && (
+                        <button
+                          type="button"
+                          onClick={() => { setVolunteerFile(null); setFileError(''); }}
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" /> Retirer la pièce jointe
+                        </button>
+                      )}
+                      {fileError && <p className="text-red-500 text-xs mt-1">{fileError}</p>}
+                      {volErrors.file && <p className="text-red-500 text-xs mt-1">{volErrors.file}</p>}
+                    </div>
+
                     <button
                       type="submit"
                       className="w-full py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"

@@ -101,6 +101,22 @@ export async function deleteContact(id) {
   return await apiCall(`/contacts/${id}`, { method: 'DELETE' });
 }
 
+/* ── Volunteers (public submit + admin list) ── */
+export async function submitVolunteer(data) {
+  return await apiCall('/volunteers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchVolunteers() {
+  return await apiCall('/volunteers');
+}
+
+export async function deleteVolunteer(id) {
+  return await apiCall(`/volunteers/${id}`, { method: 'DELETE' });
+}
+
 /* ── Newsletter (admin) ── */
 export async function fetchNewsletterSubscribers() {
   return await apiCall('/newsletter/subscribers');
