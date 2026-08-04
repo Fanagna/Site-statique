@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { Handshake, Heart, HeartHandshake, PartyPopper } from 'lucide-react';
+import {
+  Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone,
+} from 'lucide-react';
 import AppIcon from '../components/icons';
+import { paymentMethods } from '../data/donations';
+
+const methodIcons = { smartphone: Smartphone, bitcoin: Bitcoin, landmark: Landmark };
 
 const donorInit = { amount: '', name: '', email: '', message: '', anonymous: false };
 const volunteerInit = { name: '', email: '', phone: '', skills: '', availability: '', motivation: '' };
@@ -13,6 +18,16 @@ export default function SoutenirPage() {
   const [volSubmitted, setVolSubmitted] = useState(false);
   const [donorErrors, setDonorErrors] = useState({});
   const [volErrors, setVolErrors] = useState({});
+  const [method, setMethod] = useState('orange');
+  const [copied, setCopied] = useState(null);
+
+  const selectedMethod = paymentMethods.find((m) => m.id === method);
+
+  const copyDetail = (value) => {
+    if (navigator.clipboard) navigator.clipboard.writeText(value);
+    setCopied(value);
+    setTimeout(() => setCopied(null), 2000);
+  };
 
   const validateDonor = () => {
     const e = {};
@@ -136,6 +151,88 @@ export default function SoutenirPage() {
                     ))}
                   </div>
 
+                  {/* Payment method */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-arina-dark mb-2">Méthode de paiement</label>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      {paymentMethods.map((m) => {
+                        const MethodIcon = methodIcons[m.icon];
+                        const active = method === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setMethod(m.id)}
+                            className={`text-left rounded-xl p-4 border-2 transition-all ${
+                              active
+                                ? 'border-arina-accent bg-arina-accent/10 shadow-md'
+                                : 'border-gray-200 bg-white hover:border-arina-accent/50'
+                            }`}
+                          >
+                            <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg mb-2 transition-colors ${
+                              active ? 'bg-arina-accent text-white' : 'bg-arina-blue/10 text-arina-blue'
+                            }`}>
+                              <MethodIcon className="w-5 h-5" />
+                            </div>
+                            <div className={`font-bold text-sm ${active ? 'text-arina-accent' : 'text-arina-dark'}`}>{m.name}</div>
+                            <div className="text-[11px] text-arina-gray mt-0.5">{m.badge}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Instructions of the selected method */}
+                    <div className="mt-4 rounded-2xl border border-arina-warm bg-white overflow-hidden animate-fade-up">
+                      <div className="px-5 py-4 bg-gradient-to-r from-arina-accent to-arina-blue-dark text-white flex items-start gap-3">
+                        {(() => {
+                          const Icon = methodIcons[selectedMethod.icon];
+                          return <Icon className="w-5 h-5 shrink-0 mt-0.5" />;
+                        })()}
+                        <div>
+                          <div className="font-bold text-sm">{selectedMethod.name}</div>
+                          <div className="text-xs text-white/85 mt-0.5 leading-relaxed">{selectedMethod.description}</div>
+                        </div>
+                      </div>
+                      <div className="p-5 space-y-4">
+                        <ol className="space-y-2">
+                          {selectedMethod.steps.map((s, i) => (
+                            <li key={i} className="flex items-start gap-3 text-sm text-arina-dark leading-relaxed">
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-arina-blue/10 text-arina-blue text-[11px] font-bold shrink-0 mt-0.5">{i + 1}</span>
+                              <span>{s}</span>
+                            </li>
+                          ))}
+                        </ol>
+                        <div className="space-y-2 pt-3 border-t border-gray-100">
+                          {selectedMethod.details.map((d) => (
+                            <div key={d.label} className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between bg-ios-fill rounded-xl px-4 py-3">
+                              <div className="min-w-0">
+                                <div className="text-[11px] uppercase tracking-wide text-arina-gray font-semibold">{d.label}</div>
+                                {d.value ? (
+                                  <div className="font-bold text-arina-dark text-sm break-all tabular">{d.value}</div>
+                                ) : (
+                                  <div className="text-sm text-arina-gray italic">
+                                    Coordonnées à venir —{' '}
+                                    <a href="mailto:rasendrazita@gmail.com" className="text-arina-blue font-semibold not-italic hover:text-arina-blue-light transition-colors">contactez-nous</a>
+                                  </div>
+                                )}
+                              </div>
+                              {d.value && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyDetail(d.value)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-arina-blue/10 text-arina-blue hover:bg-arina-blue/20 transition-colors shrink-0"
+                                >
+                                  {copied === d.value ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                  {copied === d.value ? 'Copié !' : 'Copier'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <form onSubmit={handleDonor} className="space-y-5">
                     <div className="grid sm:grid-cols-2 gap-5">
                       <div>
@@ -206,7 +303,7 @@ export default function SoutenirPage() {
                       <Heart className="w-5 h-5" fill="currentColor" /> Valider mon don de {donor.amount || '...'}€
                     </button>
                     <p className="text-xs text-arina-gray text-center">
-                      Paiement sécurisé. Reçu fiscal envoyé par email. Don déductible des impôts à 66%.
+                      Don via {selectedMethod.name} · Reçu fiscal envoyé par email · Don déductible des impôts à 66%.
                     </p>
                   </form>
                 </>
