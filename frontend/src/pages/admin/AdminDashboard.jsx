@@ -610,7 +610,11 @@ export default function AdminDashboard() {
     evalMonths.forEach((m) => {
       if (m.dons.length === 0 && m.depenses.length === 0) return;
       m.dons.forEach((d) => rows.push(line(m.name, fmtDate(d.date), 'DON', d.categorie, '', '', Number(d.montant) || 0)));
-      m.depenses.forEach((d) => rows.push(line(m.name, fmtDate(d.date), 'DÉPENSE', d.categorie + (d.description ? ` · ${d.description}` : ''), d.quantity ?? '', d.unit_price ?? '', Number(d.montant) || 0)));
+      m.depenses.forEach((d) => {
+        // Désignation sur plusieurs lignes : catégorie, puis description complète (si présente)
+        const designation = d.categorie + (d.description ? `\n${d.description}` : '');
+        rows.push(line(m.name, fmtDate(d.date), 'DÉPENSE', designation, d.quantity ?? '', d.unit_price ?? '', Number(d.montant) || 0));
+      });
     });
     rows.push('');
     // Récapitulatif mensuel
@@ -1767,7 +1771,13 @@ export default function AdminDashboard() {
               ) : (
                 <input type="number" placeholder="Montant (Ar)" value={financeForm.montant} onChange={(e) => setFinanceForm({ ...financeForm, montant: e.target.value })} className={inputClass} />
               )}
-              <input placeholder="Description" value={financeForm.description} onChange={(e) => setFinanceForm({ ...financeForm, description: e.target.value })} className={inputClass} />
+              <textarea
+                placeholder="Description (détail de la dépense — plusieurs lignes possibles)"
+                value={financeForm.description}
+                onChange={(e) => setFinanceForm({ ...financeForm, description: e.target.value })}
+                rows={2}
+                className={`${inputClass} resize-y min-h-[44px]`}
+              />
               <input type="date" value={financeForm.date} onChange={(e) => setFinanceForm({ ...financeForm, date: e.target.value })} className={inputClass} />
             </div>
             <div className="px-6 pb-6 flex gap-3">
