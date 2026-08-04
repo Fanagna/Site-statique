@@ -58,7 +58,7 @@ export default function NewsManagementPage() {
   /* ── Form modal ── */
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
+  const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +86,7 @@ export default function NewsManagementPage() {
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       setEditing(null);
-      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
+      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
       setShowForm(true);
       // Clean the param so a reload does not reopen the modal
       setSearchParams({}, { replace: true });
@@ -111,12 +111,30 @@ export default function NewsManagementPage() {
         status: statusOf(n),
         image_url: n.image_url || '',
         content: contentToText(n.content),
+        featured: !!n.featured,
       });
     } else {
       setEditing(null);
-      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
+      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
     }
     setShowForm(true);
+  };
+
+  const handleImageChange = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) {
+      alert('Format non accepté — utilisez JPG, PNG, WebP ou GIF.');
+      return;
+    }
+    if (f.size > 2 * 1024 * 1024) {
+      alert('Image trop volumineuse (maximum 2 Mo).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm({ ...form, image_url: String(reader.result) });
+    reader.readAsDataURL(f);
   };
 
   const saveNews = async () => {
@@ -140,9 +158,18 @@ export default function NewsManagementPage() {
   const togglePublish = async (n) => {
     const next = statusOf(n) === 'published' ? 'draft' : 'published';
     const u = await updateNews(n.id, {
-      title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: next, content: typeof n.content === 'string' ? n.content : '',
+      title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: next, content: typeof n.content === 'string' ? n.content : '', featured: !!n.featured,
     });
     setNews(news.map((x) => (x.id === n.id ? u || { ...x, status: next } : x)));
+  };
+
+  const toggleFeatured = async (n) => {
+    const next = !n.featured;
+    const u = await updateNews(n.id, {
+      title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: statusOf(n),
+      content: typeof n.content === 'string' ? n.content : '', featured: next,
+    });
+    setNews(news.map((x) => (x.id === n.id ? u || { ...x, featured: next } : x)));
   };
 
   /* ── Derived ── */
@@ -333,7 +360,10 @@ export default function NewsManagementPage() {
                                 <div className="w-10 h-10 rounded-lg bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0"><Icon name="file" className="w-4 h-4" /></div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-medium text-ios-text truncate max-w-[280px]">{n.title}</div>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {n.featured && <Icon name="star" className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                                  <div className="font-medium text-ios-text truncate max-w-[260px]">{n.title}</div>
+                                </div>
                                 <div className="text-[11px] text-ios-text3 truncate max-w-[280px]">{n.excerpt || ''}</div>
                               </div>
                             </div>
@@ -356,6 +386,13 @@ export default function NewsManagementPage() {
                                 title={statusOf(n) === 'published' ? 'Dépublier (brouillon)' : 'Publier'}
                               >
                                 <Icon name={statusOf(n) === 'published' ? 'chevronDown' : 'send'} className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => toggleFeatured(n)}
+                                className={`p-2 rounded-lg transition-colors ${n.featured ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/15' : 'text-ios-text3 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/15'}`}
+                                title={n.featured ? 'Retirer de la une' : 'Mettre à la une'}
+                              >
+                                <Icon name="star" className="w-4 h-4" />
                               </button>
                               <button onClick={() => removeNews(n.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                             </div>
@@ -448,7 +485,51 @@ export default function NewsManagementPage() {
                   <option value="archived">Archivé</option>
                 </select>
               </div>
-              <input placeholder="URL de l'image (optionnel)" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className={inputClass} />
+              {/* Image de l'article */}
+              <div>
+                <label className="block text-sm font-semibold text-ios-text mb-1.5">Image de l'article</label>
+                <label className={`relative flex items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden ${
+                  form.image_url ? 'border-arina-blue/40' : 'border-ios-hairline bg-ios-fill hover:border-arina-blue/40'
+                }`}>
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                  {form.image_url ? (
+                    <>
+                      <img src={form.image_url} alt="" className="w-full h-40 object-cover" />
+                      <span className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-semibold backdrop-blur-sm">Changer</span>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 py-10 text-ios-text3">
+                      <Icon name="camera" className="w-6 h-6" />
+                      <span className="text-sm font-medium">Cliquez pour choisir une image</span>
+                      <span className="text-xs">JPG, PNG, WebP, GIF — max 2 Mo</span>
+                    </div>
+                  )}
+                </label>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    placeholder="…ou collez une URL d'image"
+                    value={form.image_url.startsWith('data:') ? '' : form.image_url}
+                    onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                    className={inputClass}
+                  />
+                  {form.image_url.startsWith('data:') && (
+                    <button type="button" onClick={() => setForm({ ...form, image_url: '' })} className="px-3 py-2.5 rounded-xl bg-ios-fill text-ios-text text-xs font-semibold hover:bg-ios-fill-2 transition-colors shrink-0">
+                      Retirer
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* À la une */}
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.featured}
+                  onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+                  className="w-4 h-4 rounded border-ios-hairline text-arina-blue focus:ring-arina-blue"
+                />
+                <span className="text-sm text-ios-text font-medium">Mettre à la une <span className="text-ios-text3 font-normal">(affiché en avant sur le site)</span></span>
+              </label>
             </div>
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>

@@ -166,7 +166,7 @@ function normalizeNews(r) {
     date: d ? `${fmt(d.getDate())}/${fmt(d.getMonth() + 1)}/${d.getFullYear()}` : '',
     month: d ? monthsFr[d.getMonth()] : '',
     year: d ? d.getFullYear() : '',
-    featured: false,
+    featured: !!r.featured,
     author: 'ARINA',
     readTime: `${Math.max(1, Math.round(wordCount / 200))} min`,
     tags: [],
@@ -182,10 +182,10 @@ app.get('/api/news', async (req, res) => {
 
 app.post('/api/news', async (req, res) => {
   try {
-    const { title, excerpt, category, image_url, status, content } = req.body;
+    const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
-      'INSERT INTO news (title, excerpt, category, image_url, status, content) VALUES ($1,$2,$3,$4,COALESCE($5,\'published\'),$6) RETURNING *',
-      [title, excerpt, category, image_url, status, content]
+      'INSERT INTO news (title, excerpt, category, image_url, status, content, featured) VALUES ($1,$2,$3,$4,COALESCE($5,\'published\'),$6,COALESCE($7,false)) RETURNING *',
+      [title, excerpt, category, image_url, status, content, featured]
     );
     res.status(201).json(normalizeNews(result.rows[0]));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -193,10 +193,10 @@ app.post('/api/news', async (req, res) => {
 
 app.put('/api/news/:id', async (req, res) => {
   try {
-    const { title, excerpt, category, image_url, status, content } = req.body;
+    const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
-      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status), content=COALESCE($6, content) WHERE id=$7 RETURNING *',
-      [title, excerpt, category, image_url, status, content, req.params.id]
+      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status), content=COALESCE($6, content), featured=COALESCE($7, featured) WHERE id=$8 RETURNING *',
+      [title, excerpt, category, image_url, status, content, featured, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(normalizeNews(result.rows[0]));

@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS news (
 
 -- Migration for existing databases (idempotent)
 ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published';
+ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE news ALTER COLUMN image_url TYPE TEXT;
 
 -- Stats table
 CREATE TABLE IF NOT EXISTS stats (
