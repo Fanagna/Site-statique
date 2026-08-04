@@ -590,6 +590,7 @@ export default function AdminDashboard() {
       depenses,
       donTotal: dons.reduce((s, f) => s + (Number(f.montant) || 0), 0),
       depTotal: depenses.reduce((s, f) => s + (Number(f.montant) || 0), 0),
+      solde: dons.reduce((s, f) => s + (Number(f.montant) || 0), 0) - depenses.reduce((s, f) => s + (Number(f.montant) || 0), 0),
     };
   }), [finances, evalYear]);
 
@@ -1226,6 +1227,12 @@ export default function AdminDashboard() {
                         <span className="font-semibold">TOTAL DÉPENSE</span>
                         <span className="font-bold tabular text-red-500 dark:text-red-400">{formatMGA(m.depTotal)}</span>
                       </div>
+                    </div>
+
+                    {/* Solde mensuel : dons − dépenses */}
+                    <div className="mt-2.5 flex items-center justify-between rounded-lg bg-ios-fill px-2.5 py-2 text-xs">
+                      <span className="font-semibold">SOLDE</span>
+                      <span className={`font-bold tabular ${m.solde >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(m.solde)}</span>
                     </div>
                   </div>
                 ))}
