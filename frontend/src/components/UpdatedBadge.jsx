@@ -1,7 +1,8 @@
 import { RefreshCw } from 'lucide-react';
 
 /* Badge « Mis à jour » — visible quand l'actualité a été modifiée par l'admin récemment.
-   updatedAt : date ISO reçue de l'API (backend). */
+   updatedAt : date ISO reçue de l'API (backend). Affiche la date/heure exacte,
+   avec le texte relatif (« il y a 5 min ») en infobulle. */
 export default function UpdatedBadge({ updatedAt, createdDate, className = '' }) {
   if (!updatedAt) return null;
 
@@ -17,22 +18,26 @@ export default function UpdatedBadge({ updatedAt, createdDate, className = '' })
   }
 
   const hours = (Date.now() - updated.getTime()) / 3600000;
-  const isFresh = hours <= 48; // modifié dans les 48 dernières heures
-  if (!isFresh) return null;
+  if (hours > 48) return null; // modifié dans les 48 dernières heures
 
-  const label = hours < 1
+  // Texte relatif pour l'infobulle
+  const relative = hours < 1
     ? `Mis à jour il y a ${Math.max(1, Math.floor(hours * 60))} min`
     : hours < 24
       ? `Mis à jour il y a ${Math.floor(hours)} h`
       : 'Mis à jour hier';
 
+  // Date et heure exactes
+  const exact = updated.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) +
+    ' à ' + updated.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200 ${className}`}
-      title={updated.toLocaleString('fr-FR')}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200 whitespace-nowrap ${className}`}
+      title={relative}
     >
       <RefreshCw className="w-3 h-3" />
-      {label}
+      Maj. {exact}
     </span>
   );
 }
