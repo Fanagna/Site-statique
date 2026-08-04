@@ -5,6 +5,7 @@ import { fetchNews, createNews, updateNews, deleteNews } from '../../services/ap
 import { allNews, categories } from '../../data/news';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
+import UpdatedBadge from '../../components/UpdatedBadge';
 import { fmtDate, timeAgo, today, inputClass, EmptyState, Th } from '../../components/admin/ui';
 
 const PAGE_SIZE = 8;
@@ -380,7 +381,10 @@ export default function NewsManagementPage() {
                             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${st.cls}`}>{st.label}</span>
                           </td>
                           <td className="px-4 py-3 tabular text-ios-text2 whitespace-nowrap"><Icon name="eye" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{n.views || 0}</td>
-                          <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(n.date || n.created_at)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-xs text-ios-text3">{fmtDate(n.date || n.created_at)}</div>
+                            <div className="mt-1"><UpdatedBadge updatedAt={n.updatedAt} createdDate={n.created_at} /></div>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-1.5">
                               <Link to={`/actualites/${n.slug || n.id}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Voir sur le site"><Icon name="eye" className="w-4 h-4" /></Link>
