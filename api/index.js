@@ -86,6 +86,27 @@ const pool = new Pool({
 
 // Auto-migration idempotente au démarrage — crée/répare les tables absentes ou obsolètes
 // (ex. table volunteers inexistante ou table news sans colonne status en production).
+// Garantit que la table users existe (et son compte admin par défaut) —
+// appelé au login pour couvrir le démarrage à froid des fonctions serverless.
+async function ensureUsersTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'admin',
+    api_key VARCHAR(64) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+  const r = await pool.query('SELECT COUNT(*) AS n FROM users');
+  if (Number(r.rows[0].n) === 0) {
+    const apiKey = crypto.randomBytes(24).toString('hex');
+    await pool.query(
+      'INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4)',
+      [ADMIN_USER, hashPassword(ADMIN_PASSWORD), ROLES.admin, apiKey]
+    );
+  }
+}
+
 function ensureSchema() {
   const statements = [
     `CREATE TABLE IF NOT EXISTS volunteers (
@@ -197,6 +218,8 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, error: 'Identifiants manquants' });
+    // Démarrage à froid : garantit la table users + compte admin par défaut
+    await ensureUsersTable();
     // 1) Table users
     const r = await pool.query('SELECT id, username, role, api_key, password_hash FROM users WHERE username = $1', [String(username).trim()]);
     if (r.rows.length > 0) {
