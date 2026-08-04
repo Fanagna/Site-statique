@@ -25,14 +25,16 @@ export default function ArticlePage() {
 
   if (!article) {
     return (
-      <div className="min-h-screen pt-24 pb-16 flex items-center justify-center">
-        <div className="text-center">
-          <FileText className="w-12 h-12 mx-auto text-arina-gray mb-4" />
-          <h1 className="text-2xl font-serif font-bold text-arina-dark mb-2">Article introuvable</h1>
-          <p className="text-arina-gray mb-6">L'article que vous recherchez n'existe pas ou a été déplacé.</p>
+      <div className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/arina32.jpg')" }} />
+        <div className="absolute inset-0 hero-gradient opacity-90" />
+        <div className="relative z-10 text-center text-white px-6">
+          <FileText className="w-14 h-14 mx-auto text-white/80 mb-4" />
+          <h1 className="text-3xl font-serif font-bold mb-2">Article introuvable</h1>
+          <p className="text-white/85 mb-6">L'article que vous recherchez n'existe pas ou a été déplacé.</p>
           <Link
             to="/actualites"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white rounded-xl font-semibold hover:bg-arina-gold-light transition-colors shadow-lg"
           >
             <ArrowLeft className="w-5 h-5" /> Retour aux actualités
           </Link>

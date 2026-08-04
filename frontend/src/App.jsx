@@ -11,6 +11,7 @@ import ContactPage from './pages/ContactPage';
 import ActionsPage from './pages/ActionsPage';
 import PillarPage from './pages/PillarPage';
 import SoutenirPage from './pages/SoutenirPage';
+import NotFoundPage from './pages/NotFoundPage';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import NewsManagementPage from './pages/admin/NewsManagementPage';
@@ -64,6 +65,7 @@ function App() {
                     <Route path="/actions" element={<ActionsPage />} />
                     <Route path="/actions/:pillar" element={<PillarPage />} />
                     <Route path="/soutenir" element={<SoutenirPage />} />
+                    <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                   <Footer />
                 </>
