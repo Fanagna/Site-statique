@@ -47,16 +47,22 @@ export default function BeneficiaryDetailPage() {
   const fileInputRef = useRef(null);
   const { toast, showToast, closeToast } = useToast();
 
+  /* Met en forme la ligne API (dossier JSON) en fiche détaillée exploitable. */
+  const shapeDetail = (b) => {
+    const dossier = b.dossier || {};
+    return {
+      ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
+      situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
+      assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
+      formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
+      dossier,
+    };
+  };
+
   useEffect(() => {
     let cancelled = false;
     const hydrate = (b) => {
-      const dossier = b.dossier || {};
-      const detail = {
-        ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
-        situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
-        assiduite: 0, progression: 0, formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
-        dossier,
-      };
+      const detail = shapeDetail(b);
       setData(detail);
       setForm({ ...detail });
       setSuivis(detail.suivis || []);
@@ -107,8 +113,9 @@ export default function BeneficiaryDetailPage() {
       showToast(`❌ Modifications NON enregistrées dans la base : ${r.error}`, 'error');
       return false;
     }
-    setData(r.data);
-    setForm({ ...r.data, ...form });
+    const shaped = shapeDetail(r.data);
+    setData(shaped);
+    setForm({ ...shaped, ...form });
     showToast('✅ Fiche mise à jour et enregistrée dans la base de données');
     return true;
   };
