@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
+import { heroImages } from '../data/siteImages';
 
 const slides = [
   {
     title: "Donner une seconde chance\nà chaque enfant",
     subtitle: "Depuis 2023, nous accompagnons les jeunes vers un avenir meilleur grâce à l'éducation, la formation et l'insertion sociale.",
-    bg: "https://images.unsplash.com/photo-1529390079861-591de354faf5?w=1600&q=80",
+    bg: heroImages.slide1,
     ctas: [
       { label: "Découvrir nos actions", href: "#pillars", primary: false },
       { label: "Faire un don", href: "/soutenir", primary: true },
@@ -15,7 +16,7 @@ const slides = [
   {
     title: "L'éducation,\nclé de la réussite",
     subtitle: "Nos programmes de formation professionnelle offrent aux jeunes les compétences pour construire leur avenir.",
-    bg: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80",
+    bg: heroImages.slide2,
     ctas: [
       { label: "Nos formations", href: "#pillars", primary: false },
       { label: "Devenir bénévole", href: "/soutenir", primary: true },
@@ -24,7 +25,7 @@ const slides = [
   {
     title: "Ensemble,\nchangeons des vies",
     subtitle: "Rejoignez notre communauté de bénévoles et de donateurs pour offrir un avenir aux enfants vulnérables.",
-    bg: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1600&q=80",
+    bg: heroImages.slide3,
     ctas: [
       { label: "Voir les actus", href: "#news", primary: false },
       { label: "Nous soutenir", href: "/soutenir", primary: true },

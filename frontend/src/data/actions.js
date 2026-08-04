@@ -1,3 +1,5 @@
+import { pillarImages, actionContentImages } from './siteImages';
+
 export const pillars = [
   {
     slug: 'hebergement',
@@ -13,7 +15,7 @@ export const pillars = [
     lightBg: 'bg-rose-50',
     shortDesc: "Des foyers d'accueil chaleureux et protecteurs pour chaque jeune.",
     description: "L'hébergement est la première étape du parcours de réinsertion. Sans toit, impossible de se reconstruire. ARINA offre un cadre de vie stable, sécurisé et bienveillant aux jeunes qui n'ont nulle part où aller.",
-    image: 'https://images.unsplash.com/photo-1516156008625-3a9d6067fab5?w=800&q=80',
+    image: pillarImages.hebergement,
     stats: [
       { value: '2', label: 'Foyers d\'accueil' },
       { value: '30', label: 'Places disponibles' },
@@ -23,7 +25,7 @@ export const pillars = [
     content: [
       { type: 'heading', text: 'Des foyers comme des maisons' },
       { type: 'paragraph', text: "Les foyers ARINA ne sont pas des dortoirs impersonnels. Ce sont de véritables maisons, chaleureuses et accueillantes, où chaque jeune dispose de son espace personnel. Les chambres sont aménagées pour offrir confort et intimité, conditions essentielles pour se sentir en sécurité et commencer à se reconstruire." },
-      { type: 'image', src: 'https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?w=800&q=80', caption: 'Une chambre du foyer de Tsaramandroso' },
+      { type: 'image', src: actionContentImages.hebergement, caption: 'Une chambre du foyer de Tsaramandroso' },
       { type: 'heading', text: 'Un cadre structurant' },
       { type: 'paragraph', text: "Au-delà du simple hébergement, nous offrons un cadre de vie structurant : repas partagés, règles de vie communes, participation aux tâches quotidiennes. Ces routines aident les jeunes à retrouver des repères et à développer leur autonomie. Chaque résident participe à la vie du foyer : cuisine, ménage, jardinage. Des activités collectives sont organisées chaque semaine." },
       { type: 'paragraph', text: "Les éducateurs sont présents 24h/24 et 7j/7 pour assurer un accompagnement de proximité. Ils ne sont pas de simples surveillants, mais de véritables référents qui construisent une relation de confiance avec chaque jeune." },
@@ -51,7 +53,7 @@ export const pillars = [
     lightBg: 'bg-arina-warm',
     shortDesc: "Reconstruction psychologique et morale par des professionnels.",
     description: "Les jeunes que nous accompagnons portent souvent des traumatismes profonds. Le soutien psychosocial est au cœur de notre approche pour les aider à se reconstruire intérieurement et à retrouver confiance en eux et en les autres.",
-    image: 'https://images.unsplash.com/photo-1573497620053-ea5300f94f21?w=800&q=80',
+    image: pillarImages.psychosocial,
     stats: [
       { value: '3', label: 'Psychologues' },
       { value: '250+', label: 'Consultations/an' },
@@ -62,7 +64,7 @@ export const pillars = [
       { type: 'heading', text: 'Une approche globale de la personne' },
       { type: 'paragraph', text: "Le parcours des jeunes que nous accompagnons est souvent marqué par des traumatismes : violence, abandon, incarcération. Ces blessures invisibles sont parfois plus difficiles à guérir que les blessures physiques. Notre équipe de psychologues cliniciens propose un suivi individuel adapté à chaque jeune." },
       { type: 'paragraph', text: "La première étape est la création d'un lien de confiance. Beaucoup de ces jeunes n'ont jamais eu d'adulte bienveillant dans leur vie. Nos psychologues prennent le temps nécessaire pour établir une relation thérapeutique solide, sans jugement, dans le respect du rythme de chacun." },
-      { type: 'image', src: 'https://images.unsplash.com/photo-1590650516494-0c8e4a4dd67e?w=800&q=80', caption: 'Séance de groupe au centre ARINA' },
+      { type: 'image', src: actionContentImages.psychosocial, caption: 'Séance de groupe au centre ARINA' },
       { type: 'heading', text: 'Des groupes de parole' },
       { type: 'paragraph', text: "En complément du suivi individuel, nous organisons des groupes de parole hebdomadaires. Ces espaces permettent aux jeunes de partager leurs expériences, de se rendre compte qu'ils ne sont pas seuls, et de développer leur capacité d'écoute et d'empathie. La dynamique de groupe est un puissant levier de reconstruction." },
       { type: 'paragraph', text: "Des ateliers spécifiques sont également proposés : gestion des émotions, résolution de conflits, estime de soi. Ces compétences psychosociales sont essentielles pour la réinsertion sociale et professionnelle." },
@@ -90,7 +92,7 @@ export const pillars = [
     lightBg: 'bg-amber-50',
     shortDesc: "Menuiserie, cuisine, agriculture : des métiers concrets.",
     description: "La formation professionnelle est le pilier de l'autonomie. Nous proposons des formations certifiantes dans des métiers qui recrutent, pour donner à chaque jeune les moyens de construire son avenir.",
-    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=800&q=80',
+    image: pillarImages.formation,
     stats: [
       { value: '4', label: 'Filières de formation' },
       { value: '45', label: 'Jeunes formés en 2024' },
@@ -101,7 +103,7 @@ export const pillars = [
       { type: 'heading', text: 'Des formations adaptées au marché' },
       { type: 'paragraph', text: "Nos formations sont conçues en partenariat avec des professionnels et des entreprises locales pour garantir leur adéquation avec les besoins du marché du travail. Nous proposons actuellement quatre filières : menuiserie, cuisine, agriculture et couture." },
       { type: 'paragraph', text: "Chaque formation dure entre 6 et 12 mois et combine des cours théoriques dans nos ateliers et des stages pratiques en entreprise. Cette alternance permet aux jeunes d'acquérir à la fois les compétences techniques et l'expérience professionnelle recherchées par les employeurs." },
-      { type: 'image', src: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800&q=80', caption: 'L\'atelier cuisine du centre ARINA' },
+      { type: 'image', src: actionContentImages.formation, caption: 'L\'atelier cuisine du centre ARINA' },
       { type: 'heading', text: 'Menuiserie' },
       { type: 'paragraph', text: "Notre atelier de menuiserie, équipé grâce au soutien de nos partenaires, permet aux jeunes d'apprendre les techniques de base du travail du bois : mesurage, découpe, assemblage, finition. Ils réalisent des meubles qui équipent nos foyers et peuvent être vendus pour financer la formation." },
       { type: 'heading', text: 'Cuisine' },
@@ -131,7 +133,7 @@ export const pillars = [
     lightBg: 'bg-purple-50',
     shortDesc: "Aide à l'emploi, au logement et à l'intégration.",
     description: "L'insertion sociale est l'aboutissement du parcours. Une fois formé, chaque jeune est accompagné dans sa recherche d'emploi, de logement autonome et dans son intégration dans la société.",
-    image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80',
+    image: pillarImages.insertion,
     stats: [
       { value: '85%', label: "Taux d'insertion" },
       { value: '18', label: 'Diplômés en 2024' },
@@ -142,7 +144,7 @@ export const pillars = [
       { type: 'heading', text: 'Un accompagnement personnalisé vers l\'emploi' },
       { type: 'paragraph', text: "Trouver un emploi est un défi pour tout jeune, a fortiori pour ceux qui portent un parcours de vie difficile. Notre service d'insertion professionnelle accompagne chaque jeune de manière personnalisée : rédaction de CV, préparation aux entretiens, mise en relation avec des employeurs partenaires." },
       { type: 'paragraph', text: "Nous organisons régulièrement des forums emploi et des rencontres avec des entreprises. Notre réseau de 12 entreprises partenaires, dans des secteurs variés (hôtellerie, bâtiment, agriculture, restauration), nous permet de proposer des opportunités concrètes à nos jeunes diplômés." },
-      { type: 'image', src: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=800&q=80', caption: 'Signature d\'un contrat d\'apprentissage avec un partenaire' },
+      { type: 'image', src: actionContentImages.insertion, caption: 'Signature d\'un contrat d\'apprentissage avec un partenaire' },
       { type: 'heading', text: 'Le programme de mentorat' },
       { type: 'paragraph', text: "Lancé en septembre 2024, notre programme de mentorat met en relation chaque jeune avec un professionnel bénévole qui le guide dans son insertion professionnelle. Le mentor partage son expérience, ses conseils, son réseau. C'est un accompagnement précieux qui fait souvent la différence." },
       { type: 'paragraph', text: "Actuellement, 15 binômes mentor-mentoré sont actifs, avec des résultats très encourageants : les jeunes mentorés trouvent un emploi en moyenne deux fois plus rapidement." },

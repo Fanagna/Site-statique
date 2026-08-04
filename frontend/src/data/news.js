@@ -1,3 +1,5 @@
+import { newsImages, newsContentImage } from './siteImages';
+
 export const allNews = [
   {
     id: 1,
@@ -11,7 +13,7 @@ export const allNews = [
     author: 'Équipe ARINA',
     readTime: '5 min',
     tags: ['menuiserie', 'formation', 'atelier', 'jeunes'],
-    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=1200&q=80',
+    image: newsImages[0],
     imageCaption: 'Les jeunes de l\'atelier menuiserie présentant leurs créations',
     excerpt: "Un atelier pratique qui permet aux jeunes d'acquérir des compétences techniques tout en développant leur créativité. 25 jeunes ont participé à cette session intensive.",
     content: [
@@ -25,7 +27,7 @@ export const allNews = [
       },
       {
         type: 'image',
-        src: 'https://images.unsplash.com/photo-1581539250439-c96689b516dd?w=800&q=80',
+        src: newsContentImage,
         caption: 'Un participant appliquant les finitions sur son meuble',
       },
       {
@@ -64,7 +66,7 @@ export const allNews = [
     author: 'Service Communication',
     readTime: '4 min',
     tags: ['ministre', 'visite', 'officiel', 'justice'],
-    image: 'https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?w=1200&q=80',
+    image: newsImages[1],
     imageCaption: 'Le Ministre de la Justice en visite au centre ARINA',
     excerpt: "Une visite officielle qui souligne l'importance du travail accompli par l'association pour la réinsertion des jeunes.",
     content: [
@@ -108,7 +110,7 @@ export const allNews = [
     author: 'Service Communication',
     readTime: '6 min',
     tags: ['témoignage', 'réinsertion', 'parcours', 'espoir'],
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&q=80',
+    image: newsImages[2],
     imageCaption: 'Jean, 17 ans, bénéficiaire du programme ARINA',
     excerpt: "Découvrez le parcours inspirant de Jean qui, grâce à l'association, a trouvé sa voie professionnelle en menuiserie.",
     content: [
@@ -172,7 +174,7 @@ export const allNews = [
     author: 'Direction ARINA',
     readTime: '5 min',
     tags: ['bilan', 'rapport', 'chiffres', 'impact'],
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80',
+    image: newsImages[3],
     imageCaption: 'Rapport annuel 2024 de l\'association ARINA',
     excerpt: "Le rapport annuel 2024 présente les résultats encourageants de nos programmes d'accompagnement et de formation.",
     content: [
@@ -220,7 +222,7 @@ export const allNews = [
     author: 'Équipe ARINA',
     readTime: '3 min',
     tags: ['foyer', 'hébergement', 'inauguration', 'nouveauté'],
-    image: 'https://images.unsplash.com/photo-1516156008625-3a9d6067fab5?w=1200&q=80',
+    image: newsImages[4],
     imageCaption: 'Le nouveau foyer d\'accueil ARINA',
     excerpt: "Un nouveau foyer pouvant accueillir 15 jeunes supplémentaires a ouvert ses portes grâce au soutien de nos partenaires.",
     content: [
@@ -259,7 +261,7 @@ export const allNews = [
     author: 'Équipe ARINA',
     readTime: '4 min',
     tags: ['sortie', 'nature', 'éducation', 'Andasibe'],
-    image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=1200&q=80',
+    image: newsImages[5],
     imageCaption: 'Les jeunes d\'ARINA au Parc National d\'Andasibe',
     excerpt: "Une journée inoubliable pour nos jeunes qui ont découvert la richesse de la biodiversité malgache.",
     content: [
@@ -298,7 +300,7 @@ export const allNews = [
     author: 'Direction ARINA',
     readTime: '4 min',
     tags: ['cuisine', 'formation', 'programme', 'métier'],
-    image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=1200&q=80',
+    image: newsImages[6],
     imageCaption: 'La nouvelle cuisine pédagogique du centre ARINA',
     excerpt: "Le nouveau programme de formation en cuisine débutera en janvier 2025 avec 20 places disponibles.",
     content: [
@@ -338,7 +340,7 @@ export const allNews = [
     author: 'Service Communication',
     readTime: '5 min',
     tags: ['témoignage', 'cuisine', 'parcours', 'réussite'],
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=1200&q=80',
+    image: newsImages[7],
     imageCaption: 'Marie, 16 ans, passionnée de cuisine',
     excerpt: "Après 6 mois au centre ARINA, Marie a découvert sa passion pour la cuisine et prépare son CAP.",
     content: [
@@ -386,7 +388,7 @@ export const allNews = [
     author: 'Direction ARINA',
     readTime: '4 min',
     tags: ['UNICEF', 'partenariat', 'éducation', 'filles'],
-    image: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1200&q=80',
+    image: newsImages[8],
     imageCaption: 'Signature du partenariat ARINA-UNICEF',
     excerpt: "Un nouveau partenariat ambitieux pour garantir l'accès à l'éducation des jeunes filles vulnérables.",
     content: [
@@ -426,7 +428,7 @@ export const allNews = [
     author: 'Service Communication',
     readTime: '5 min',
     tags: ['diplômes', 'cérémonie', 'réussite', 'promotion'],
-    image: 'https://images.unsplash.com/photo-1523050854058-8df90910fa58?w=1200&q=80',
+    image: newsImages[9],
     imageCaption: 'Les diplômés de la promotion 2024',
     excerpt: "18 jeunes ont reçu leur certification professionnelle lors d'une cérémonie émouvante.",
     content: [
@@ -469,7 +471,7 @@ export const allNews = [
     author: 'Direction ARINA',
     readTime: '4 min',
     tags: ['rapport', 'trimestriel', 'indicateurs', 'T3'],
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80',
+    image: newsImages[10],
     imageCaption: 'Rapport trimestriel T3 2024',
     excerpt: "Le troisième trimestre 2024 montre une progression constante de nos indicateurs de réinsertion.",
     content: [
@@ -504,7 +506,7 @@ export const allNews = [
     author: 'Équipe ARINA',
     readTime: '4 min',
     tags: ['mentorat', 'bénévoles', 'programme', 'accompagnement'],
-    image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&q=80',
+    image: newsImages[11],
     imageCaption: 'Première rencontre entre mentors et jeunes',
     excerpt: "Un nouveau programme qui met en relation des professionnels bénévoles avec nos jeunes pour du mentorat.",
     content: [
