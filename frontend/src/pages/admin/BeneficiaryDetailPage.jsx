@@ -496,7 +496,7 @@ export default function BeneficiaryDetailPage() {
         )}
 
         {/* Notes confidentielles */}
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 animate-fade-up">
+        <div className="no-print rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 animate-fade-up">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center"><Icon name="bell" className="w-4 h-4" /></div>
             <h3 className="font-bold text-ios-text flex items-center gap-2"><Lock className="w-4 h-4 text-amber-500" /> Notes confidentielles</h3>
@@ -504,6 +504,36 @@ export default function BeneficiaryDetailPage() {
           <textarea rows={3} className="w-full px-4 py-3 bg-ios-card border border-amber-500/30 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
             placeholder="Notes réservées à l'administrateur..."
             value={data.notes} onChange={(e) => setData({ ...data, notes: e.target.value })} />
+        </div>
+
+        {/* ── PIED DE PAGE OFFICIEL (impression / PDF) ── */}
+        <div className="mt-8 pt-6 border-t-2 border-arina-blue/30">
+          <div className="grid sm:grid-cols-3 gap-6 items-end">
+            {/* Date */}
+            <div className="text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-ios-text3 mb-1">Fait à Mahajanga, le</div>
+              <div className="font-bold text-ios-text">
+                {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+            {/* Signature */}
+            <div className="text-center">
+              <div className="inline-flex flex-col items-center">
+                <div className="w-40 border-b-2 border-ios-text/60 mb-1" />
+                <div className="text-sm font-bold text-ios-text">Signature</div>
+                <div className="text-[11px] text-ios-text3">Responsable ARINA</div>
+              </div>
+            </div>
+            {/* Tampon */}
+            <div className="flex justify-center sm:justify-end">
+              <div className="relative w-28 h-28 rounded-full border-2 border-arina-blue/70 text-arina-blue flex flex-col items-center justify-center text-center rotate-[-8deg] select-none">
+                <img src="/logo-arina.jpg" alt="" className="w-9 h-9 object-contain opacity-80" />
+                <div className="text-[11px] font-extrabold uppercase tracking-widest leading-tight">ARINA</div>
+                <div className="text-[8px] font-semibold uppercase tracking-wide">Association</div>
+                <div className="text-[8px] mt-0.5 font-medium">Mahajanga · 2024</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </AdminLayout>

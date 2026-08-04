@@ -263,6 +263,8 @@ body {
     padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .print-area .card-apple {
