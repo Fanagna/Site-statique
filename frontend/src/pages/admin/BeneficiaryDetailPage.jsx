@@ -190,20 +190,26 @@ export default function BeneficiaryDetailPage() {
       }
     >
       <div className="print-area space-y-6">
-        {/* ── EN-TÊTE DE FICHE (imprimable) ── */}
+        {/* ── EN-TÊTE DE FICHE (imprimable) — photo tout en haut ── */}
         <div className="print-header card-apple overflow-hidden">
-          <div className="bg-gradient-to-r from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-6 text-white flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-28 h-28 lg:w-32 lg:h-32 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 flex items-center justify-center flex-shrink-0 shadow-xl">
+          <div className="bg-gradient-to-b from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-8 text-white text-center relative">
+            {/* Filigrane logo ARINA en fond */}
+            <img src="/logo-arina.jpg" alt="" className="absolute right-4 top-4 w-14 h-14 rounded-xl object-contain bg-white/90 p-1 opacity-90 shadow-lg" />
+
+            {/* Photo — tout en haut, au-dessus des écritures */}
+            <div className="w-36 h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 flex items-center justify-center mx-auto shadow-2xl">
               {data.photo ? (
                 <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
               ) : (
-                <User className="w-14 h-14 text-white/80" />
+                <User className="w-16 h-16 text-white/80" />
               )}
             </div>
-            <div className="flex-1 text-center sm:text-left">
+
+            {/* Écritures — en dessous de la photo */}
+            <div className="mt-5">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Association ARINA — Dossier bénéficiaire</div>
               <h2 className="text-2xl lg:text-3xl font-bold tracking-tight mt-1">{data.prenom} {data.nom}</h2>
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
                 <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold border border-white/30">{data.code}</span>
                 <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold border border-white/30">{data.age} ans</span>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${data.statut === 'Actif' ? 'bg-emerald-500/30 border-emerald-200/60' : data.statut === 'Diplômé' ? 'bg-purple-500/30 border-purple-200/60' : 'bg-gray-500/30 border-gray-200/60'}`}>
@@ -211,7 +217,6 @@ export default function BeneficiaryDetailPage() {
                 </span>
               </div>
             </div>
-            <img src="/logo-arina.jpg" alt="ARINA" className="hidden sm:block w-16 h-16 rounded-2xl object-contain bg-white/90 p-1.5 shadow-lg" />
           </div>
         </div>
 

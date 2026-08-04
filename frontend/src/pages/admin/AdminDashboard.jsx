@@ -1124,6 +1124,22 @@ export default function AdminDashboard() {
                   <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
                 </div>
                 <div className="p-5 grid md:grid-cols-2 gap-3">
+                  {/* Photo — tout en haut de l'identité */}
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Photo</label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 h-24 rounded-2xl overflow-hidden bg-ios-fill flex items-center justify-center flex-shrink-0">
+                        {benefForm.photo ? <img src={benefForm.photo} alt="" className="w-full h-full object-cover" /> : <Icon name="users" className="w-10 h-10 text-ios-text3" />}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="px-4 py-2 rounded-xl bg-arina-blue/10 text-arina-blue text-sm font-semibold cursor-pointer hover:bg-arina-blue/20 transition-colors text-center">
+                          Choisir une photo
+                          <input type="file" accept="image/*" onChange={onBenefPhoto} className="hidden" />
+                        </label>
+                        {benefForm.photo && <button type="button" onClick={() => setBenefForm((p) => ({ ...p, photo: '' }))} className="text-xs text-red-500 hover:text-red-600 transition-colors">Retirer</button>}
+                      </div>
+                    </div>
+                  </div>
                   <input placeholder="Prénom" value={benefForm.prenom} onChange={(e) => setBenefForm({ ...benefForm, prenom: e.target.value })} className={inputClass} />
                   <input placeholder="Nom" value={benefForm.nom} onChange={(e) => setBenefForm({ ...benefForm, nom: e.target.value })} className={inputClass} />
                   <input placeholder="Pseudo" value={benefForm.dossier.identite.pseudo} onChange={setDoss('identite', 'pseudo')} className={inputClass} />
@@ -1134,22 +1150,6 @@ export default function AdminDashboard() {
                   <input placeholder="Situation scolaire" value={benefForm.dossier.identite.situationScolaire} onChange={setDoss('identite', 'situationScolaire')} className={inputClass} />
                   <div className="md:col-span-2">
                     <input placeholder="Loisirs" value={benefForm.dossier.identite.loisirs} onChange={setDoss('identite', 'loisirs')} className={inputClass} />
-                  </div>
-                  {/* Photo */}
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Photo</label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 rounded-2xl overflow-hidden bg-ios-fill flex items-center justify-center flex-shrink-0">
-                        {benefForm.photo ? <img src={benefForm.photo} alt="" className="w-full h-full object-cover" /> : <Icon name="users" className="w-8 h-8 text-ios-text3" />}
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <label className="px-4 py-2 rounded-xl bg-arina-blue/10 text-arina-blue text-sm font-semibold cursor-pointer hover:bg-arina-blue/20 transition-colors text-center">
-                          Choisir une photo
-                          <input type="file" accept="image/*" onChange={onBenefPhoto} className="hidden" />
-                        </label>
-                        {benefForm.photo && <button type="button" onClick={() => setBenefForm((p) => ({ ...p, photo: '' }))} className="text-xs text-red-500 hover:text-red-600 transition-colors">Retirer</button>}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </section>
