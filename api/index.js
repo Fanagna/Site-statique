@@ -434,6 +434,29 @@ app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.put('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => {
+  try {
+    const { type, categorie, montant, description, date, quantity, unit_price } = req.body;
+    const q = quantity != null && quantity !== '' ? Number(quantity) : null;
+    const p = unit_price != null && unit_price !== '' ? Number(unit_price) : null;
+    // Montant automatique : MNT = QT × PU quand les deux sont fournis (dépense) ;
+    // sinon le montant saisi (ex. un don).
+    const computed = q != null && p != null ? Math.round(q * p) : (Number(montant) || 0);
+    const result = await pool.query(
+      'UPDATE finances SET type=$1, category=$2, amount=$3, description=$4, date=$5, quantity=$6, unit_price=$7 WHERE id=$8 RETURNING *',
+      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const r = result.rows[0];
+    res.json({ id: r.id, type: r.type === 'income' ? 'Revenu' : 'Dépense',
+      categorie: r.category || 'Autre', montant: Number(r.amount),
+      quantity: r.quantity != null ? Number(r.quantity) : null,
+      unit_price: r.unit_price != null ? Number(r.unit_price) : null,
+      description: r.description || '',
+      date: r.date ? new Date(r.date).toISOString().split('T')[0] : '' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM finances WHERE id=$1 RETURNING *', [req.params.id]);

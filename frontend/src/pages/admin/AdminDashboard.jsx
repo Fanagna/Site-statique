@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import Toast, { useToast } from '../../components/admin/Toast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
-  fetchFinances, createFinance, deleteFinance,
+  fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchNews,
   fetchContacts, deleteContact,
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
@@ -37,7 +37,7 @@ const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Jui
 /* ═══════════════════════════════════════
    Charts (real data)
    ═══════════════════════════════════════ */
-function MonthlyChart({ finances, loading }) {
+function EvolutionChart({ finances, loading }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 80);
@@ -71,28 +71,101 @@ function MonthlyChart({ finances, loading }) {
   if (!data.some((m) => m.revenus > 0 || m.depenses > 0)) {
     return (
       <EmptyState
-        icon="wallet"
-        text="Aucune transaction enregistrée — vos flux financiers mensuels apparaîtront ici."
+        icon="trendUp"
+        text="Aucune transaction sur les 6 derniers mois — l'évolution mensuelle apparaîtra ici."
       />
     );
   }
+  const W = 100;
+  const H = 40;
+  const x = (i) => (data.length === 1 ? 0 : (i / (data.length - 1)) * W);
+  const y = (v) => H - (Math.max(Number(v) || 0, 0) / max) * (H - 10) - 5;
+  const mkPath = (get) => data.map((m, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(get(m)).toFixed(2)}`).join(' ');
+  const revenusPath = mkPath((m) => m.revenus);
+  const depensesPath = mkPath((m) => m.depenses);
   return (
-    <div className="h-56 flex items-end gap-3 px-1">
-      {data.map((m) => (
-        <div key={m.key} className="flex-1 flex flex-col items-center gap-2 h-full group">
-          <div className="flex-1 w-full flex items-end justify-center gap-1.5">
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-44">
+        <defs>
+          <linearGradient id="evoRev" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2e7d32" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#2e7d32" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="evoDep" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#dc2626" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#dc2626" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+          <line key={t} x1="0" x2={W} y1={(H * t).toFixed(2)} y2={(H * t).toFixed(2)} stroke="currentColor" strokeOpacity="0.07" strokeWidth="0.3" />
+        ))}
+        <path d={`${revenusPath} L${W},${H} L0,${H} Z`} fill="url(#evoRev)" style={{ opacity: mounted ? 1 : 0, transition: 'opacity .8s ease' }} />
+        <path d={`${depensesPath} L${W},${H} L0,${H} Z`} fill="url(#evoDep)" style={{ opacity: mounted ? 1 : 0, transition: 'opacity .8s ease .1s' }} />
+        <path d={revenusPath} fill="none" stroke="#2e7d32" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={mounted ? '1 0' : '0 1'} style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.22,1,0.36,1)' }} />
+        <path d={depensesPath} fill="none" stroke="#dc2626" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={mounted ? '1 0' : '0 1'} style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.22,1,0.36,1) .15s' }} />
+        {data.map((m, i) => (
+          <g key={m.key}>
+            <circle cx={x(i).toFixed(2)} cy={y(m.revenus).toFixed(2)} r="1.6" fill="#2e7d32" stroke="var(--color-ios-card)" strokeWidth="0.9" style={{ opacity: mounted ? 1 : 0, transition: `opacity .3s ease ${0.4 + i * 0.08}s` }} />
+            <circle cx={x(i).toFixed(2)} cy={y(m.depenses).toFixed(2)} r="1.6" fill="#dc2626" stroke="var(--color-ios-card)" strokeWidth="0.9" style={{ opacity: mounted ? 1 : 0, transition: `opacity .3s ease ${0.4 + i * 0.08}s` }} />
+          </g>
+        ))}
+      </svg>
+      <div className="flex justify-between mt-1 px-0.5">
+        {data.map((m) => (
+          <span key={m.key} className="text-[10px] text-ios-text3 capitalize">{m.label}</span>
+        ))}
+      </div>
+      <div className="flex items-center justify-center gap-5 mt-4 text-xs font-medium text-ios-text3">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2e7d32]" /> Revenus</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" /> Dépenses</span>
+      </div>
+    </div>
+  );
+}
+
+/* Top 5 des dépenses (barres horizontales) */
+function TopExpensesChart({ finances, loading }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 120);
+    return () => clearTimeout(t);
+  }, []);
+
+  const data = useMemo(() => {
+    const map = {};
+    (finances || [])
+      .filter((f) => f.type === 'Dépense')
+      .forEach((f) => {
+        const v = Math.max(0, Number(f.montant) || 0);
+        if (v <= 0) return;
+        const k = f.categorie || 'Autre';
+        map[k] = (map[k] || 0) + v;
+      });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [finances]);
+
+  const total = data.reduce((s, [, v]) => s + v, 0);
+  const colors = ['#E0574F', '#F59F00', '#B14A54', '#FFA18E', '#9CA3AF'];
+
+  if (loading) return <div className="h-56 skeleton" />;
+  if (total === 0) {
+    return <EmptyState icon="trendDown" text="Aucune dépense enregistrée — le top 5 des dépenses apparaîtra ici." />;
+  }
+  return (
+    <div className="space-y-4 mt-5">
+      {data.map(([label, value], i) => (
+        <div key={label}>
+          <div className="flex items-center justify-between text-sm mb-1.5">
+            <span className="text-ios-text2 truncate">{label}</span>
+            <span className="font-semibold tabular">{formatMGA(value)}</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-ios-fill overflow-hidden">
             <div
-              title={`Revenus : ${formatMGA(m.revenus)}`}
-              className="w-full max-w-[26px] rounded-t-lg bg-gradient-to-t from-arina-blue to-arina-blue-light transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-85"
-              style={{ height: mounted ? `${Math.max((m.revenus / max) * 100, 2)}%` : '0%' }}
-            />
-            <div
-              title={`Dépenses : ${formatMGA(m.depenses)}`}
-              className="w-full max-w-[26px] rounded-t-lg bg-[#C7C7CC] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-85"
-              style={{ height: mounted ? `${Math.max((m.depenses / max) * 100, 2)}%` : '0%' }}
+              title={`${label} : ${formatMGA(value)}`}
+              className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{ width: mounted ? `${(value / total) * 100}%` : '0%', background: `linear-gradient(90deg, ${colors[i % colors.length]}, ${colors[i % colors.length]}cc)` }}
             />
           </div>
-          <span className="text-[10px] text-ios-text3 capitalize">{m.label}</span>
         </div>
       ))}
     </div>
@@ -233,11 +306,13 @@ export default function AdminDashboard() {
 
   /* ── Finance CRUD ── */
   const [showFinanceForm, setShowFinanceForm] = useState(false);
+  const [editingFin, setEditingFin] = useState(null);
   const [financeForm, setFinanceForm] = useState({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
   const [finType, setFinType] = useState('');
   const [finCat, setFinCat] = useState('');
   const [finSort, setFinSort] = useState({ key: '', dir: 1 });
   const [evalYear, setEvalYear] = useState(new Date().getFullYear());
+  const [evalMonth, setEvalMonth] = useState(''); // '' = vue des 12 mois ; '01'…'12' = rapport mensuel détaillé
 
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
@@ -386,24 +461,53 @@ export default function AdminDashboard() {
     showToast('✅ Bénéficiaire supprimé de la base de données');
   };
 
+  /* Ouvre le formulaire : pré-rempli (édition) ou vierge (nouvelle transaction) */
+  const openFinForm = (f) => {
+    if (f) {
+      setEditingFin(f);
+      // Dépense avec QT/PU → pré-remplissage QT/PU (MNT recalculé automatiquement) ;
+      // don ou montant direct → pré-remplissage du montant.
+      const hasCalc = f.quantity != null && f.unit_price != null;
+      setFinanceForm({
+        type: f.type,
+        categorie: f.categorie,
+        montant: hasCalc ? '' : String(f.montant || ''),
+        quantity: f.quantity != null ? String(f.quantity) : '',
+        unit_price: f.unit_price != null ? String(f.unit_price) : '',
+        description: f.description || '',
+        date: f.date || today(),
+      });
+    } else {
+      setEditingFin(null);
+      setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
+    }
+    setShowFinanceForm(true);
+  };
   const saveFinance = async () => {
     const q = financeForm.quantity !== '' ? Number(financeForm.quantity) || 0 : 0;
     const p = financeForm.unit_price !== '' ? Number(financeForm.unit_price) || 0 : 0;
     // MNT = QT × PU (calcul automatique) pour une dépense ; sinon montant saisi (ex. un don).
-    const auto = financeForm.type === 'Dépense' && q > 0 && p > 0 ? Math.round(q * p) : 0;
+    // MNT = QT × PU dès que QT et PU sont renseignés (tous types) — cohérent avec le backend
+    const auto = q > 0 && p > 0 ? Math.round(q * p) : 0;
     const d = {
       ...financeForm,
       quantity: q || null,
       unit_price: p || null,
       montant: auto || Number(financeForm.montant) || 0,
     };
-    const r = await createFinance(d);
+    const r = editingFin ? await updateFinance(editingFin.id, d) : await createFinance(d);
     if (!r.ok) {
-      showToast(`❌ Transaction NON enregistrée dans la base : ${r.error}`, 'error');
+      showToast(`❌ ${editingFin ? 'Modification' : 'Transaction'} NON enregistrée dans la base : ${r.error}`, 'error');
       return;
     }
-    setFinances([r.data, ...finances]);
-    showToast(`✅ ${r.data.type} enregistré${r.data.type === 'Dépense' ? 'e' : ''} dans la base : ${formatMGA(r.data.montant)}`);
+    if (editingFin) {
+      setFinances(finances.map((f) => (f.id === editingFin.id ? r.data : f)));
+      showToast(`✅ ${r.data.type} modifié${r.data.type === 'Dépense' ? 'e' : ''} dans la base : ${formatMGA(r.data.montant)}`);
+    } else {
+      setFinances([r.data, ...finances]);
+      showToast(`✅ ${r.data.type} enregistré${r.data.type === 'Dépense' ? 'e' : ''} dans la base : ${formatMGA(r.data.montant)}`);
+    }
+    setEditingFin(null);
     setShowFinanceForm(false);
     setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
   };
@@ -594,6 +698,20 @@ export default function AdminDashboard() {
     };
   }), [finances, evalYear]);
 
+  // Mois sélectionné pour le rapport mensuel détaillé (synthèse + détail par catégorie)
+  const selectedMonth = evalMonth ? evalMonths.find((m) => m.key.endsWith(`-${evalMonth}`)) || null : null;
+  const monthCat = useMemo(() => {
+    if (!selectedMonth) return null;
+    const dons = {};
+    const depenses = {};
+    selectedMonth.dons.forEach((d) => { const k = d.categorie || 'Autre'; dons[k] = (dons[k] || 0) + (Number(d.montant) || 0); });
+    selectedMonth.depenses.forEach((d) => { const k = d.categorie || 'Autre'; depenses[k] = (depenses[k] || 0) + (Number(d.montant) || 0); });
+    return {
+      dons: Object.entries(dons).sort((a, b) => b[1] - a[1]),
+      depenses: Object.entries(depenses).sort((a, b) => b[1] - a[1]),
+    };
+  }, [selectedMonth]);
+
   /* Export CSV de l'évaluation mensuelle (séparateur « ; » compatible Excel FR) */
   const exportEvaluationCsv = useCallback(() => {
     const esc = (v) => {
@@ -717,8 +835,8 @@ export default function AdminDashboard() {
     ...(allowedTabs.includes('actualites') ? [{ label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') }] : []),
     ...(allowedTabs.includes('enfants') ? [{ label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FDE7E1] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } }] : []),
     ...(allowedTabs.includes('finances') ? [
-      { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-      { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+      { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setEditingFin(null); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+      { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setEditingFin(null); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     ] : []),
     ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
     ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
@@ -874,29 +992,31 @@ export default function AdminDashboard() {
           {/* Charts */}
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 card-apple p-6 animate-fade-up" style={{ animationDelay: '180ms' }}>
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                <div>
-                  <h3 className="font-bold">Flux financiers</h3>
-                  <p className="text-xs text-ios-text3 mt-0.5">Revenus vs dépenses — 6 derniers mois</p>
-                </div>
-                <div className="flex items-center gap-4 text-xs font-medium text-ios-text3">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-arina-blue" /> Revenus</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#C7C7CC]" /> Dépenses</span>
-                </div>
+              <div className="mb-5">
+                <h3 className="font-bold">Évolution sur 6 mois</h3>
+                <p className="text-xs text-ios-text3 mt-0.5">Tendance mensuelle des revenus et dépenses</p>
               </div>
-              <MonthlyChart finances={finances} loading={financesLoading} />
+              <EvolutionChart finances={finances} loading={financesLoading} />
             </div>
 
-            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '240ms' }}>
-              <h3 className="font-bold">Dépenses par catégorie</h3>
-              <p className="text-xs text-ios-text3 mt-0.5">Répartition réelle des sorties</p>
-              <CategoryDonut finances={finances} loading={financesLoading} />
+            <div className="space-y-6">
+              <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '240ms' }}>
+                <h3 className="font-bold">Dépenses par catégorie</h3>
+                <p className="text-xs text-ios-text3 mt-0.5">Répartition réelle des sorties</p>
+                <CategoryDonut finances={finances} loading={financesLoading} />
+              </div>
+
+              <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '300ms' }}>
+                <h3 className="font-bold">Top 5 des dépenses</h3>
+                <p className="text-xs text-ios-text3 mt-0.5">Les catégories les plus coûteuses</p>
+                <TopExpensesChart finances={finances} loading={financesLoading} />
+              </div>
             </div>
           </div>
 
           {/* Enfants répartition + Activité */}
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '300ms' }}>
+            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '360ms' }}>
               <h3 className="font-bold">Enfants accompagnés</h3>
               <p className="text-xs text-ios-text3 mt-0.5">Répartition par statut</p>
               <div className="mt-6">
@@ -921,7 +1041,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="lg:col-span-2 card-apple p-6 animate-fade-up" style={{ animationDelay: '360ms' }}>
+            <div className="lg:col-span-2 card-apple p-6 animate-fade-up" style={{ animationDelay: '420ms' }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-bold">Activité récente</h3>
@@ -950,7 +1070,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick actions */}
-          <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '420ms' }}>
+          <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '480ms' }}>
             <div>
               <h3 className="font-bold">Actions rapides</h3>
               <p className="text-xs text-ios-text3 mt-0.5">Raccourcis vers les tâches fréquentes</p>
@@ -1123,7 +1243,7 @@ export default function AdminDashboard() {
               <option value="">Toutes catégories</option>
               {['Don', 'Subvention', 'Alimentation', 'Équipement', 'Salaire', 'Autre'].map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <button onClick={() => setShowFinanceForm(true)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5`}>
+            <button onClick={() => openFinForm(null)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5`}>
               <Icon name="plus" className="w-4 h-4" /> Ajouter
             </button>
           </div>
@@ -1131,7 +1251,7 @@ export default function AdminDashboard() {
             {financesLoading ? (
               <div className="p-6 space-y-4"><div className="skeleton h-10" /><div className="skeleton h-10" /><div className="skeleton h-10" /></div>
             ) : sortedFinances.length === 0 ? (
-              <EmptyState icon="wallet" text="Aucune transaction trouvée. Enregistrez votre premier mouvement !" action={<button onClick={() => setShowFinanceForm(true)} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /> Ajouter une transaction</button>} />
+              <EmptyState icon="wallet" text="Aucune transaction trouvée. Enregistrez votre premier mouvement !" action={<button onClick={() => openFinForm(null)} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /> Ajouter une transaction</button>} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1162,7 +1282,8 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-ios-text2 max-w-[240px] truncate">{f.description || '—'}</td>
                         <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(f.date)}</td>
                         <td className="px-4 py-3">
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => openFinForm(f)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
                             <button onClick={() => removeFinance(f.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
                         </td>
@@ -1183,6 +1304,10 @@ export default function AdminDashboard() {
             <select value={evalYear} onChange={(e) => setEvalYear(Number(e.target.value))} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               {evalYears.map((y) => <option key={y} value={y}>Année {y}</option>)}
             </select>
+            <select value={evalMonth} onChange={(e) => setEvalMonth(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+              <option value="">Tous les mois</option>
+              {MONTH_NAMES.map((name, i) => <option key={name} value={String(i + 1).padStart(2, '0')}>{name}</option>)}
+            </select>
             <span className="text-xs text-ios-text3">MNT calculé automatiquement (QT × PU) — défilement horizontal pour voir les 12 mois</span>
             <button onClick={exportEvaluationCsv} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
               <Download className="w-4 h-4" /> Exporter CSV
@@ -1191,6 +1316,67 @@ export default function AdminDashboard() {
               <Printer className="w-4 h-4" /> Imprimer / PDF
             </button>
           </div>
+
+          {/* Rapport mensuel détaillé (sélecteur de mois) */}
+          {selectedMonth && monthCat && (
+            <div className="card-apple p-6 animate-fade-up print-area">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold">Rapport mensuel — {selectedMonth.name} {evalYear}</h3>
+                  <p className="text-xs text-ios-text3 mt-0.5">Synthèse des dons et dépenses du mois sélectionné</p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-arina-warm text-arina-blue">
+                  <Icon name="calendar" className="w-3.5 h-3.5" /> {selectedMonth.dons.length + selectedMonth.depenses.length} mouvement{selectedMonth.dons.length + selectedMonth.depenses.length > 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mt-6">
+                {[
+                  { label: 'Dons reçus', value: selectedMonth.donTotal, c: 'text-emerald-600 dark:text-emerald-400' },
+                  { label: 'Dépenses', value: selectedMonth.depTotal, c: 'text-red-500 dark:text-red-400' },
+                  { label: 'Solde', value: selectedMonth.solde, c: selectedMonth.solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400' },
+                ].map((s, i) => (
+                  <div key={i} className="rounded-2xl bg-ios-fill p-4">
+                    <div className={`text-lg lg:text-2xl font-extrabold tabular ${s.c}`}>{formatMGA(s.value)}</div>
+                    <div className="text-xs text-ios-text3 mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6 mt-6">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-2">Dons par catégorie</div>
+                  {monthCat.dons.length === 0 ? (
+                    <div className="text-sm text-ios-text3">Aucun don ce mois.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {monthCat.dons.map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between text-sm">
+                          <span className="text-ios-text2">{k}</span>
+                          <span className="font-semibold tabular">{formatMGA(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-red-500 dark:text-red-400 mb-2">Dépenses par catégorie</div>
+                  {monthCat.depenses.length === 0 ? (
+                    <div className="text-sm text-ios-text3">Aucune dépense ce mois.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {monthCat.depenses.map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between text-sm">
+                          <span className="text-ios-text2">{k}</span>
+                          <span className="font-semibold tabular">{formatMGA(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* En-tête imprimable */}
           <div className="print-list-header hidden print:block">
@@ -1731,8 +1917,8 @@ export default function AdminDashboard() {
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><Icon name="wallet" className="w-5 h-5" /></div>
               <div>
-                <h3 className="font-bold">Ajouter une transaction</h3>
-                <p className="text-xs text-ios-text3">Revenu ou dépense</p>
+                <h3 className="font-bold">{editingFin ? 'Modifier la transaction' : 'Ajouter une transaction'}</h3>
+                <p className="text-xs text-ios-text3">Revenu ou dépense — MNT calculé automatiquement (QT × PU)</p>
               </div>
             </div>
             <div className="p-6 space-y-3">

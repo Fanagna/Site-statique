@@ -130,6 +130,13 @@ export async function createFinance(transaction) {
   });
 }
 
+export async function updateFinance(id, transaction) {
+  return apiCallDetailed(`/finances/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(transaction),
+  });
+}
+
 export async function deleteFinance(id) {
   return apiCallDetailed(`/finances/${id}`, { method: 'DELETE' });
 }
