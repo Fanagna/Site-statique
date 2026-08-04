@@ -47,7 +47,7 @@ export default function SoutenirPage() {
     if (!volunteer.name.trim()) e.name = 'Le nom est requis';
     if (!volunteer.email.trim()) e.email = "L'email est requis";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(volunteer.email)) e.email = 'Email invalide';
-    if (!volunteerFile) e.file = 'Veuillez joindre votre lettre de motivation (PDF, DOC, DOCX, JPG ou PNG)';
+    if (!volunteerFile) e.file = 'Veuillez joindre votre lettre de motivation (PDF, DOC ou DOCX)';
     setVolErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -56,8 +56,8 @@ export default function SoutenirPage() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (!/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(f.name)) {
-      setFileError('Format non accepté — utilisez un PDF, DOC, DOCX, JPG ou PNG.');
+    if (!/\.(pdf|doc|docx)$/i.test(f.name)) {
+      setFileError('Format non accepté — utilisez un PDF, DOC ou DOCX.');
       return;
     }
     if (f.size > 5 * 1024 * 1024) {
@@ -445,7 +445,7 @@ export default function SoutenirPage() {
                               : 'border-gray-300 hover:border-arina-accent/50 hover:bg-arina-warm/40'
                         }`}
                       >
-                        <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} className="hidden" />
+                        <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileChange} className="hidden" />
                         {volunteerFile ? (
                           <div className="flex items-center gap-3">
                             <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-arina-accent text-white shrink-0"><FileText className="w-5 h-5" /></span>
@@ -458,7 +458,7 @@ export default function SoutenirPage() {
                           <>
                             <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-arina-blue/10 text-arina-blue"><Upload className="w-6 h-6" /></span>
                             <span className="text-sm font-semibold text-arina-dark">Cliquez pour joindre votre lettre de motivation</span>
-                            <span className="text-xs text-arina-gray">PDF, DOC, DOCX, JPG ou PNG — maximum 5 Mo</span>
+                            <span className="text-xs text-arina-gray">PDF, DOC ou DOCX — maximum 5 Mo</span>
                           </>
                         )}
                       </label>
