@@ -214,6 +214,14 @@ export default function NewsManagementPage() {
     return new Date(d).getTime() || 0;
   };
 
+  /* Valeur de date de mise à jour (ISO ou autre), pour le tri par « Maj » */
+  const updatedVal = (n) => {
+    const u = n.updatedAt || n.updated_at;
+    if (!u) return 0;
+    const t = new Date(u).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+
   const sorted = useMemo(() => {
     if (!sort.key) return filtered;
     return [...filtered].sort((a, b) => {
@@ -221,6 +229,7 @@ export default function NewsManagementPage() {
       const y = b[sort.key] ?? b.date ?? b.created_at;
       if (typeof x === 'number' && typeof y === 'number') return (x - y) * sort.dir;
       if (sort.key === 'created_at' || sort.key === 'date') return (dateVal(a) - dateVal(b)) * sort.dir;
+      if (sort.key === 'updated_at') return (updatedVal(a) - updatedVal(b)) * sort.dir;
       return String(x ?? '').localeCompare(String(y ?? ''), 'fr') * sort.dir;
     });
   }, [filtered, sort]);
@@ -368,6 +377,7 @@ export default function NewsManagementPage() {
                       <Th label="Statut" k="status" sort={sort} onSort={(k) => setSort({ key: k, dir: sort.key === k ? -sort.dir : 1 })} />
                       <Th label="Vues" k="views" sort={sort} onSort={(k) => setSort({ key: k, dir: sort.key === k ? -sort.dir : 1 })} />
                       <Th label="Date" k="created_at" sort={sort} onSort={(k) => setSort({ key: k, dir: sort.key === k ? -sort.dir : 1 })} />
+                      <Th label="Maj" k="updated_at" sort={sort} onSort={(k) => setSort({ key: k, dir: sort.key === k ? -sort.dir : 1 })} />
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -400,8 +410,9 @@ export default function NewsManagementPage() {
                             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${st.cls}`}>{st.label}</span>
                           </td>
                           <td className="px-4 py-3 tabular text-ios-text2 whitespace-nowrap"><Icon name="eye" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{n.views || 0}</td>
+                          <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(n.date || n.created_at)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="text-xs text-ios-text3">{fmtDate(n.date || n.created_at)}</div>
+                            <div className="text-xs text-ios-text3">{fmtDate(n.updatedAt || n.updated_at)}</div>
                             <div className="mt-1"><UpdatedBadge updatedAt={n.updatedAt} createdDate={n.created_at} /></div>
                           </td>
                           <td className="px-4 py-3">
