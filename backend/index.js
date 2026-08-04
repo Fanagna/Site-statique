@@ -382,6 +382,7 @@ app.post('/api/contact', async (req, res) => {
 
 app.post('/api/newsletter', async (req, res) => {
   try {
+    const { email } = req.body;
     const normalized = String(email || '').trim().toLowerCase();
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       return res.status(400).json({ error: 'Email invalide' });
