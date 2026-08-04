@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Circle, Lock, Search, Trash2, User } from 'lucide-react';
+import { ArrowLeft, Camera, Circle, Lock, Printer, Search, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchBeneficiaries, updateBeneficiaryPhoto } from '../../services/api';
@@ -178,15 +178,43 @@ export default function BeneficiaryDetailPage() {
       onLogout={logout}
       actions={
         <>
-          <button onClick={() => setEditing(!editing)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${editing ? 'bg-ios-fill-2 text-ios-text hover:bg-ios-fill-2' : 'bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20'}`}>
+          <button onClick={() => window.print()} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-ios-fill text-ios-text hover:bg-ios-fill-2 transition-all inline-flex items-center gap-1.5">
+            <Printer className="w-4 h-4" /> Imprimer / PDF
+          </button>
+          <button onClick={() => setEditing(!editing)} className={`no-print px-4 py-2 rounded-xl text-sm font-semibold transition-all ${editing ? 'bg-ios-fill-2 text-ios-text hover:bg-ios-fill-2' : 'bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20'}`}>
             {editing ? 'Annuler' : 'Modifier'}
           </button>
-          <button onClick={() => setTab('suivi')} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
-          <button onClick={() => { if (confirm('Supprimer ce bénéficiaire ?')) navigate('/admin'); }} className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
+          <button onClick={() => setTab('suivi')} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
+          <button onClick={() => { if (confirm('Supprimer ce bénéficiaire ?')) navigate('/admin'); }} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
         </>
       }
     >
-      <div className="space-y-6">
+      <div className="print-area space-y-6">
+        {/* ── EN-TÊTE DE FICHE (imprimable) ── */}
+        <div className="print-header card-apple overflow-hidden">
+          <div className="bg-gradient-to-r from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-6 text-white flex flex-col sm:flex-row items-center gap-5">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 flex items-center justify-center flex-shrink-0 shadow-lg">
+              {data.photo ? (
+                <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-10 h-10 text-white/80" />
+              )}
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Association ARINA — Dossier bénéficiaire</div>
+              <h2 className="text-2xl lg:text-3xl font-bold tracking-tight mt-1">{data.prenom} {data.nom}</h2>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold border border-white/30">{data.code}</span>
+                <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold border border-white/30">{data.age} ans</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${data.statut === 'Actif' ? 'bg-emerald-500/30 border-emerald-200/60' : data.statut === 'Diplômé' ? 'bg-purple-500/30 border-purple-200/60' : 'bg-gray-500/30 border-gray-200/60'}`}>
+                  {data.statut}
+                </span>
+              </div>
+            </div>
+            <img src="/logo-arina.jpg" alt="ARINA" className="hidden sm:block w-16 h-16 rounded-2xl object-contain bg-white/90 p-1.5 shadow-lg" />
+          </div>
+        </div>
+
         {/* ── DÉTAIL TAB ── */}
         {tab === 'detail' && (
           <>
@@ -306,7 +334,10 @@ export default function BeneficiaryDetailPage() {
                 {/* IDENTITÉ */}
                 {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
                   <div className="card-apple p-6">
-                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Identité</h4>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 text-white flex items-center justify-center"><Icon name="users" className="w-4 h-4" /></span>
+                      <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">
                       {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
                         <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
@@ -318,7 +349,10 @@ export default function BeneficiaryDetailPage() {
                 {/* SITUATION FAMILIALE */}
                 {(data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v)) && (
                   <div className="card-apple p-6">
-                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Situation familiale</h4>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue-dark text-white flex items-center justify-center"><Icon name="grid" className="w-4 h-4" /></span>
+                      <h4 className="font-bold uppercase tracking-wide text-sm">Situation familiale</h4>
+                    </div>
                     <div className="space-y-4 text-sm">
                       {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
                         <div key={s.t}>
@@ -350,7 +384,10 @@ export default function BeneficiaryDetailPage() {
                 {/* SITUATION JURIDIQUE */}
                 {(data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v)) && (
                   <div className="card-apple p-6">
-                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Situation juridique</h4>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center"><Icon name="file" className="w-4 h-4" /></span>
+                      <h4 className="font-bold uppercase tracking-wide text-sm">Situation juridique</h4>
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">
                       {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
                         <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
@@ -362,7 +399,10 @@ export default function BeneficiaryDetailPage() {
                 {/* ÉTUDE */}
                 {(data.dossier.etude && Object.values(data.dossier.etude).some((v) => v)) && (
                   <div className="card-apple p-6">
-                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Étude</h4>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 text-white flex items-center justify-center"><Icon name="calendar" className="w-4 h-4" /></span>
+                      <h4 className="font-bold uppercase tracking-wide text-sm">Étude</h4>
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">
                       {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
                         <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
@@ -374,7 +414,10 @@ export default function BeneficiaryDetailPage() {
                 {/* ARINA */}
                 {((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation) && (
                   <div className="card-apple p-6">
-                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">ARINA</h4>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-gold to-amber-600 text-white flex items-center justify-center"><Icon name="star" className="w-4 h-4" /></span>
+                      <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">
                       {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
                         <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>

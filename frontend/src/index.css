@@ -222,3 +222,67 @@ body {
 .dark .card-apple-hover:hover {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 44px rgba(0, 0, 0, 0.5);
 }
+
+/* ═══════════════════════════════════════
+   Impression / Export PDF — fiche enfant
+   ═══════════════════════════════════════ */
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+@media print {
+  html, body {
+    background: #fff !important;
+  }
+
+  /* Masquer toute la coquille admin (sidebar, topbar, footer, boutons) */
+  .admin-sidebar,
+  .admin-topbar,
+  .no-print,
+  aside,
+  header[class*="sticky"] {
+    display: none !important;
+  }
+
+  /* Forcer le mode clair pour une impression nette */
+  .dark {
+    --color-ios-bg: #ffffff;
+    --color-ios-card: #ffffff;
+    --color-ios-text: #1d1d1f;
+    --color-ios-text2: #515154;
+    --color-ios-text3: #86868b;
+    --color-ios-hairline: rgba(0, 0, 0, 0.12);
+    --color-ios-fill: rgba(0, 0, 0, 0.04);
+  }
+
+  /* La zone imprimable prend toute la largeur */
+  .print-area {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .print-area .card-apple {
+    box-shadow: none !important;
+    border: 1px solid #e5e5ea;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-area h1, .print-area h2, .print-area h3, .print-area h4 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-header {
+    display: flex !important;
+  }
+
+  .print-hide-on-print {
+    display: none !important;
+  }
+}
