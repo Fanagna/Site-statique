@@ -16,7 +16,7 @@ import {
 // Rôles & onglets autorisés (source unique : ./roles)
 import { ROLES, ROLE_LABELS, ROLE_TABS } from './roles';
 import { allNews } from '../../data/news';
-import { CheckCircle2, Hand, Printer } from 'lucide-react';
+import { CheckCircle2, Download, Hand, Printer } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 import {
@@ -594,6 +594,44 @@ export default function AdminDashboard() {
     };
   }), [finances, evalYear]);
 
+  /* Export CSV de l'évaluation mensuelle (séparateur « ; » compatible Excel FR) */
+  const exportEvaluationCsv = useCallback(() => {
+    const esc = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const line = (...cells) => cells.map(esc).join(';');
+    const rows = [];
+    rows.push('Association ARINA — Évaluation mensuelle des transactions');
+    rows.push(`Année ${evalYear} — éditée le ${new Date().toLocaleDateString('fr-FR')}`);
+    rows.push('');
+    // Détail des transactions par mois (dons puis dépenses avec QT / PU / MNT)
+    rows.push(line('Mois', 'Date', 'Type', 'Désignation', 'QT', 'PU', 'MNT'));
+    evalMonths.forEach((m) => {
+      if (m.dons.length === 0 && m.depenses.length === 0) return;
+      m.dons.forEach((d) => rows.push(line(m.name, fmtDate(d.date), 'DON', d.categorie, '', '', Number(d.montant) || 0)));
+      m.depenses.forEach((d) => rows.push(line(m.name, fmtDate(d.date), 'DÉPENSE', d.categorie + (d.description ? ` · ${d.description}` : ''), d.quantity ?? '', d.unit_price ?? '', Number(d.montant) || 0)));
+    });
+    rows.push('');
+    // Récapitulatif mensuel
+    rows.push(line('Mois', 'DON REÇUS', 'TOTAL DÉPENSE', 'SOLDE'));
+    evalMonths.forEach((m) => {
+      if (m.dons.length === 0 && m.depenses.length === 0) return;
+      rows.push(line(m.name, m.donTotal, m.depTotal, m.solde));
+    });
+    const csv = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `evaluation-ARINA-${evalYear}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`📥 Fichier evaluation-ARINA-${evalYear}.csv téléchargé`);
+  }, [evalMonths, evalYear, showToast]);
+
   /* Activity feed (real from API, else derived from loaded data) */
   /* Fil d'activité local : l'aperçu (finances + enfants) est visible par tous ;
      actualités/candidatures/messages seulement pour les rôles qui les gèrent
@@ -1142,6 +1180,9 @@ export default function AdminDashboard() {
               {evalYears.map((y) => <option key={y} value={y}>Année {y}</option>)}
             </select>
             <span className="text-xs text-ios-text3">MNT calculé automatiquement (QT × PU) — défilement horizontal pour voir les 12 mois</span>
+            <button onClick={exportEvaluationCsv} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
+              <Download className="w-4 h-4" /> Exporter CSV
+            </button>
             <button onClick={() => window.print()} className="ml-auto inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
               <Printer className="w-4 h-4" /> Imprimer / PDF
             </button>
