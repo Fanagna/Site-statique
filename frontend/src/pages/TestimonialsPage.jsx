@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  ArrowLeft, ArrowRight, Calendar, Heart, Mail, MapPin, MessageCircle,
+  PartyPopper, PenLine, Star,
+} from 'lucide-react';
 import { testimonials } from '../data/testimonials';
 
 const initialForm = { name: '', age: '', location: '', role: '', quote: '', story: '' };
@@ -43,8 +47,8 @@ export default function TestimonialsPage() {
           backgroundSize: '50px 50px',
         }} />
         <div className="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 text-center">
-          <span className="inline-block px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
-            💬 Paroles de jeunes
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
+            <MessageCircle className="w-4 h-4" /> Paroles de jeunes
           </span>
           <h1 className="text-3xl lg:text-5xl xl:text-6xl font-serif font-bold text-white mb-6">
             Témoignages
@@ -78,8 +82,8 @@ export default function TestimonialsPage() {
       <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1.5 bg-arina-gold/20 text-arina-blue text-sm font-semibold rounded-full mb-4">
-              ⭐ Témoignages à la une
+            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-arina-gold/20 text-arina-blue text-sm font-semibold rounded-full mb-4">
+              <Star className="w-4 h-4 fill-current" /> Témoignages à la une
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark">
               Ils ont repris confiance
@@ -124,22 +128,22 @@ export default function TestimonialsPage() {
                       {!expanded && (
                         <button
                           onClick={() => setExpandedId(t.id)}
-                          className="text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
+                          className="inline-flex items-center gap-1.5 text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
                         >
-                          Lire l'histoire complète →
+                          Lire l'histoire complète <ArrowRight className="w-4 h-4" />
                         </button>
                       )}
                       {expanded && (
                         <button
                           onClick={() => setExpandedId(null)}
-                          className="text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
+                          className="inline-flex items-center gap-1.5 text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
                         >
-                          ← Réduire
+                          <ArrowLeft className="w-4 h-4" /> Réduire
                         </button>
                       )}
                       <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-                        <span className="text-xs text-arina-gray">📍 {t.location}</span>
-                        <span className="text-xs text-arina-gray">📅 {t.date}</span>
+                        <span className="text-xs text-arina-gray flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {t.location}</span>
+                        <span className="text-xs text-arina-gray flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {t.date}</span>
                       </div>
                     </div>
                   </div>
@@ -182,7 +186,7 @@ export default function TestimonialsPage() {
                         <div className="flex items-center gap-4 mb-3">
                           <div>
                             <div className="font-bold text-arina-dark">{t.name}</div>
-                            <div className="text-sm text-arina-gray">{t.role} · 📍 {t.location}</div>
+                            <div className="text-sm text-arina-gray flex items-center gap-1">{t.role} · <MapPin className="w-3.5 h-3.5" /> {t.location}</div>
                           </div>
                         </div>
                         <blockquote className="text-base font-serif italic text-arina-dark leading-relaxed mb-3">
@@ -197,9 +201,9 @@ export default function TestimonialsPage() {
                         </div>
                         <button
                           onClick={() => setExpandedId(expanded ? null : t.id)}
-                          className="text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
+                          className="inline-flex items-center gap-1.5 text-arina-blue text-sm font-semibold hover:text-arina-blue-light transition-colors"
                         >
-                          {expanded ? '← Réduire' : "Lire l'histoire complète →"}
+                          {expanded ? <><ArrowLeft className="w-4 h-4" /> Réduire</> : <>Lire l'histoire complète <ArrowRight className="w-4 h-4" /></>}
                         </button>
                       </div>
                     </div>
@@ -215,8 +219,8 @@ export default function TestimonialsPage() {
       <section className="py-16 lg:py-24 bg-gradient-to-br from-arina-cream to-white">
         <div className="max-w-3xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-10">
-            <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
-              ✍️ Partagez votre histoire
+            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
+              <PenLine className="w-4 h-4" /> Partagez votre histoire
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark mb-4">
               Votre témoignage compte
@@ -228,7 +232,7 @@ export default function TestimonialsPage() {
 
           {submitted ? (
             <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
-              <div className="text-5xl mb-4">🎉</div>
+              <PartyPopper className="w-14 h-14 mx-auto text-green-600 mb-4" />
               <h3 className="text-xl font-bold text-green-700 mb-2">Merci pour votre témoignage !</h3>
               <p className="text-green-600 mb-6">Votre histoire sera publiée après validation par notre équipe.</p>
               <button
@@ -352,7 +356,7 @@ export default function TestimonialsPage() {
                 type="submit"
                 className="w-full py-3.5 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
-                ✉️ Envoyer mon témoignage
+                <Mail className="w-5 h-5" /> Envoyer mon témoignage
               </button>
 
               <p className="text-xs text-arina-gray text-center">
@@ -377,7 +381,7 @@ export default function TestimonialsPage() {
             to="/soutenir"
             className="inline-flex items-center gap-2 px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-xl"
           >
-            ❤️ Soutenir ARINA
+            <Heart className="w-5 h-5" fill="currentColor" /> Soutenir ARINA
           </Link>
         </div>
       </section>

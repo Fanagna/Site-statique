@@ -1,6 +1,8 @@
+import AppIcon from './icons';
+
 const pillars = [
   {
-    icon: '🏠',
+    icon: 'home',
     title: 'Hébergement\nsécurisé',
     description: 'Des foyers d\'accueil chaleureux et protecteurs où chaque jeune trouve un environnement stable pour se reconstruire.',
     color: 'from-emerald-500 to-teal-600',
@@ -9,7 +11,7 @@ const pillars = [
     accentColor: 'text-emerald-600',
   },
   {
-    icon: '🧠',
+    icon: 'brain',
     title: 'Soutien\nPsychosocial',
     description: 'Reconstruction psychologique et morale à travers un accompagnement personnalisé par des professionnels.',
     color: 'from-arina-blue to-arina-blue-dark',
@@ -18,7 +20,7 @@ const pillars = [
     accentColor: 'text-arina-blue',
   },
   {
-    icon: '🔧',
+    icon: 'wrench',
     title: 'Formation\nProfessionnelle',
     description: 'Menuiserie, cuisine, agriculture... Des métiers concrets pour une insertion professionnelle durable.',
     color: 'from-orange-500 to-red-500',
@@ -27,7 +29,7 @@ const pillars = [
     accentColor: 'text-orange-600',
   },
   {
-    icon: '🤝',
+    icon: 'handshake',
     title: 'Insertion\nSociale',
     description: "Aide à l'emploi, au logement et à l'intégration dans la société pour une autonomie complète.",
     color: 'from-purple-500 to-pink-500',
@@ -62,8 +64,8 @@ export default function PillarsSection() {
               className={`group relative ${pillar.bgColor} rounded-2xl p-8 border ${pillar.borderColor} card-hover cursor-pointer`}
             >
               {/* Icon */}
-              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${pillar.color} text-white text-2xl mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                <span>{pillar.icon}</span>
+              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${pillar.color} text-white mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                <AppIcon name={pillar.icon} className="w-8 h-8" />
               </div>
               
               {/* Title */}

@@ -1,3 +1,5 @@
+import { MapPin, Phone, Mail, Clock, Lock } from 'lucide-react';
+
 export default function Footer() {
   return (
     <footer id="footer" className="bg-arina-dark text-white">
@@ -39,19 +41,19 @@ export default function Footer() {
             <h4 className="text-white font-bold mb-4">Contact</h4>
             <ul className="space-y-3 text-gray-400 text-sm">
               <li className="flex items-start gap-2">
-                <span className="mt-0.5">📍</span>
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>Fokontany Tsaramandroso Ambony,<br />Commune Urbaine de Mahajanga, Madagascar</span>
               </li>
               <li className="flex items-center gap-2">
-                <span>📞</span>
+                <Phone className="w-4 h-4 shrink-0" />
                 <a href="tel:+261327737489" className="hover:text-arina-gold transition-colors">032 77 374 89</a>
               </li>
               <li className="flex items-center gap-2">
-                <span>📧</span>
+                <Mail className="w-4 h-4 shrink-0" />
                 <a href="mailto:rasendrazita@gmail.com" className="hover:text-arina-gold transition-colors">rasendrazita@gmail.com</a>
               </li>
               <li className="flex items-start gap-2">
-                <span>⏰</span>
+                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>Lun-Ven : 8h-17h</span>
               </li>
             </ul>
@@ -94,7 +96,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-500 text-sm">
             © 2024 ARINA. Tous droits réservés.
-            <a href="/admin" className="ml-4 text-gray-600 hover:text-gray-400 transition-colors text-xs">🔒 Admin</a>
+            <a href="/admin" className="ml-4 text-gray-600 hover:text-gray-400 transition-colors text-xs"><Lock className="w-3 h-3 inline-block mr-0.5" />Admin</a>
           </p>
           <div className="flex flex-wrap justify-center gap-4 text-gray-500 text-sm">
             <a href="#" className="hover:text-white transition-colors">Mentions légales</a>

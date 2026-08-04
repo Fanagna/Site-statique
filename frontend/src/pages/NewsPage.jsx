@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { Calendar, Eye, Search, Tag, X } from 'lucide-react';
 import { allNews, categories, months, categoryColors } from '../data/news';
 
 const ITEMS_PER_PAGE = 6;
@@ -156,7 +157,7 @@ export default function NewsPage() {
                 onChange={(e) => handleFilterChange(setSelectedYear)(e.target.value)}
                 className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-arina-dark focus:outline-none focus:ring-2 focus:ring-arina-blue/20 focus:border-arina-blue transition-all cursor-pointer"
               >
-                <option value="">📅 Année</option>
+                <option value="">Année</option>
                 {years.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
@@ -187,7 +188,7 @@ export default function NewsPage() {
           {/* Active filters */}
           {activeFilters.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-              <span className="text-xs text-arina-gray font-medium">🏷️ Filtres actifs :</span>
+              <span className="text-xs text-arina-gray font-medium flex items-center gap-1"><Tag className="w-3.5 h-3.5" /> Filtres actifs :</span>
               {activeFilters.map((f) => (
                 <button
                   key={f.type}
@@ -195,7 +196,7 @@ export default function NewsPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-1 bg-arina-blue/10 text-arina-blue text-xs font-medium rounded-full hover:bg-arina-blue/20 transition-colors group"
                 >
                   {f.label}
-                  <span className="group-hover:text-red-500 transition-colors">✕</span>
+                  <span className="group-hover:text-red-500 transition-colors"><X className="w-3 h-3" /></span>
                 </button>
               ))}
               <button
@@ -233,8 +234,8 @@ export default function NewsPage() {
                   {/* Content */}
                   <div className="p-6 flex flex-col flex-1">
                     <div className="flex items-center gap-3 text-xs text-arina-gray mb-3">
-                      <span className="flex items-center gap-1">📅 {item.date}</span>
-                      <span className="flex items-center gap-1">👁️ {item.views} vues</span>
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {item.date}</span>
+                      <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {item.views} vues</span>
                     </div>
                     <h3 className="font-bold text-arina-dark mb-2 leading-snug group-hover:text-arina-blue transition-colors line-clamp-2">
                       {item.title}
@@ -258,7 +259,7 @@ export default function NewsPage() {
           </div>
         ) : (
           <div className="text-center py-20">
-            <div className="text-6xl mb-4">🔍</div>
+            <Search className="w-12 h-12 mx-auto text-arina-gray mb-4" />
             <h3 className="text-xl font-bold text-arina-dark mb-2">Aucun résultat trouvé</h3>
             <p className="text-arina-gray mb-6">Essayez de modifier vos critères de recherche.</p>
             <button

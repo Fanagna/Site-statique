@@ -1,10 +1,14 @@
 import { useState } from 'react';
+import {
+  CheckCircle2, HelpCircle, Mail, MapPin, Phone, Play, Smartphone,
+} from 'lucide-react';
+import AppIcon from '../components/icons';
 
 const initialForm = { name: '', email: '', subject: '', message: '' };
 
 const contactInfo = [
   {
-    icon: '📍',
+    icon: 'map-pin',
     title: 'Adresse',
     lines: [
       { text: 'Fokontany Tsaramandroso Ambony' },
@@ -14,7 +18,7 @@ const contactInfo = [
     color: 'from-arina-gold to-arina-accent',
   },
   {
-    icon: '📞',
+    icon: 'phone',
     title: 'Téléphone',
     lines: [
       { text: '032 77 374 89', href: 'tel:+261327737489' },
@@ -23,7 +27,7 @@ const contactInfo = [
     color: 'from-green-500 to-emerald-600',
   },
   {
-    icon: '📧',
+    icon: 'mail',
     title: 'Email',
     lines: [
       { text: 'rasendrazita@gmail.com', href: 'mailto:rasendrazita@gmail.com' },
@@ -31,7 +35,7 @@ const contactInfo = [
     color: 'from-orange-500 to-red-500',
   },
   {
-    icon: '⏰',
+    icon: 'clock',
     title: 'Horaires',
     lines: [
       { text: 'Lun - Ven : 8h00 - 17h00' },
@@ -82,8 +86,8 @@ export default function ContactPage() {
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 text-center">
-          <span className="inline-block px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
-            ✉️ Nous contacter
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
+            <Mail className="w-4 h-4" /> Nous contacter
           </span>
           <h1 className="text-3xl lg:text-5xl xl:text-6xl font-serif font-bold text-white mb-6">
             Contactez-nous
@@ -104,8 +108,8 @@ export default function ContactPage() {
                 key={i}
                 className="bg-arina-cream rounded-2xl shadow-xl p-6 card-hover border border-arina-warm group"
               >
-                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${info.color} text-white text-xl mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                  <span>{info.icon}</span>
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${info.color} text-white mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                  <AppIcon name={info.icon} className="w-6 h-6" />
                 </div>
                 <h3 className="font-bold text-arina-dark mb-2">{info.title}</h3>
                 {info.lines.map((line, j) => (
@@ -138,8 +142,8 @@ export default function ContactPage() {
               title="Carte ARINA - Mahajanga"
             />
           </div>
-          <p className="text-center text-xs text-arina-gray mt-2">
-            📍 Fokontany Tsaramandroso Ambony, Commune Urbaine de Mahajanga, Madagascar
+          <p className="flex items-center justify-center gap-1 text-center text-xs text-arina-gray mt-2">
+            <MapPin className="w-3.5 h-3.5" /> Fokontany Tsaramandroso Ambony, Commune Urbaine de Mahajanga, Madagascar
           </p>
         </div>
       </section>
@@ -160,7 +164,7 @@ export default function ContactPage() {
 
                 {submitted ? (
                   <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
-                    <div className="text-5xl mb-4">✅</div>
+                    <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-4" />
                     <h3 className="text-xl font-bold text-green-700 mb-2">Message envoyé !</h3>
                     <p className="text-green-600 mb-6">Merci de nous avoir contacté. Notre équipe vous répondra rapidement.</p>
                     <button
@@ -273,13 +277,13 @@ export default function ContactPage() {
                   href="tel:+261327737489"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
                 >
-                  📞 032 77 374 89
+                  <Phone className="w-5 h-5" /> 032 77 374 89
                 </a>
               </div>
 
               {/* FAQ */}
               <div className="bg-arina-cream rounded-2xl shadow-md border border-arina-warm p-6">
-                <h3 className="font-bold text-arina-dark mb-4">❓ Questions fréquentes</h3>
+                <h3 className="font-bold text-arina-dark mb-4 flex items-center gap-2"><HelpCircle className="w-5 h-5 text-arina-blue" /> Questions fréquentes</h3>
                 <div className="space-y-4">
                   {[
                     {
@@ -312,13 +316,13 @@ export default function ContactPage() {
 
               {/* Social */}
               <div className="bg-arina-cream rounded-2xl shadow-md border border-arina-warm p-6">
-                <h3 className="font-bold text-arina-dark mb-4">📱 Suivez-nous</h3>
+                <h3 className="font-bold text-arina-dark mb-4 flex items-center gap-2"><Smartphone className="w-5 h-5 text-arina-blue" /> Suivez-nous</h3>
                 <div className="flex gap-3">
                   {[
                     { name: 'Facebook', color: 'bg-blue-600', icon: 'f' },
                     { name: 'Instagram', color: 'bg-pink-500', icon: 'in' },
                     { name: 'LinkedIn', color: 'bg-blue-700', icon: 'li' },
-                    { name: 'YouTube', color: 'bg-red-600', icon: '▶' },
+                    { name: 'YouTube', color: 'bg-red-600', icon: <Play className="w-4 h-4" /> },
                   ].map((social) => (
                     <a
                       key={social.name}

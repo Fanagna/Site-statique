@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLogin() {
@@ -48,7 +49,7 @@ export default function AdminLogin() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4 flex items-center gap-2 animate-[shake_0.4s_ease]">
-                <span className="text-lg">🔒</span>
+                <Lock className="w-5 h-5 text-red-500 shrink-0" />
                 <div>
                   <div className="font-semibold">Échec de connexion</div>
                   <div className="text-red-600 text-xs mt-0.5">{error}</div>
@@ -92,7 +93,7 @@ export default function AdminLogin() {
                   className="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/20 focus:border-arina-blue transition-all"
                   required
                 />
-                {/* 👁️ Toggle visibility */}
+                {/* Toggle visibility */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -136,8 +137,8 @@ export default function AdminLogin() {
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/" className="text-sm text-arina-gray hover:text-arina-blue transition-colors">
-              ← Retour au site
+            <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-arina-gray hover:text-arina-blue transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Retour au site
             </Link>
           </div>
         </div>

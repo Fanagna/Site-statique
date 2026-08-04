@@ -4,19 +4,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Vif — brand & CTA */
-  --color-arina-blue: #D8431A;
-  --color-arina-accent: #E23B15;
-  --color-arina-accent-dark: #B72E0B;
+  /* Vif — brand & CTA (lever de soleil doré) */
+  --color-arina-blue: #E8590C;
+  --color-arina-accent: #F76707;
+  --color-arina-accent-dark: #D9480F;
   /* Foncé — gradients, footer, hovers */
-  --color-arina-blue-dark: #7A2A0E;
-  --color-arina-dark: #2B0F05;
-  --color-arina-gold: #C87A1E;
+  --color-arina-blue-dark: #B45309;
+  --color-arina-dark: #3D1C0B;
+  --color-arina-gold: #F59F00;
   /* Doux — fonds & teintes claires */
-  --color-arina-blue-light: #E98B5E;
-  --color-arina-gold-light: #F4C477;
-  --color-arina-cream: #FFF8F2;
-  --color-arina-warm: #FDEADB;
+  --color-arina-blue-light: #FFA94D;
+  --color-arina-gold-light: #FFC078;
+  --color-arina-cream: #FFF9F0;
+  --color-arina-warm: #FFEEDB;
   --color-arina-gray: #6B7280;
   /* Apple design system */
   --color-ios-bg: #F5F5F7;
@@ -46,9 +46,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom gradient utilities */
+/* Custom gradient utilities — lever de soleil doré */
 .hero-gradient {
-  background: linear-gradient(135deg, rgba(226,59,21,0.88) 0%, rgba(122,42,14,0.94) 100%);
+  background: linear-gradient(135deg, rgba(217,72,15,0.92) 0%, rgba(245,159,0,0.92) 62%, rgba(255,161,61,0.9) 100%);
 }
 
 .card-hover {
@@ -56,7 +56,7 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(216, 67, 26, 0.18);
+  box-shadow: 0 20px 40px rgba(245, 159, 0, 0.2);
 }
 
 /* Slider dots animation */
@@ -75,8 +75,8 @@ body {
 
 /* Pulse for CTA */
 @keyframes pulse-soft {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 122, 30, 0.4); }
-  50% { box-shadow: 0 0 0 15px rgba(200, 122, 30, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 159, 0, 0.45); }
+  50% { box-shadow: 0 0 0 15px rgba(245, 159, 0, 0); }
 }
 .pulse-gold {
   animation: pulse-soft 2.5s ease infinite;
@@ -207,9 +207,9 @@ body {
   --color-ios-glass: rgba(28, 28, 30, 0.8);
   --color-ios-skeleton: rgba(255, 255, 255, 0.09);
   /* Brand accents légèrement éclaircis pour le fond sombre */
-  --color-arina-blue: #E8572B;
-  --color-arina-blue-dark: #9C3A17;
-  --color-arina-warm: rgba(216, 67, 26, 0.18);
+  --color-arina-blue: #FF922B;
+  --color-arina-blue-dark: #B45309;
+  --color-arina-warm: rgba(232, 89, 12, 0.16);
 }
 
 .dark .scroll-slim::-webkit-scrollbar-thumb {

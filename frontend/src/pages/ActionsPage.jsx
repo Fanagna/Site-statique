@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { Target } from 'lucide-react';
+import AppIcon from '../components/icons';
 import { pillars } from '../data/actions';
 
 export default function ActionsPage() {
@@ -11,8 +13,8 @@ export default function ActionsPage() {
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 text-center">
-          <span className="inline-block px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
-            🎯 Notre mission
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
+            <Target className="w-4 h-4" /> Notre mission
           </span>
           <h1 className="text-3xl lg:text-5xl xl:text-6xl font-serif font-bold text-white mb-6">
             Nos Actions
@@ -56,15 +58,15 @@ export default function ActionsPage() {
                     />
                     <div className={`absolute inset-0 bg-gradient-to-t ${pillar.gradient} opacity-40`} />
                     <div className="absolute bottom-6 left-6 text-white">
-                      <span className="text-4xl">{pillar.icon}</span>
+                      <AppIcon name={pillar.icon} className="w-10 h-10" />
                     </div>
                   </div>
 
                   {/* Content side */}
                   <div className={`lg:w-3/5 p-8 lg:p-12 ${pillar.lightBg} flex flex-col justify-center`}>
                     <div className="flex items-center gap-3 mb-4">
-                      <span className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${pillar.gradient} text-white text-xl shadow-lg`}>
-                        {pillar.icon}
+                      <span className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${pillar.gradient} text-white shadow-lg`}>
+                        <AppIcon name={pillar.icon} className="w-6 h-6" />
                       </span>
                       <div>
                         <h3 className={`text-2xl lg:text-3xl font-serif font-bold text-arina-dark`}>

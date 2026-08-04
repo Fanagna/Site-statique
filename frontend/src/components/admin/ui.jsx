@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Icon } from './icons';
 
 /* ── Formatting helpers ── */
@@ -67,7 +68,7 @@ export function Th({ label, k, sort, onSort, className = '' }) {
       {k ? (
         <button onClick={() => onSort(k)} className="inline-flex items-center gap-1 hover:text-ios-text transition-colors">
           {label}
-          {sort.key === k && <span className="text-[9px]">{sort.dir === 1 ? '↑' : '↓'}</span>}
+          {sort.key === k && <span className="text-[9px]">{sort.dir === 1 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}</span>}
         </button>
       ) : (
         label

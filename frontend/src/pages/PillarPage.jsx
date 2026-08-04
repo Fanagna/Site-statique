@@ -1,4 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, ClipboardList, Heart, Search } from 'lucide-react';
+import AppIcon from '../components/icons';
 import { pillars } from '../data/actions';
 import ContentBlock from '../components/ContentBlock';
 
@@ -10,11 +12,11 @@ export default function PillarPage() {
     return (
       <div className="min-h-screen pt-24 pb-16 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔍</div>
+          <Search className="w-12 h-12 mx-auto text-arina-gray mb-4" />
           <h1 className="text-2xl font-serif font-bold text-arina-dark mb-2">Pilier introuvable</h1>
           <p className="text-arina-gray mb-6">Ce pilier n'existe pas.</p>
           <Link to="/actions" className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors">
-            ← Retour aux actions
+            <ArrowLeft className="w-5 h-5" /> Retour aux actions
           </Link>
         </div>
       </div>
@@ -43,7 +45,7 @@ export default function PillarPage() {
           </nav>
 
           <div className="max-w-3xl">
-            <span className="text-5xl mb-6 block">{data.icon}</span>
+            <AppIcon name={data.icon} className="w-12 h-12 mb-6 text-white" />
             <h1 className="text-3xl lg:text-5xl xl:text-6xl font-serif font-bold text-white mb-4">
               {data.title}
             </h1>
@@ -79,7 +81,7 @@ export default function PillarPage() {
 
         {/* Programs detail */}
         <div className="mt-12 pt-8 border-t border-gray-200">
-          <h3 className="text-2xl font-serif font-bold text-arina-dark mb-6">📋 Nos programmes</h3>
+          <h3 className="text-2xl font-serif font-bold text-arina-dark mb-6 flex items-center gap-2"><ClipboardList className="w-6 h-6 text-arina-blue" /> Nos programmes</h3>
           <div className="grid sm:grid-cols-2 gap-4">
             {data.programs.map((prog, i) => (
               <div key={i} className={`${data.lightBg} border ${data.borderColor} rounded-2xl p-5`}>
@@ -106,7 +108,7 @@ export default function PillarPage() {
             to="/soutenir"
             className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
           >
-            ❤️ Soutenir cette action
+            <Heart className="w-5 h-5" fill="currentColor" /> Soutenir cette action
           </Link>
         </div>
       </article>
@@ -127,7 +129,7 @@ export default function PillarPage() {
                 <div className="relative h-40 overflow-hidden">
                   <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className={`absolute inset-0 bg-gradient-to-t ${p.gradient} opacity-30`} />
-                  <div className="absolute bottom-4 left-4 text-3xl">{p.icon}</div>
+                  <div className="absolute bottom-4 left-4 text-white"><AppIcon name={p.icon} className="w-8 h-8" /></div>
                 </div>
                 <div className="p-5">
                   <h3 className="font-bold text-arina-dark mb-1 group-hover:text-arina-blue transition-colors">{p.title}</h3>

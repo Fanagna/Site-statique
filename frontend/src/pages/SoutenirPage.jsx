@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Handshake, Heart, HeartHandshake, PartyPopper } from 'lucide-react';
+import AppIcon from '../components/icons';
 
 const donorInit = { amount: '', name: '', email: '', message: '', anonymous: false };
 const volunteerInit = { name: '', email: '', phone: '', skills: '', availability: '', motivation: '' };
@@ -59,8 +61,8 @@ export default function SoutenirPage() {
           <div className="absolute bottom-10 left-10 w-64 h-64 bg-arina-gold rounded-full blur-3xl" />
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 text-center">
-          <span className="inline-block px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
-            💙 Engagez-vous
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/15 text-white text-sm font-semibold rounded-full mb-6 border border-white/20">
+            <Heart className="w-4 h-4" fill="currentColor" /> Engagez-vous
           </span>
           <h1 className="text-3xl lg:text-5xl xl:text-6xl font-serif font-bold text-white mb-6">
             Soutenez ARINA
@@ -83,7 +85,7 @@ export default function SoutenirPage() {
                   : 'text-arina-dark hover:bg-gray-50'
               }`}
             >
-              ❤️ Faire un don
+              <Heart className="w-5 h-5" fill="currentColor" /> Faire un don
             </button>
             <button
               onClick={() => setTab('benevole')}
@@ -93,7 +95,7 @@ export default function SoutenirPage() {
                   : 'text-arina-dark hover:bg-gray-50'
               }`}
             >
-              🤝 Devenir bénévole
+              <Handshake className="w-5 h-5" /> Devenir bénévole
             </button>
           </div>
 
@@ -102,7 +104,7 @@ export default function SoutenirPage() {
             <div className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8">
               {donorSubmitted ? (
                 <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🙏</div>
+                  <HeartHandshake className="w-14 h-14 mx-auto text-arina-accent mb-4" />
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">Merci pour votre générosité !</h2>
                   <p className="text-arina-gray mb-6 max-w-md mx-auto">
                     Votre don va changer des vies. Vous recevrez un email de confirmation avec votre reçu fiscal.
@@ -113,7 +115,7 @@ export default function SoutenirPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">❤️ Faire un don</h2>
+                  <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2 flex items-center gap-2"><Heart className="w-6 h-6 text-arina-accent" fill="currentColor" /> Faire un don</h2>
                   <p className="text-arina-gray text-sm mb-6">Choisissez un montant ou saisissez le vôtre.</p>
 
                   {/* Quick amounts */}
@@ -201,7 +203,7 @@ export default function SoutenirPage() {
                       type="submit"
                       className="w-full py-4 bg-arina-accent text-white text-lg font-bold rounded-xl hover:bg-arina-accent-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                     >
-                      ❤️ Valider mon don de {donor.amount || '...'}€
+                      <Heart className="w-5 h-5" fill="currentColor" /> Valider mon don de {donor.amount || '...'}€
                     </button>
                     <p className="text-xs text-arina-gray text-center">
                       Paiement sécurisé. Reçu fiscal envoyé par email. Don déductible des impôts à 66%.
@@ -217,7 +219,7 @@ export default function SoutenirPage() {
             <div className="bg-arina-cream rounded-2xl shadow-xl border border-arina-warm p-6 lg:p-8">
               {volSubmitted ? (
                 <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🎉</div>
+                  <PartyPopper className="w-14 h-14 mx-auto text-arina-gold mb-4" />
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">Merci pour votre engagement !</h2>
                   <p className="text-arina-gray mb-6 max-w-md mx-auto">
                     Notre équipe vous contactera dans les 48h pour discuter de votre mission bénévole.
@@ -228,7 +230,7 @@ export default function SoutenirPage() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">🤝 Devenir bénévole</h2>
+                  <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2 flex items-center gap-2"><Handshake className="w-6 h-6 text-arina-blue" /> Devenir bénévole</h2>
                   <p className="text-arina-gray text-sm mb-6">Rejoignez notre communauté et faites la différence.</p>
 
                   <form onSubmit={handleVol} className="space-y-5">
@@ -306,7 +308,7 @@ export default function SoutenirPage() {
                       type="submit"
                       className="w-full py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                     >
-                      🤝 Envoyer ma candidature
+                      <Handshake className="w-5 h-5" /> Envoyer ma candidature
                     </button>
                   </form>
                 </>
@@ -317,12 +319,12 @@ export default function SoutenirPage() {
           {/* Impact info */}
           <div className="grid sm:grid-cols-3 gap-4 mt-8">
             {[
-              { icon: '🏠', text: '10€ = un repas chaud pour 5 jeunes pendant une journée' },
-              { icon: '📚', text: '25€ = un kit scolaire complet pour un jeune' },
-              { icon: '🔧', text: '50€ = une journée de formation en atelier' },
+              { icon: 'home', text: '10€ = un repas chaud pour 5 jeunes pendant une journée' },
+              { icon: 'book', text: '25€ = un kit scolaire complet pour un jeune' },
+              { icon: 'wrench', text: '50€ = une journée de formation en atelier' },
             ].map((item, i) => (
               <div key={i} className="bg-arina-cream rounded-xl p-5 text-center border border-arina-warm">
-                <div className="text-2xl mb-2">{item.icon}</div>
+                <div className="flex justify-center mb-2"><AppIcon name={item.icon} className="w-7 h-7 text-arina-blue" /></div>
                 <p className="text-sm text-arina-dark leading-relaxed font-medium">{item.text}</p>
               </div>
             ))}

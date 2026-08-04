@@ -1,8 +1,10 @@
+import AppIcon from './icons';
+
 const stats = [
-  { value: '30', suffix: '+', label: 'Jeunes accompagnés', sub: '+5 ce mois', icon: '👧', color: 'from-arina-gold to-arina-accent' },
-  { value: '85', suffix: '%', label: "Taux d'insertion", sub: 'en moyenne', icon: '📈', color: 'from-green-500 to-emerald-600' },
-  { value: '12', suffix: '', label: 'Partenaires', sub: 'actifs', icon: '🤝', color: 'from-purple-500 to-violet-600' },
-  { value: '5', suffix: '+', label: "Années d'action", sub: "d'expérience", icon: '⭐', color: 'from-arina-gold to-arina-gold-light' },
+  { value: '30', suffix: '+', label: 'Jeunes accompagnés', sub: '+5 ce mois', icon: 'user', color: 'from-arina-gold to-arina-accent' },
+  { value: '85', suffix: '%', label: "Taux d'insertion", sub: 'en moyenne', icon: 'trending-up', color: 'from-green-500 to-emerald-600' },
+  { value: '12', suffix: '', label: 'Partenaires', sub: 'actifs', icon: 'handshake', color: 'from-purple-500 to-violet-600' },
+  { value: '5', suffix: '+', label: "Années d'action", sub: "d'expérience", icon: 'star', color: 'from-arina-gold to-arina-gold-light' },
 ];
 
 export default function StatsSection() {
@@ -16,8 +18,8 @@ export default function StatsSection() {
               className="animate-stat bg-arina-cream rounded-2xl p-6 lg:p-7 shadow-xl card-hover border border-arina-warm"
               style={{ animationDelay: `${i * 0.1}s` }}
             >
-              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} text-white text-xl mb-4 shadow-lg`}>
-                <span>{stat.icon}</span>
+              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} text-white mb-4 shadow-lg`}>
+                <AppIcon name={stat.icon} className="w-6 h-6" />
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-3xl lg:text-4xl font-extrabold text-arina-dark">{stat.value}</span>

@@ -268,9 +268,9 @@ export default function NewsManagementPage() {
               className={`${inputClass} lg:w-44`}
             >
               <option value="">Tous les statuts</option>
-              <option value="published">✅ Publié</option>
-              <option value="draft">⏳ Brouillon</option>
-              <option value="archived">🗄️ Archivé</option>
+              <option value="published">Publié</option>
+              <option value="draft">Brouillon</option>
+              <option value="archived">Archivé</option>
             </select>
             <select
               value={pending.category}
@@ -430,9 +430,9 @@ export default function NewsManagementPage() {
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
-                  <option value="published">✅ Publié</option>
-                  <option value="draft">⏳ Brouillon</option>
-                  <option value="archived">🗄️ Archivé</option>
+                  <option value="published">Publié</option>
+                  <option value="draft">Brouillon</option>
+                  <option value="archived">Archivé</option>
                 </select>
               </div>
               <input placeholder="URL de l'image (optionnel)" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className={inputClass} />

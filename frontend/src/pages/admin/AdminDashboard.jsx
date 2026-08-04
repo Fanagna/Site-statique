@@ -10,6 +10,7 @@ import {
   fetchActivity,
 } from '../../services/api';
 import { allNews } from '../../data/news';
+import { CheckCircle2, Hand } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 import {
@@ -92,7 +93,7 @@ function MonthlyChart({ finances, loading }) {
 }
 
 function CategoryDonut({ finances, loading }) {
-  const colors = ['#D8431A', '#C87A1E', '#7A2A0E', '#E98B5E', '#F4C477', '#9CA3AF'];
+  const colors = ['#E8590C', '#F59F00', '#B45309', '#FFA94D', '#FFC078', '#9CA3AF'];
   const data = useMemo(() => {
     const map = {};
     (finances || [])
@@ -341,7 +342,7 @@ export default function AdminDashboard() {
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [news, finances, benefs]);
   const activityFeed = activity.length ? activity : localActivity;
 
-  /* Real alerts → notifications bell */
+  /* Real alerts -> notifications bell */
   const alerts = useMemo(() => {
     const a = [];
     if (solde < 0) a.push({ level: 'error', icon: 'trendDown', text: `Solde négatif : ${formatMGA(Math.abs(solde))}`, tab: 'finances' });
@@ -393,7 +394,7 @@ export default function AdminDashboard() {
 
   const quickActions = [
     { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') },
-    { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FCE3D0] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
+    { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FFEEDB] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
     { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     { label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') },
@@ -455,7 +456,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="max-h-80 overflow-y-auto scroll-slim">
                     {alerts.length === 0 && (
-                      <p className="px-5 py-10 text-center text-sm text-ios-text3">Tout est sous contrôle ✅</p>
+                      <p className="px-5 py-10 text-center text-sm text-ios-text3">Tout est sous contrôle <CheckCircle2 className="w-4 h-4 inline-block text-emerald-500" /></p>
                     )}
                     {alerts.map((a, i) => (
                       <button
@@ -512,7 +513,7 @@ export default function AdminDashboard() {
           )}
 
           <div className="animate-fade-up">
-            <h2 className="text-2xl lg:text-[28px] font-bold tracking-tight">Bonjour, {user?.username} 👋</h2>
+            <h2 className="text-2xl lg:text-[28px] font-bold tracking-tight flex items-center gap-2">Bonjour, {user?.username} <Hand className="w-6 h-6 text-arina-gold" /></h2>
             <p className="text-ios-text3 text-sm mt-1">
               {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — Voici l'état de votre structure aujourd'hui.
             </p>

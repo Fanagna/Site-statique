@@ -1,4 +1,5 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
+import { ArrowLeft, Eye, FileText, Heart, Handshake } from 'lucide-react';
 import { allNews, categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
 
@@ -11,14 +12,14 @@ export default function ArticlePage() {
     return (
       <div className="min-h-screen pt-24 pb-16 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">📄</div>
+          <FileText className="w-12 h-12 mx-auto text-arina-gray mb-4" />
           <h1 className="text-2xl font-serif font-bold text-arina-dark mb-2">Article introuvable</h1>
           <p className="text-arina-gray mb-6">L'article que vous recherchez n'existe pas ou a été déplacé.</p>
           <Link
             to="/actualites"
             className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors"
           >
-            ← Retour aux actualités
+            <ArrowLeft className="w-5 h-5" /> Retour aux actualités
           </Link>
         </div>
       </div>
@@ -171,15 +172,15 @@ export default function ArticlePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               to="/soutenir"
-              className="px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
             >
-              ❤️ Faire un don
+              <Heart className="w-5 h-5" fill="currentColor" /> Faire un don
             </Link>
             <Link
               to="/soutenir"
-              className="px-6 py-3 bg-white/15 text-white font-semibold rounded-xl border border-white/30 hover:bg-white/25 transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-white/15 text-white font-semibold rounded-xl border border-white/30 hover:bg-white/25 transition-colors"
             >
-              🤝 Devenir bénévole
+              <Handshake className="w-5 h-5" /> Devenir bénévole
             </Link>
           </div>
         </div>
@@ -234,7 +235,7 @@ export default function ArticlePage() {
                     <div className="p-5">
                       <div className="flex items-center gap-3 text-xs text-arina-gray mb-2">
                         <span>{item.date}</span>
-                        <span>👁️ {item.views} vues</span>
+                        <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {item.views} vues</span>
                       </div>
                       <h3 className="font-bold text-arina-dark leading-snug group-hover:text-arina-blue transition-colors line-clamp-2 text-sm">
                         {item.title}

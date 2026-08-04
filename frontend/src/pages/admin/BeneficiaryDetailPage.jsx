@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Camera, Circle, Lock, Search, Trash2, User } from 'lucide-react';
+import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
 import { updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
@@ -12,7 +14,7 @@ const benefDetails = {
     situationFamiliale: 'Famille monoparentale', parent: 'Mme R., commerçante', freresSoeurs: 2,
     educateur: 'M. Rakoto', dateEntree: '2024-01-15', motif: 'Sortie de prison', objectifs: 'Autonomie professionnelle, menuiserie', statut: 'Actif',
     assiduite: 85, progression: 75,
-    formations: [{ nom: 'Menuiserie', statut: 'En cours', progression: 75, emoji: '🪚' }, { nom: 'Cuisine', statut: 'Terminé', progression: 90, emoji: '🍳' }],
+    formations: [{ nom: 'Menuiserie', statut: 'En cours', progression: 75, icon: 'hammer' }, { nom: 'Cuisine', statut: 'Terminé', progression: 90, icon: 'cooking-pot' }],
     suivis: [
       { date: '02/12/2024', type: 'Entretien mensuel', note: 'Progression positive' },
       { date: '25/11/2024', type: 'Atelier menuiserie', note: 'Participation active' },
@@ -24,7 +26,7 @@ const benefDetails = {
     situationFamiliale: 'Orpheline', parent: 'Grand-mère', freresSoeurs: 0,
     educateur: 'Mme. Ravao', dateEntree: '2024-04-20', motif: 'Vulnérabilité', objectifs: 'Formation cuisine, autonomie', statut: 'Actif',
     assiduite: 92, progression: 80,
-    formations: [{ nom: 'Cuisine', statut: 'En cours', progression: 80, emoji: '🍳' }],
+    formations: [{ nom: 'Cuisine', statut: 'En cours', progression: 80, icon: 'cooking-pot' }],
     suivis: [{ date: '01/12/2024', type: 'Stage restaurant', note: 'Très bonne intégration' }],
     notes: '',
   },
@@ -66,9 +68,9 @@ export default function BeneficiaryDetailPage() {
   if (!data) return (
     <div className="min-h-screen bg-ios-bg flex items-center justify-center px-4">
       <div className="text-center">
-        <div className="text-6xl mb-4">🔍</div>
+        <Search className="w-12 h-12 mx-auto text-ios-text3 mb-4" />
         <h2 className="text-xl font-bold text-ios-text mb-2">Bénéficiaire introuvable</h2>
-        <button onClick={() => navigate('/admin')} className="px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold mt-4">← Retour</button>
+        <button onClick={() => navigate('/admin')} className="inline-flex items-center gap-2 px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold mt-4"><ArrowLeft className="w-4 h-4" /> Retour</button>
       </div>
     </div>
   );
@@ -184,18 +186,18 @@ export default function BeneficiaryDetailPage() {
                     <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-gray-400 group-hover:text-arina-blue transition-colors">👤</span>
+                      <User className="w-10 h-10 text-gray-400 group-hover:text-arina-blue transition-colors" />
                       <span className="text-[10px] text-ios-text3 group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
-                    <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity">📷 Modifier</span>
+                    <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity flex items-center gap-1"><Camera className="w-4 h-4" /> Modifier</span>
                   </div>
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
                 <p className="text-sm text-ios-text3 mb-1">Photo confidentielle</p>
                 {data.photo && (
-                  <button onClick={removePhoto} className="text-xs text-red-500 hover:text-red-700 transition-colors">🗑️ Supprimer la photo</button>
+                  <button onClick={removePhoto} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Supprimer la photo</button>
                 )}
               </div>
 
@@ -252,7 +254,7 @@ export default function BeneficiaryDetailPage() {
                 ) : (
                   <div className="grid sm:grid-cols-2 gap-4 text-sm">
                     {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600 dark:text-green-400' : '' }].map((r, i) => (
-                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' ? '🟢 ' : ''}{r.v || '—'}</span></div>
+                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' && <Circle className="w-2.5 h-2.5 inline-block fill-current text-green-500 mr-1" />}{r.v || '—'}</span></div>
                     ))}
                   </div>
                 )}
@@ -291,7 +293,7 @@ export default function BeneficiaryDetailPage() {
               {(data.formations || []).map((f, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
                   <div className="flex items-center gap-4">
-                    <span className="text-2xl">{f.emoji}</span>
+                    <span className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><AppIcon name={f.icon} className="w-5 h-5" /></span>
                     <div>
                       <div className="font-semibold text-ios-text">{f.nom}</div>
                       <div className="text-sm text-ios-text3">{f.statut}</div>
@@ -346,7 +348,7 @@ export default function BeneficiaryDetailPage() {
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 animate-fade-up">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center"><Icon name="bell" className="w-4 h-4" /></div>
-            <h3 className="font-bold text-ios-text">🔒 Notes confidentielles</h3>
+            <h3 className="font-bold text-ios-text flex items-center gap-2"><Lock className="w-4 h-4 text-amber-500" /> Notes confidentielles</h3>
           </div>
           <textarea rows={3} className="w-full px-4 py-3 bg-ios-card border border-amber-500/30 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
             placeholder="Notes réservées à l'administrateur..."

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
 
 const slides = [
   {
@@ -72,8 +73,8 @@ export default function HeroSlider() {
       <div className="relative z-10 h-full flex items-center">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 w-full">
           <div className="max-w-3xl">
-            <div className="inline-block mb-6 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
-              ✨ Association ARINA — Depuis 2023
+            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
+              <Sparkles className="w-4 h-4" /> Association ARINA — Depuis 2023
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif font-bold text-white leading-tight mb-6 whitespace-pre-line">
               {slide.title}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Heart, Handshake } from 'lucide-react';
 
 const navLinks = [
   { label: 'Accueil', href: '/' },
@@ -76,7 +77,7 @@ export default function Navbar() {
               to="/soutenir"
               className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-arina-accent-dark transition-all shadow-md hover:shadow-lg"
             >
-              ❤️ Don
+              <Heart className="w-4 h-4" fill="currentColor" /> Don
             </Link>
 
             {/* Volunteer button */}
@@ -84,7 +85,7 @@ export default function Navbar() {
               to="/soutenir"
               className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-gold text-white text-sm font-semibold rounded-lg hover:bg-arina-gold-light transition-all shadow-md hover:shadow-lg"
             >
-              🤝 Bénévole
+              <Handshake className="w-4 h-4" /> Bénévole
             </Link>
 
             {/* Mobile menu button */}
@@ -130,10 +131,10 @@ export default function Navbar() {
           ))}
           <div className="flex gap-2 pt-3 px-4 sm:hidden">
             <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
-              ❤️ Don
+              <Heart className="w-4 h-4" fill="currentColor" /> Don
             </Link>
             <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
-              🤝 Bénévole
+              <Handshake className="w-4 h-4" /> Bénévole
             </Link>
           </div>
         </div>

@@ -1,7 +1,7 @@
 export const pillars = [
   {
     slug: 'hebergement',
-    icon: '🏠',
+    icon: 'home',
     title: 'Hébergement Sécurisé',
     subtitle: 'Un toit pour se reconstruire',
     color: 'emerald',
@@ -39,7 +39,7 @@ export const pillars = [
   },
   {
     slug: 'psychosocial',
-    icon: '🧠',
+    icon: 'brain',
     title: 'Soutien Psychosocial',
     subtitle: 'Panser les blessures invisibles',
     color: 'terracotta',
@@ -78,7 +78,7 @@ export const pillars = [
   },
   {
     slug: 'formation',
-    icon: '🔧',
+    icon: 'wrench',
     title: 'Formation Professionnelle',
     subtitle: 'Des métiers pour l\'avenir',
     color: 'orange',
@@ -119,7 +119,7 @@ export const pillars = [
   },
   {
     slug: 'insertion',
-    icon: '🤝',
+    icon: 'handshake',
     title: 'Insertion Sociale',
     subtitle: 'Retrouver sa place dans la société',
     color: 'purple',
