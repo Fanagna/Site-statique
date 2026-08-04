@@ -77,7 +77,8 @@ export async function deleteFinance(id) {
 
 /* ── News ── */
 export async function fetchNews() {
-  return await apiCall('/news');
+  // cache-buster : force le rechargement des dernières actualités modifiées par l'admin
+  return await apiCall(`/news?_t=${Date.now()}`);
 }
 
 export async function createNews(data) {

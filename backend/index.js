@@ -266,6 +266,7 @@ function normalizeNews(r) {
 
 app.get('/api/news', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store'); // jamais de cache : le site public doit toujours refléter les changements admin
     const result = await pool.query('SELECT * FROM news ORDER BY created_at DESC, id DESC LIMIT 500');
     res.json(result.rows.map(normalizeNews));
   } catch (err) {
@@ -283,8 +284,8 @@ app.get('/api/news/:id', async (req, res) => {
   }
 });
 
-// POST create news
-app.post('/api/news', async (req, res) => {
+// POST create news (admin uniquement)
+app.post('/api/news', requireAdmin, async (req, res) => {
   try {
     const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
@@ -297,8 +298,8 @@ app.post('/api/news', async (req, res) => {
   }
 });
 
-// PUT update news
-app.put('/api/news/:id', async (req, res) => {
+// PUT update news (admin uniquement)
+app.put('/api/news/:id', requireAdmin, async (req, res) => {
   try {
     const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
@@ -312,8 +313,8 @@ app.put('/api/news/:id', async (req, res) => {
   }
 });
 
-// DELETE news
-app.delete('/api/news/:id', async (req, res) => {
+// DELETE news (admin uniquement)
+app.delete('/api/news/:id', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM news WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
