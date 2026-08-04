@@ -9,6 +9,7 @@
     "build": "cd frontend && npm run build"
   },
   "dependencies": {
+    "@vercel/blob": "^2.6.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.0",
     "express": "^4.21.0",

@@ -7,7 +7,7 @@ import {
   fetchNews,
   fetchContacts, deleteContact,
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
-  fetchVolunteers, deleteVolunteer,
+  fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
   fetchActivity,
 } from '../../services/api';
 import { allNews } from '../../data/news';
@@ -284,24 +284,44 @@ export default function AdminDashboard() {
   const removeContact = async (id) => { if (!confirm('Supprimer ce message ?')) return; await deleteContact(id); setContacts(contacts.filter((c) => c.id !== id)); };
   const removeSub = async (id) => { if (!confirm("Supprimer cet abonné ?")) return; await deleteNewsletterSubscriber(id); setSubs(subs.filter((s) => s.id !== id)); };
   const removeVolunteer = async (id) => { if (!confirm('Supprimer cette candidature ?')) return; await deleteVolunteer(id); setVolunteers(volunteers.filter((v) => v.id !== id)); };
-  const openAttachment = (v, kind = 'file') => {
-    const data = kind === 'cv' ? v.cv_data : v.file_data;
-    const type = kind === 'cv' ? v.cv_type : v.file_type;
+  // Résout une pièce jointe : URL Blob (nouvelle) ou base64 récupérée à la demande (legacy)
+  const resolveAttachment = async (v, kind = 'file') => {
+    const url = kind === 'cv' ? v.cv_url : v.file_url;
     const name = kind === 'cv' ? v.cv_name : v.file_name;
-    if (!data) return;
-    const url = `data:${type || 'application/octet-stream'};base64,${data}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name || (kind === 'cv' ? 'cv' : 'lettre-de-motivation');
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
-  const previewAttachment = (v, kind = 'file') => {
-    const data = kind === 'cv' ? v.cv_data : v.file_data;
     const type = kind === 'cv' ? v.cv_type : v.file_type;
-    if (!data) return;
-    window.open(`data:${type || 'application/pdf'};base64,${data}`, '_blank');
+    if (url) return { url, name, type };
+    const legacy = await getVolunteerAttachment(v.id, kind);
+    if (!legacy?.data) return null;
+    return { url: `data:${legacy.type || 'application/octet-stream'};base64,${legacy.data}`, name: legacy.name, type: legacy.type };
+  };
+  const openAttachment = async (v, kind = 'file') => {
+    const a = await resolveAttachment(v, kind);
+    if (!a) return;
+    const downloadName = a.name || (kind === 'cv' ? 'cv' : 'lettre-de-motivation');
+    let href = a.url;
+    if (!a.url.startsWith('data:')) {
+      // URL Blob : on récupère le contenu pour forcer le bon nom de fichier
+      try {
+        const res = await fetch(a.url);
+        const blob = await res.blob();
+        href = URL.createObjectURL(blob);
+        setTimeout(() => URL.revokeObjectURL(href), 4000);
+      } catch {
+        window.open(a.url, '_blank');
+        return;
+      }
+    }
+    const el = document.createElement('a');
+    el.href = href;
+    el.download = downloadName;
+    document.body.appendChild(el);
+    el.click();
+    el.remove();
+  };
+  const previewAttachment = async (v, kind = 'file') => {
+    const a = await resolveAttachment(v, kind);
+    if (!a) return;
+    window.open(a.url, '_blank');
   };
 
   /* ── Computed ── */
@@ -926,7 +946,7 @@ export default function AdminDashboard() {
             {[
               { label: 'Candidatures reçues', value: volunteers.length },
               { label: 'Cette semaine', value: volunteers.filter((v) => v.created_at && Date.now() - new Date(v.created_at) < 7 * 864e5).length },
-              { label: 'Avec pièces jointes', value: volunteers.filter((v) => v.file_data || v.cv_data).length },
+              { label: 'Avec pièces jointes', value: volunteers.filter((v) => v.file_url || v.cv_url || v.file_name || v.cv_name).length },
             ].map((s, i) => (
               <div key={i} className="card-apple p-5">
                 <div className="text-2xl font-extrabold tabular">{s.value}</div>
@@ -968,7 +988,7 @@ export default function AdminDashboard() {
                               <span className="truncate">Lettre : {v.file_name}</span>
                             </span>
                           )}
-                          {v.file_data && (
+                          {(v.file_url || v.file_name) && (
                             <>
                               <button onClick={() => openAttachment(v, 'file')} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger</button>
                               <button onClick={() => previewAttachment(v, 'file')} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>
@@ -980,7 +1000,7 @@ export default function AdminDashboard() {
                               <span className="truncate">CV : {v.cv_name}</span>
                             </span>
                           )}
-                          {v.cv_data && (
+                          {(v.cv_url || v.cv_name) && (
                             <>
                               <button onClick={() => openAttachment(v, 'cv')} className="inline-flex items-center gap-1 text-xs font-semibold text-arina-blue hover:underline">Télécharger</button>
                               <button onClick={() => previewAttachment(v, 'cv')} className="text-xs font-semibold text-arina-blue hover:underline">Voir</button>

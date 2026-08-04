@@ -102,11 +102,35 @@ export async function deleteContact(id) {
 }
 
 /* ── Volunteers (public submit + admin list) ── */
+
+// Demande une URL d'upload signée (Vercel Blob) pour envoyer le fichier directement,
+// sans passer par la limite de 4,5 Mo des fonctions serverless.
+export async function getVolunteerUploadUrl(filename, type, size) {
+  try {
+    const params = new URLSearchParams({ filename, type, size: String(size) });
+    const res = await fetch(`${API_BASE}/volunteers/upload-url?${params}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Soumet la candidature. Renvoie { ok: true, data } ou { ok: false, error } pour que
+// le formulaire n'affiche le succès QUE si l'envoi a réellement abouti.
 export async function submitVolunteer(data) {
-  return await apiCall('/volunteers', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/volunteers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: body.error || 'Une erreur est survenue, veuillez réessayer.' };
+    return { ok: true, data: body };
+  } catch {
+    return { ok: false, error: 'Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.' };
+  }
 }
 
 export async function fetchVolunteers() {
@@ -115,6 +139,11 @@ export async function fetchVolunteers() {
 
 export async function deleteVolunteer(id) {
   return await apiCall(`/volunteers/${id}`, { method: 'DELETE' });
+}
+
+// Récupère une pièce jointe stockée en base64 (candidatures antérieures à Blob)
+export async function getVolunteerAttachment(id, kind = 'file') {
+  return await apiCall(`/volunteers/${id}/attachment?kind=${kind}`);
 }
 
 /* ── Newsletter (admin) ── */

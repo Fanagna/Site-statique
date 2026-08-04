@@ -1,6 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const { put, del } = require('@vercel/blob');
+
+// Pièces jointes candidatures : formats et taille max (sous la limite Vercel Blob de 5 Mo/upload direct)
+const ALLOWED_ATTACH_EXT = /\.(pdf|doc|docx)$/i;
+const MAX_ATTACH_SIZE = 4 * 1024 * 1024; // 4 Mo
 
 const app = express();
 
@@ -242,30 +247,102 @@ app.post('/api/newsletter', async (req, res) => {
 });
 
 // ═══ VOLUNTEERS (candidatures + lettre de motivation + CV) ═══
+
+// GET public — génère une URL d'upload signée (Vercel Blob) pour une pièce jointe.
+// L'upload direct côté client contourne la limite de 4,5 Mo des fonctions serverless.
+app.get('/api/volunteers/upload-url', async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(503).json({ error: 'Stockage non configuré' });
+    }
+    const { filename = '', type = '', size = '0' } = req.query;
+    if (!ALLOWED_ATTACH_EXT.test(filename)) {
+      return res.status(400).json({ error: 'Format non accepté — utilisez un PDF, DOC ou DOCX.' });
+    }
+    const numSize = Number(size);
+    if (!Number.isFinite(numSize) || numSize <= 0 || numSize > MAX_ATTACH_SIZE) {
+      return res.status(400).json({ error: 'Fichier trop volumineux (maximum 4 Mo).' });
+    }
+    const safeName = String(filename).replace(/[^\w.\- ]+/g, '_').slice(0, 120);
+    const blob = await put(`candidatures/${Date.now()}-${safeName}`, '', {
+      access: 'public',
+      contentType: type || 'application/octet-stream',
+      handleUploadUrl: true,
+      addRandomSuffix: true,
+    });
+    res.json({ uploadUrl: blob.uploadUrl, url: blob.url, pathname: blob.pathname });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST public — reçoit une candidature bénévole. Pièces jointes soit via URL Blob
+// (nouveau), soit en base64 (legacy) ; le serveur valide toujours les champs.
 app.post('/api/volunteers', async (req, res) => {
   try {
     const { name, email, phone, skills, availability, motivation, file, cv } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Le nom est requis' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) return res.status(400).json({ error: "L'email est invalide" });
+    const attachErr = (a, label) => {
+      if (!a || !a.name) return `${label} est requise`;
+      if (!ALLOWED_ATTACH_EXT.test(a.name)) return `${label} : format non accepté (PDF, DOC ou DOCX)`;
+      const sz = Number(a.size);
+      if (!Number.isFinite(sz) || sz > MAX_ATTACH_SIZE) return `${label} : fichier trop volumineux (maximum 4 Mo)`;
+      return null;
+    };
+    const errFile = attachErr(file, 'La lettre de motivation');
+    if (errFile) return res.status(400).json({ error: errFile });
+    const errCv = attachErr(cv, 'Le CV');
+    if (errCv) return res.status(400).json({ error: errCv });
     const result = await pool.query(
-      'INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, cv_name, cv_type, cv_size, cv_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
+      `INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, file_url, cv_name, cv_type, cv_size, cv_data, cv_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
       [name, email, phone, skills, availability, motivation,
-       file?.name || null, file?.type || null, file?.size || null, file?.data || null,
-       cv?.name || null, cv?.type || null, cv?.size || null, cv?.data || null]
+       file?.name || null, file?.type || null, file?.size || null, file?.data || null, file?.url || null,
+       cv?.name || null, cv?.type || null, cv?.size || null, cv?.data || null, cv?.url || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET admin — liste SANS les données base64 (sinon la réponse dépasse la limite Vercel).
+// Les pièces jointes sont accessibles via file_url / cv_url, ou via l'endpoint legacy ci-dessous.
 app.get('/api/volunteers', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, cv_name, cv_type, cv_size, cv_data, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
+    const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_url, cv_name, cv_type, cv_size, cv_url, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (err) { res.json([]); }
 });
 
+// GET admin — renvoie une pièce jointe stockée en base64 (candidatures antérieures à Blob)
+app.get('/api/volunteers/:id/attachment', requireAdmin, async (req, res) => {
+  try {
+    const kind = req.query.kind === 'cv' ? 'cv' : 'file';
+    const result = await pool.query(
+      `SELECT ${kind === 'cv' ? 'cv_name, cv_type, cv_data' : 'file_name, file_type, file_data'} FROM volunteers WHERE id = $1`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const r = result.rows[0];
+    const data = kind === 'cv' ? r.cv_data : r.file_data;
+    if (!data) return res.status(404).json({ error: 'Aucune pièce jointe' });
+    res.json({
+      name: kind === 'cv' ? r.cv_name : r.file_name,
+      type: kind === 'cv' ? r.cv_type : r.file_type,
+      data,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/api/volunteers/:id', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('DELETE FROM volunteers WHERE id=$1 RETURNING *', [req.params.id]);
+    const result = await pool.query('DELETE FROM volunteers WHERE id=$1 RETURNING file_url, cv_url', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    // Suppression best-effort des fichiers Blob associés (évite de saturer le quota)
+    const urls = [result.rows[0].file_url, result.rows[0].cv_url].filter(Boolean);
+    if (urls.length && process.env.BLOB_READ_WRITE_TOKEN) {
+      try { await Promise.allSettled(urls.map((u) => del(u))); } catch { /* best effort */ }
+    }
     res.json({ deleted: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

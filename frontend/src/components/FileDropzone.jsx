@@ -41,7 +41,7 @@ export default function FileDropzone({ label, required, hint, file, error, onFil
               <Upload className="w-6 h-6" />
             </span>
             <span className="text-sm font-semibold text-arina-dark">{hint}</span>
-            <span className="text-xs text-arina-gray">PDF, DOC ou DOCX — maximum 5 Mo</span>
+            <span className="text-xs text-arina-gray">PDF, DOC ou DOCX — maximum 4 Mo</span>
           </>
         )}
       </label>

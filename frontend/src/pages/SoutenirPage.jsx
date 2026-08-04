@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, PartyPopper, Smartphone,
+  AlertCircle, Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, Loader2, PartyPopper, Smartphone,
 } from 'lucide-react';
 import AppIcon from '../components/icons';
 import FileDropzone from '../components/FileDropzone';
 import { paymentMethods } from '../data/donations';
-import { submitVolunteer } from '../services/api';
+import { getVolunteerUploadUrl, submitVolunteer } from '../services/api';
 
 const methodIcons = { smartphone: Smartphone, bitcoin: Bitcoin, landmark: Landmark };
 
@@ -24,6 +24,8 @@ export default function SoutenirPage() {
   const [volunteerCv, setVolunteerCv] = useState(null);
   const [fileError, setFileError] = useState('');
   const [cvError, setCvError] = useState('');
+  const [volSubmitting, setVolSubmitting] = useState(false);
+  const [volError, setVolError] = useState('');
   const [method, setMethod] = useState('orange');
   const [copied, setCopied] = useState(null);
 
@@ -62,8 +64,8 @@ export default function SoutenirPage() {
       setErr('Format non accepté — utilisez un PDF, DOC ou DOCX.');
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      setErr('Fichier trop volumineux (maximum 5 Mo).');
+    if (f.size > 4 * 1024 * 1024) {
+      setErr('Fichier trop volumineux (maximum 4 Mo).');
       return;
     }
     setErr('');
@@ -73,11 +75,31 @@ export default function SoutenirPage() {
         name: f.name,
         type: f.type || 'application/octet-stream',
         size: f.size,
-        data: String(reader.result).split(',')[1],
+        raw: f, // Fichier brut pour l'upload direct vers Vercel Blob
+        data: String(reader.result).split(',')[1], // repli base64 si le stockage n'est pas configuré
       });
     };
     reader.readAsDataURL(f);
   };
+
+  // Upload direct vers Vercel Blob (contourne la limite de 4,5 Mo des fonctions) ;
+  // renvoie les infos avec l'URL publique, ou null pour un repli base64.
+  const uploadAttach = async (f) => {
+    if (!f?.raw) return null;
+    const up = await getVolunteerUploadUrl(f.name, f.type, f.size);
+    if (!up?.uploadUrl) return null;
+    try {
+      await fetch(up.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': f.type || 'application/octet-stream' },
+        body: f.raw,
+      });
+      return { name: f.name, type: f.type, size: f.size, url: up.url };
+    } catch {
+      return null;
+    }
+  };
+  const toFallback = (f) => (f ? { name: f.name, type: f.type, size: f.size, data: f.data } : null);
 
   const handleDonor = (e) => {
     e.preventDefault();
@@ -85,17 +107,32 @@ export default function SoutenirPage() {
     setDonorSubmitted(true);
     setDonor(donorInit);
   };
-  const handleVol = (e) => {
+  const handleVol = async (e) => {
     e.preventDefault();
     if (!validateVolunteer()) return;
-    setVolSubmitted(true);
-    setVolunteer(volunteerInit);
-    setVolunteerFile(null);
-    setVolunteerCv(null);
-    setFileError('');
-    setCvError('');
-    // Envoi au backend (non bloquant) — l'admin reçoit la candidature + lettre de motivation + CV
-    submitVolunteer({ ...volunteer, file: volunteerFile, cv: volunteerCv }).catch(() => {});
+    setVolError('');
+    setVolSubmitting(true);
+    try {
+      const [fileUp, cvUp] = await Promise.all([uploadAttach(volunteerFile), uploadAttach(volunteerCv)]);
+      const res = await submitVolunteer({
+        ...volunteer,
+        file: fileUp || toFallback(volunteerFile),
+        cv: cvUp || toFallback(volunteerCv),
+      });
+      if (!res.ok) throw new Error(res.error);
+      // Succès réel : l'admin a bien reçu la candidature
+      setVolSubmitted(true);
+      setVolunteer(volunteerInit);
+      setVolunteerFile(null);
+      setVolunteerCv(null);
+      setFileError('');
+      setCvError('');
+    } catch (err) {
+      // Échec : on garde les informations saisies pour permettre de réessayer
+      setVolError(err.message || 'Une erreur est survenue, veuillez réessayer.');
+    } finally {
+      setVolSubmitting(false);
+    }
   };
 
   const inputClass = (err) =>
@@ -457,11 +494,22 @@ export default function SoutenirPage() {
                       />
                     </div>
 
+                    {volError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{volError} — vos informations ont été conservées, vous pouvez réessayer.</span>
+                      </div>
+                    )}
                     <button
                       type="submit"
-                      className="w-full py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                      disabled={volSubmitting}
+                      className="w-full py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-arina-gold"
                     >
-                      <Handshake className="w-5 h-5" /> Envoyer ma candidature
+                      {volSubmitting ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Envoi en cours…</>
+                      ) : (
+                        <><Handshake className="w-5 h-5" /> Envoyer ma candidature</>
+                      )}
                     </button>
                   </form>
                 </>
