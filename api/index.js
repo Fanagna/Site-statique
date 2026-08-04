@@ -52,6 +52,8 @@ function ensureSchema() {
       cv_type VARCHAR(100),
       cv_size INTEGER,
       cv_data TEXT,
+      file_url VARCHAR(500),
+      cv_url VARCHAR(500),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
     `ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS file_url VARCHAR(500)`,
@@ -71,9 +73,13 @@ function ensureSchema() {
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published'`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`,
   ];
-  return Promise.allSettled(statements.map((s) => pool.query(s)))
-    .then((r) => { if (r.some((x) => x.status === 'rejected')) console.error('⚠️ Auto-migration : certaines instructions en échec'); else console.log('✅ Schéma vérifié (auto-migration)'); })
-    .catch((err) => console.error('⚠️ Auto-migration :', err.message));
+  // Exécution SÉQUENTIELLE (les ALTER doivent suivre le CREATE, sinon ils échouent)
+  (async () => {
+    for (const s of statements) {
+      try { await pool.query(s); } catch (err) { console.error('⚠️ Auto-migration :', err.message); }
+    }
+    console.log('✅ Schéma vérifié (auto-migration)');
+  })();
 }
 ensureSchema();
 
