@@ -44,12 +44,15 @@ CREATE TABLE IF NOT EXISTS pillars (
   sort_order INTEGER DEFAULT 0
 );
 
--- Insert default pillars
-INSERT INTO pillars (icon, title, description, color, sort_order) VALUES
-('🏠', 'Hébergement sécurisé', 'Des foyers d''accueil chaleureux et protecteurs pour chaque jeune.', 'emerald', 1),
-('🧠', 'Soutien Psychosocial', 'Reconstruction psychologique et morale par des professionnels.', 'blue', 2),
-('🔧', 'Formation Professionnelle', 'Menuiserie, cuisine, agriculture : des métiers d''avenir.', 'orange', 3),
-('🤝', 'Insertion Sociale', 'Aide à l''emploi, au logement et à l''intégration sociale.', 'purple', 4);
+-- Insert default pillars (idempotent : ne réinsère que si la table est vide)
+INSERT INTO pillars (icon, title, description, color, sort_order)
+SELECT * FROM (VALUES
+  ('🏠', 'Hébergement sécurisé', 'Des foyers d''accueil chaleureux et protecteurs pour chaque jeune.', 'emerald', 1),
+  ('🧠', 'Soutien Psychosocial', 'Reconstruction psychologique et morale par des professionnels.', 'blue', 2),
+  ('🔧', 'Formation Professionnelle', 'Menuiserie, cuisine, agriculture : des métiers d''avenir.', 'orange', 3),
+  ('🤝', 'Insertion Sociale', 'Aide à l''emploi, au logement et à l''intégration sociale.', 'purple', 4)
+) AS p(icon, title, description, color, sort_order)
+WHERE NOT EXISTS (SELECT 1 FROM pillars);
 
 -- Contacts table
 CREATE TABLE IF NOT EXISTS contacts (

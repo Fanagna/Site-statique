@@ -32,6 +32,51 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
+// Auto-migration idempotente au démarrage — crée/répare les tables absentes ou obsolètes
+// (ex. table volunteers inexistante ou table news sans colonne status en production).
+function ensureSchema() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS volunteers (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      phone VARCHAR(50),
+      skills TEXT,
+      availability VARCHAR(100),
+      motivation TEXT,
+      file_name VARCHAR(255),
+      file_type VARCHAR(100),
+      file_size INTEGER,
+      file_data TEXT,
+      cv_name VARCHAR(255),
+      cv_type VARCHAR(100),
+      cv_size INTEGER,
+      cv_data TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS file_url VARCHAR(500)`,
+    `ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_url VARCHAR(500)`,
+    `CREATE TABLE IF NOT EXISTS news (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      excerpt TEXT,
+      content TEXT,
+      image_url TEXT,
+      category VARCHAR(100),
+      status VARCHAR(20) DEFAULT 'published',
+      views INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published'`,
+    `ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`,
+  ];
+  return Promise.allSettled(statements.map((s) => pool.query(s)))
+    .then((r) => { if (r.some((x) => x.status === 'rejected')) console.error('⚠️ Auto-migration : certaines instructions en échec'); else console.log('✅ Schéma vérifié (auto-migration)'); })
+    .catch((err) => console.error('⚠️ Auto-migration :', err.message));
+}
+ensureSchema();
+
 // Health check
 app.get('/api/health', async (req, res) => {
   try {
