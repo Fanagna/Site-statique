@@ -238,6 +238,18 @@ app.get('/api/news', async (req, res) => {
   } catch (err) { res.json([]); }
 });
 
+// POST public — incrémente le compteur de vues d'un article (alimente le tri « Plus populaires »)
+app.post('/api/news/:id/view', async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE news SET views = views + 1 WHERE id = $1 AND COALESCE(status, 'published') = 'published' RETURNING views",
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ views: result.rows[0].views });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST create news (admin uniquement)
 app.post('/api/news', requireAdmin, async (req, res) => {
   try {

@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Eye, FileText, Heart, Handshake, ImageIcon } from 'lucide-react';
 import useNews from '../hooks/useNews';
+import { incrementNewsViews } from '../services/api';
 import UpdatedBadge from '../components/UpdatedBadge';
 import EditNewsButton from '../components/EditNewsButton';
 import { categoryColors } from '../data/news';
@@ -11,6 +13,12 @@ export default function ArticlePage() {
   const location = useLocation();
   const { news } = useNews();
   const article = news.find((n) => n.slug === slug);
+
+  // Compte la consultation (alimente le tri « Plus populaires » côté public)
+  useEffect(() => {
+    if (article?.id) incrementNewsViews(article.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article?.id]);
 
   /* Contenu : blocs structurés, texte brut (admin) ou extrait par défaut */
   const renderContent = (a) => {

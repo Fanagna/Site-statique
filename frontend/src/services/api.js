@@ -93,6 +93,10 @@ export async function deleteNews(id) {
   return await apiCall(`/news/${id}`, { method: 'DELETE' });
 }
 
+export async function incrementNewsViews(id) {
+  return await apiCall(`/news/${id}/view`, { method: 'POST' });
+}
+
 /* ── Contacts (admin) ── */
 export async function fetchContacts() {
   return await apiCall('/contacts');

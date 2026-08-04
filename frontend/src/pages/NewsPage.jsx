@@ -7,7 +7,6 @@ import EditNewsButton from '../components/EditNewsButton';
 import { categories, months, categoryColors } from '../data/news';
 
 const ITEMS_PER_PAGE = 6;
-const years = [2024, 2023, 2022];
 const sortOptions = [
   { value: 'recent', label: 'Plus récentes' },
   { value: 'oldest', label: 'Plus anciennes' },
@@ -16,6 +15,11 @@ const sortOptions = [
 
 export default function NewsPage() {
   const { news } = useNews();
+  // Années disponibles dérivées des actualités réelles (jamais obsolètes)
+  const availableYears = useMemo(() => {
+    const set = new Set(news.map((n) => n.year).filter((y) => y));
+    return [...set].sort((a, b) => b - a);
+  }, [news]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -70,7 +74,8 @@ export default function NewsPage() {
     }
 
     if (selectedYear) {
-      result = result.filter((n) => n.year === selectedYear);
+      // Comparaison en chaînes : la valeur du <select> est une chaîne, l'API renvoie un nombre
+      result = result.filter((n) => String(n.year) === String(selectedYear));
     }
 
     // Sort
@@ -88,11 +93,12 @@ export default function NewsPage() {
     }
 
     return result;
-  }, [search, selectedCategory, selectedMonth, selectedYear, sortBy]);
+  }, [news, search, selectedCategory, selectedMonth, selectedYear, sortBy]);
 
-  // Pagination
+  // Pagination (page bornée : si la liste rétrécit pendant le polling, on reste sur une page valide)
   const totalPages = Math.ceil(filteredNews.length / ITEMS_PER_PAGE);
-  const paginatedNews = filteredNews.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const currentPage = Math.min(page, Math.max(1, totalPages));
+  const paginatedNews = filteredNews.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   // Reset to page 1 when filters change
   const handleFilterChange = (setter) => (val) => {
@@ -162,7 +168,7 @@ export default function NewsPage() {
                 className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-arina-dark focus:outline-none focus:ring-2 focus:ring-arina-blue/20 focus:border-arina-blue transition-all cursor-pointer"
               >
                 <option value="">Année</option>
-                {years.map((y) => (
+                {availableYears.map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -293,7 +299,7 @@ export default function NewsPage() {
               {/* Previous */}
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+                disabled={currentPage === 1}
                 className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-arina-dark hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 ‹
@@ -304,7 +310,7 @@ export default function NewsPage() {
                   key={p}
                   onClick={() => setPage(p)}
                   className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium text-sm transition-all ${
-                    p === page
+                    p === currentPage
                       ? 'bg-arina-blue text-white shadow-md'
                       : 'border border-gray-200 text-arina-dark hover:bg-gray-50'
                   }`}
@@ -316,7 +322,7 @@ export default function NewsPage() {
               {/* Next */}
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                disabled={currentPage === totalPages}
                 className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-arina-dark hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 ›
@@ -325,7 +331,7 @@ export default function NewsPage() {
 
             {/* Info */}
             <p className="text-sm text-arina-gray">
-              {((page - 1) * ITEMS_PER_PAGE) + 1} – {Math.min(page * ITEMS_PER_PAGE, filteredNews.length)} sur {filteredNews.length} résultats
+              {((currentPage - 1) * ITEMS_PER_PAGE) + 1} – {Math.min(currentPage * ITEMS_PER_PAGE, filteredNews.length)} sur {filteredNews.length} résultats
             </p>
           </div>
         )}
