@@ -11,7 +11,7 @@ export const ROLE_LABELS = {
 // les données. Rôle inconnu → onglets restreints (fail-closed : jamais l'accès admin complet).
 export const ROLE_TABS = {
   admin: ['dashboard', 'actualites', 'enfants', 'finances', 'messages', 'volunteers', 'newsletter', 'comptes'],
-  president: ['dashboard', 'actualites', 'messages', 'volunteers'],
+  president: ['dashboard', 'actualites', 'messages', 'volunteers', 'newsletter'],
   accountant: ['dashboard', 'finances'],
   educator: ['dashboard', 'enfants'],
   unknown: ['dashboard'],
