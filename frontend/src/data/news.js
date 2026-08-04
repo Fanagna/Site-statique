@@ -542,7 +542,7 @@ export const months = [
 
 export const categoryColors = {
   'Événement': { bg: 'bg-arina-warm', text: 'text-arina-blue', dot: 'bg-arina-blue' },
-  'Témoignage': { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
-  'Rapport': { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' },
+  'Témoignage': { bg: 'bg-rose-100', text: 'text-rose-700', dot: 'bg-rose-500' },
+  'Rapport': { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
   'Projet': { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' },
 };

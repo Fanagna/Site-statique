@@ -17,8 +17,8 @@ const statusMeta = {
 
 const catStyles = {
   'Événement': 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  'Témoignage': 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400',
-  'Rapport': 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  'Témoignage': 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  'Rapport': 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
   'Projet': 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400',
 };
 
