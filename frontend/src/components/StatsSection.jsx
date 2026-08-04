@@ -3,8 +3,8 @@ import AppIcon from './icons';
 const stats = [
   { value: '30', suffix: '+', label: 'Jeunes accompagnés', sub: '+5 ce mois', icon: 'user', color: 'from-arina-gold to-arina-accent' },
   { value: '85', suffix: '%', label: "Taux d'insertion", sub: 'en moyenne', icon: 'trending-up', color: 'from-rose-400 to-pink-500' },
-  { value: '12', suffix: '', label: 'Partenaires', sub: 'actifs', icon: 'handshake', color: 'from-violet-400 to-purple-500' },
-  { value: '5', suffix: '+', label: "Années d'action", sub: "d'expérience", icon: 'star', color: 'from-arina-gold to-arina-gold-light' },
+  { value: '1', suffix: '', label: 'Partenaire', sub: 'Grandir Dignement', icon: 'handshake', color: 'from-violet-400 to-purple-500' },
+  { value: '2', suffix: '', label: "Années d'action", sub: 'depuis 2024', icon: 'star', color: 'from-arina-gold to-arina-gold-light' },
 ];
 
 export default function StatsSection() {

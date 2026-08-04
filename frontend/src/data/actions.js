@@ -97,7 +97,7 @@ export const pillars = [
       { value: '4', label: 'Filières de formation' },
       { value: '45', label: 'Jeunes formés en 2024' },
       { value: '85%', label: "Taux d'insertion" },
-      { value: '12', label: 'Entreprises partenaires' },
+      { value: '1', label: 'Entreprise partenaire' },
     ],
     content: [
       { type: 'heading', text: 'Des formations adaptées au marché' },
@@ -137,13 +137,13 @@ export const pillars = [
     stats: [
       { value: '85%', label: "Taux d'insertion" },
       { value: '18', label: 'Diplômés en 2024' },
-      { value: '12', label: 'Entreprises partenaires' },
+      { value: '1', label: 'Entreprise partenaire' },
       { value: '15', label: 'Mentors bénévoles' },
     ],
     content: [
       { type: 'heading', text: 'Un accompagnement personnalisé vers l\'emploi' },
       { type: 'paragraph', text: "Trouver un emploi est un défi pour tout jeune, a fortiori pour ceux qui portent un parcours de vie difficile. Notre service d'insertion professionnelle accompagne chaque jeune de manière personnalisée : rédaction de CV, préparation aux entretiens, mise en relation avec des employeurs partenaires." },
-      { type: 'paragraph', text: "Nous organisons régulièrement des forums emploi et des rencontres avec des entreprises. Notre réseau de 12 entreprises partenaires, dans des secteurs variés (hôtellerie, bâtiment, agriculture, restauration), nous permet de proposer des opportunités concrètes à nos jeunes diplômés." },
+      { type: 'paragraph', text: "Nous organisons régulièrement des forums emploi et des rencontres avec des entreprises. Avec notre partenaire Grandir Dignement, nous proposons des opportunités concrètes à nos jeunes diplômés." },
       { type: 'image', src: actionContentImages.insertion, caption: 'Signature d\'un contrat d\'apprentissage avec un partenaire' },
       { type: 'heading', text: 'Le programme de mentorat' },
       { type: 'paragraph', text: "Lancé en septembre 2024, notre programme de mentorat met en relation chaque jeune avec un professionnel bénévole qui le guide dans son insertion professionnelle. Le mentor partage son expérience, ses conseils, son réseau. C'est un accompagnement précieux qui fait souvent la différence." },

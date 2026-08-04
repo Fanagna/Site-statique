@@ -1,12 +1,5 @@
 const partners = [
-  { name: 'UNICEF', logo: 'U' },
-  { name: 'Ministère Justice', logo: 'MJ' },
-  { name: 'Croix-Rouge', logo: 'CR' },
-  { name: 'UE', logo: 'UE' },
-  { name: 'Banque Mondiale', logo: 'BM' },
-  { name: 'PNUD', logo: 'PN' },
-  { name: 'UNESCO', logo: 'UN' },
-  { name: 'OIM', logo: 'OI' },
+  { name: 'Grandir Dignement', logo: 'GD' },
 ];
 
 export default function PartnersCarousel() {
@@ -15,10 +8,10 @@ export default function PartnersCarousel() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="text-center mb-10">
           <span className="inline-block px-4 py-1.5 bg-white/80 text-arina-blue text-sm font-semibold rounded-full mb-4">
-            Ils nous font confiance
+            Notre partenaire
           </span>
           <h2 className="text-3xl font-serif font-bold text-arina-dark">
-            Nos Partenaires
+            Partenaire
           </h2>
         </div>
 

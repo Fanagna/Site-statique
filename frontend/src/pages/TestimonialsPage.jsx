@@ -67,7 +67,7 @@ export default function TestimonialsPage() {
               { value: '45+', label: 'Jeunes accompagnés' },
               { value: '6+', label: 'Témoignages reçus' },
               { value: '85%', label: "Taux d'insertion" },
-              { value: '12', label: 'Partenaires' },
+              { value: '1', label: 'Partenaire' },
             ].map((stat, i) => (
               <div key={i} className="text-center">
                 <div className="text-2xl lg:text-3xl font-extrabold text-arina-blue">{stat.value}</div>

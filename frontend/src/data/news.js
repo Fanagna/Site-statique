@@ -180,7 +180,7 @@ export const allNews = [
     content: [
       {
         type: 'paragraph',
-        text: "L'association ARINA publie son rapport annuel 2024, une année marquée par une croissance significative de ses activités. Avec 45 jeunes accompagnés (contre 30 en 2023), l'association confirme son rôle essentiel dans le paysage de la réinsertion à Madagascar.",
+        text: "L'association ARINA publie son rapport annuel 2024, une année marquée par une croissance significative de ses activités. Avec 45 jeunes accompagnés cette année, l'association confirme son rôle essentiel dans le paysage de la réinsertion à Madagascar.",
       },
       {
         type: 'heading',

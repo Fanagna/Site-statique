@@ -50,7 +50,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
-              Accompagner la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar depuis 2023.
+              Accompagner la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar depuis 2024.
             </p>
             <div className="flex gap-3">
               {['Facebook', 'Instagram', 'LinkedIn', 'YouTube'].map((social) => (

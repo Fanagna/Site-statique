@@ -127,7 +127,7 @@ export default function ActionsPage() {
               { value: '45', label: 'Jeunes accompagnés en 2024' },
               { value: '85%', label: "Taux d'insertion" },
               { value: '18', label: 'Diplômés cette année' },
-              { value: '12', label: 'Partenaires actifs' },
+              { value: '1', label: 'Partenaire actif' },
             ].map((stat, i) => (
               <div key={i} className="p-4">
                 <div className="text-3xl font-extrabold text-arina-gold">{stat.value}</div>

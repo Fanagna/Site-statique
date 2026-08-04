@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS stats (
 
 -- Insert default stats
 INSERT INTO stats (young_accompanied, insertion_rate, partners, years_active)
-VALUES (30, 85, 12, 5)
+VALUES (30, 85, 1, 2)
 ON CONFLICT DO NOTHING;
 
 -- Pillars table

@@ -352,9 +352,9 @@ app.delete('/api/news/:id', requireAdmin, async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM stats LIMIT 1');
-    res.json(result.rows[0] || { young_accompanied: 30, insertion_rate: 85, partners: 12, years_active: 5 });
+    res.json(result.rows[0] || { young_accompanied: 30, insertion_rate: 85, partners: 1, years_active: 2 });
   } catch (err) {
-    res.json({ young_accompanied: 30, insertion_rate: 85, partners: 12, years_active: 5 });
+    res.json({ young_accompanied: 30, insertion_rate: 85, partners: 1, years_active: 2 });
   }
 });
 
