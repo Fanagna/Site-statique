@@ -270,9 +270,15 @@ body {
     border-radius: 0 !important;
   }
 
-  /* Liste des enfants : en-tête imprimable visible, coquille masquée */
+  /* Liste des enfants : en-tête + pied imprimables visibles, coquille masquée */
   .print-list-header {
     display: flex !important;
+  }
+
+  .print-list-footer {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   table {
