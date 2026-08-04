@@ -1096,6 +1096,7 @@ export default function AdminDashboard() {
                     <tr>
                       <Th label="Type" k="type" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Catégorie" k="categorie" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
+                      <Th label="Détail (QT × PU)" />
                       <Th label="Montant" k="montant" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Description" />
                       <Th label="Date" k="date" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
@@ -1109,6 +1110,9 @@ export default function AdminDashboard() {
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${f.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{f.type}</span>
                         </td>
                         <td className="px-4 py-3 text-ios-text">{f.categorie || 'Autre'}</td>
+                        <td className="px-4 py-3 text-xs text-ios-text3 tabular whitespace-nowrap">
+                          {f.quantity != null && f.unit_price != null ? `${f.quantity} × ${formatMGA(f.unit_price)}` : '—'}
+                        </td>
                         <td className={`px-4 py-3 font-semibold tabular ${f.type === 'Revenu' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                           {f.type === 'Revenu' ? '+' : '−'} {formatMGA(f.montant)}
                         </td>
