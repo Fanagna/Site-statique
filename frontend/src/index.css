@@ -227,13 +227,20 @@ body {
    Impression / Export PDF — fiche enfant
    ═══════════════════════════════════════ */
 @page {
-  size: A4;
-  margin: 14mm 12mm;
+  size: A4 portrait;
+  margin: 16mm 14mm;
+}
+
+@page :first {
+  margin-top: 18mm;
 }
 
 @media print {
   html, body {
     background: #fff !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   /* Masquer toute la coquille admin (sidebar, topbar, footer, boutons) */
@@ -268,6 +275,8 @@ body {
     padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    /* Largeur utile d'une page A4 (210mm − marges 14mm × 2) */
+    width: 182mm !important;
   }
 
   /* Liste des enfants : en-tête + pied imprimables visibles, coquille masquée */
@@ -279,11 +288,13 @@ body {
     display: block !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    /* Le pied reste groupé, jamais coupé entre deux pages */
+    break-inside: avoid;
   }
 
   table {
     width: 100% !important;
-    font-size: 11px !important;
+    font-size: 10.5pt !important;
     border-collapse: collapse;
   }
 
@@ -293,7 +304,7 @@ body {
 
   table th, table td {
     border-bottom: 1px solid #e5e5ea;
-    padding: 6px 8px !important;
+    padding: 5px 6px !important;
   }
 
   table tr {
@@ -319,5 +330,28 @@ body {
 
   .print-hide-on-print {
     display: none !important;
+  }
+
+  /* La fiche tient proprement sur A4 : cartes 2 colonnes sans coupure */
+  .print-area .grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8mm !important;
+  }
+
+  .print-area .grid > * {
+    break-inside: avoid;
+  }
+
+  /* Colonnes internes des cartes : 2 colonnes pour rester compact sur A4 */
+  .print-area .card-apple .grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Pas de dégradés d'écran dans le PDF, on garde des aplats */
+  .print-header [class*="bg-gradient"] {
+    background: #E0574F !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
