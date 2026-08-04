@@ -534,7 +534,7 @@ export default function SoutenirPage() {
           {/* Galerie — nos actions en images */}
           <div className="mt-10">
             <div className="text-center mb-6">
-              <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-3">
+              <span className="section-kicker mb-3">
                 En images
               </span>
               <h2 className="text-2xl lg:text-3xl font-serif font-bold text-arina-dark">

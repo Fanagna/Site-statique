@@ -82,7 +82,7 @@ export default function TestimonialsPage() {
       <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-arina-gold/20 text-arina-blue text-sm font-semibold rounded-full mb-4">
+            <span className="section-kicker mb-4">
               <Star className="w-4 h-4 fill-current" /> Témoignages à la une
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark">
@@ -219,7 +219,7 @@ export default function TestimonialsPage() {
       <section className="py-16 lg:py-24 bg-gradient-to-br from-arina-cream to-white">
         <div className="max-w-3xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-10">
-            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
+            <span className="section-kicker mb-4">
               <PenLine className="w-4 h-4" /> Partagez votre histoire
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark mb-4">

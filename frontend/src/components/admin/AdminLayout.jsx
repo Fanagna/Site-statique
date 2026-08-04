@@ -56,7 +56,7 @@ export default function AdminLayout({
       {groups.map((g) => (
         <div key={g.group}>
           {!compact && (
-            <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ios-text3">
+            <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ios-text3/80">
               {g.group}
             </div>
           )}

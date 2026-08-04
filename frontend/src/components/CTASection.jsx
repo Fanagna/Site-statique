@@ -28,7 +28,7 @@ export default function CTASection() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
             to="/soutenir"
-            className="w-full sm:w-auto px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-xl hover:shadow-2xl pulse-gold flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-8 py-4 btn-primary text-white text-lg font-bold rounded-xl pulse-gold flex items-center justify-center gap-2"
           >
             <Heart className="w-5 h-5" fill="currentColor" /> Faire un don
           </Link>

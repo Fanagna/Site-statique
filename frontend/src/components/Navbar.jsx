@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Heart, Handshake } from 'lucide-react';
 
@@ -13,16 +13,36 @@ const navLinks = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [lang, setLang] = useState('FR');
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+
+  // Effet « verre dépoli » dès que l'on quitte le haut de page
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
-    if (path.startsWith('/#')) return false; // hash links don't get active state
+    if (path.startsWith('/#')) return false;
     return location.pathname.startsWith(path);
   };
 
+  const linkClass = (path) =>
+    `link-underline px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+      isActive(path) ? 'text-arina-blue is-active' : 'text-arina-dark/80 hover:text-arina-blue'
+    }`;
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md shadow-sm transition-all duration-300">
+    <nav
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'bg-white/85 backdrop-blur-xl shadow-[0_1px_0_rgba(0,0,0,0.06),0_8px_30px_-6px_rgba(74,30,43,0.12)]'
+          : 'bg-white/60 backdrop-blur-md shadow-sm'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
@@ -30,26 +50,18 @@ export default function Navbar() {
             <img
               src="/logo-arina.jpg"
               alt="ARINA Association"
-              className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-contain shadow-lg group-hover:scale-105 transition-transform"
+              className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-contain shadow-lg group-hover:scale-105 group-hover:shadow-xl transition-all duration-300"
             />
             <div className="hidden sm:block">
-              <div className="text-sm font-bold text-arina-blue leading-tight">ARINA</div>
-              <div className="text-[10px] text-arina-gray leading-tight">Association</div>
+              <div className="text-sm font-extrabold tracking-tight text-arina-blue leading-tight">ARINA</div>
+              <div className="text-[10px] text-arina-gray leading-tight uppercase tracking-[0.14em]">Association</div>
             </div>
           </Link>
 
           {/* Desktop nav */}
           <div className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                to={link.href}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                  isActive(link.href)
-                    ? 'text-arina-blue bg-arina-blue/5'
-                    : 'text-arina-dark/80 hover:text-arina-blue hover:bg-arina-blue/5'
-                }`}
-              >
+              <Link key={link.label} to={link.href} className={linkClass(link.href)}>
                 {link.label}
               </Link>
             ))}
@@ -57,17 +69,11 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2 lg:gap-3">
-            {/* Search */}
-            <button className="p-2.5 text-arina-gray hover:text-arina-blue hover:bg-gray-100 rounded-lg transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
-
             {/* Lang switcher */}
             <button
               onClick={() => setLang(lang === 'FR' ? 'EN' : 'FR')}
               className="text-xs font-semibold text-arina-blue bg-arina-blue/5 hover:bg-arina-blue/10 px-2.5 py-1.5 rounded-lg transition-colors"
+              aria-label="Changer de langue"
             >
               {lang}
             </button>
@@ -75,7 +81,7 @@ export default function Navbar() {
             {/* Donate button */}
             <Link
               to="/soutenir"
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-accent text-white text-sm font-semibold rounded-lg hover:bg-arina-accent-dark transition-all shadow-md hover:shadow-lg"
+              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 btn-primary text-white text-sm font-semibold rounded-lg"
             >
               <Heart className="w-4 h-4" fill="currentColor" /> Don
             </Link>
@@ -83,9 +89,9 @@ export default function Navbar() {
             {/* Volunteer button */}
             <Link
               to="/soutenir"
-              className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-arina-gold text-white text-sm font-semibold rounded-lg hover:bg-arina-gold-light transition-all shadow-md hover:shadow-lg"
+              className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-white text-arina-dark text-sm font-semibold rounded-lg border border-gray-200 hover:border-arina-accent/50 hover:text-arina-blue transition-all shadow-sm hover:shadow-md"
             >
-              <Handshake className="w-4 h-4" /> Bénévole
+              <Handshake className="w-4 h-4 text-arina-gold" /> Bénévole
             </Link>
 
             {/* Mobile menu button */}
@@ -93,6 +99,7 @@ export default function Navbar() {
               onClick={() => setMenuOpen(!menuOpen)}
               className="lg:hidden p-2.5 text-arina-dark hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Menu"
+              aria-expanded={menuOpen}
             >
               {menuOpen ? (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,10 +118,10 @@ export default function Navbar() {
       {/* Mobile menu */}
       <div
         className={`lg:hidden overflow-hidden transition-all duration-300 ${
-          menuOpen ? 'max-h-96 border-t border-gray-100' : 'max-h-0'
+          menuOpen ? 'max-h-96 border-t border-gray-100 bg-white/95 backdrop-blur-xl' : 'max-h-0'
         }`}
       >
-        <div className="px-4 py-4 space-y-1 bg-white">
+        <div className="px-4 py-4 space-y-1 bg-transparent">
           {navLinks.map((link) => (
             <Link
               key={link.label}
@@ -130,11 +137,11 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="flex gap-2 pt-3 px-4 sm:hidden">
-            <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-accent text-white text-sm font-semibold rounded-lg">
-              <Heart className="w-4 h-4" fill="currentColor" /> Don
+            <Link to="/soutenir" onClick={() => setMenuOpen(false)} className="flex-1 text-center px-4 py-2.5 btn-primary text-white text-sm font-semibold rounded-lg">
+              <Heart className="w-4 h-4 inline-block mr-1" fill="currentColor" /> Don
             </Link>
-            <Link to="/soutenir" className="flex-1 text-center px-4 py-2.5 bg-arina-gold text-white text-sm font-semibold rounded-lg md:hidden">
-              <Handshake className="w-4 h-4" /> Bénévole
+            <Link to="/soutenir" onClick={() => setMenuOpen(false)} className="flex-1 text-center px-4 py-2.5 bg-white border border-gray-200 text-arina-dark text-sm font-semibold rounded-lg">
+              <Handshake className="w-4 h-4 inline-block mr-1 text-arina-gold" /> Bénévole
             </Link>
           </div>
         </div>

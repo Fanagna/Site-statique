@@ -32,9 +32,12 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 lg:p-10">
+    <div className="min-h-screen bg-gradient-to-br from-arina-accent via-arina-blue to-arina-dark flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Halo décoratif */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[640px] h-[640px] bg-arina-gold/20 rounded-full blur-3xl" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      <div className="relative max-w-md w-full">
+        <div className="bg-white/95 backdrop-blur rounded-3xl shadow-2xl shadow-arina-dark/30 p-8 lg:p-10 animate-fade-up border border-white/40">
           {/* Logo */}
           <div className="text-center mb-8">
             <img
@@ -118,7 +121,7 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-arina-blue text-white text-base font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3.5 btn-primary text-white text-base font-bold rounded-xl disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

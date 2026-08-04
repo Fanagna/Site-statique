@@ -29,7 +29,7 @@ export default function ActionsPage() {
       <section className="py-16 lg:py-24 bg-gradient-to-b from-white to-arina-cream">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-14">
-            <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
+            <span className="section-kicker mb-4">
               Nos 4 Piliers
             </span>
             <h2 className="text-3xl lg:text-4xl font-serif font-bold text-arina-dark mb-4">

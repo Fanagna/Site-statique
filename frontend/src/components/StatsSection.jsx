@@ -15,14 +15,14 @@ export default function StatsSection() {
           {stats.map((stat, i) => (
             <div
               key={i}
-              className="animate-stat bg-arina-cream rounded-2xl p-6 lg:p-7 shadow-xl card-hover border border-arina-warm"
+              className="animate-stat bg-white/95 backdrop-blur rounded-2xl p-6 lg:p-7 shadow-soft-lg card-hover border border-arina-warm/70"
               style={{ animationDelay: `${i * 0.1}s` }}
             >
-              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} text-white mb-4 shadow-lg`}>
+              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} text-white mb-4 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                 <AppIcon name={stat.icon} className="w-6 h-6" />
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl lg:text-4xl font-extrabold text-arina-dark">{stat.value}</span>
+                <span className="text-3xl lg:text-4xl font-extrabold tracking-tight text-arina-dark">{stat.value}</span>
                 <span className="text-xl lg:text-2xl font-bold text-arina-blue">{stat.suffix}</span>
               </div>
               <div className="text-sm font-semibold text-arina-dark mt-1">{stat.label}</div>

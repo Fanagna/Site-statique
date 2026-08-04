@@ -61,8 +61,8 @@ export default function HeroSlider() {
         />
       ))}
       
-      {/* Légère ombre pour la lisibilité (photo bien visible) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40" />
+      {/* Dégradé de lisibilité — plus profond en bas pour les CTA */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/55" />
       
       {/* Pattern overlay */}
       <div className="absolute inset-0 opacity-5" style={{
@@ -74,13 +74,13 @@ export default function HeroSlider() {
       <div className="relative z-10 h-full flex items-center">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 w-full">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/90 text-sm font-medium border border-white/20">
-              <Sparkles className="w-4 h-4" /> Association ARINA — Depuis 2024
+            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 bg-white/15 backdrop-blur-md rounded-full text-white/95 text-sm font-medium border border-white/25 shadow-lg">
+              <Sparkles className="w-4 h-4 text-arina-gold" /> Association ARINA — Depuis 2024
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif font-bold text-white leading-tight mb-6 whitespace-pre-line">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif font-bold text-white leading-tight mb-6 whitespace-pre-line [text-shadow:0_2px_24px_rgba(0,0,0,0.35)]">
               {slide.title}
             </h1>
-            <p className="text-lg md:text-xl text-white/85 mb-10 max-w-xl leading-relaxed">
+            <p className="text-lg md:text-xl text-white/90 mb-10 max-w-xl leading-relaxed [text-shadow:0_1px_12px_rgba(0,0,0,0.4)]">
               {slide.subtitle}
             </p>
             <div className="flex flex-wrap gap-4">
@@ -88,10 +88,10 @@ export default function HeroSlider() {
                 <Link
                   key={i}
                   to={cta.href}
-                  className={`px-8 py-4 rounded-lg font-semibold text-base transition-all duration-300 transform hover:-translate-y-0.5 ${
+                  className={`px-8 py-4 rounded-xl font-semibold text-base transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0 ${
                     cta.primary
-                      ? 'bg-arina-gold text-white shadow-xl hover:bg-arina-gold-light hover:shadow-2xl pulse-gold'
-                      : 'bg-white/10 backdrop-blur-sm text-white border-2 border-white/30 hover:bg-white/25 hover:border-white/50'
+                      ? 'btn-primary pulse-gold'
+                      : 'bg-white/10 backdrop-blur-md text-white border-2 border-white/30 hover:bg-white/25 hover:border-white/50 shadow-lg'
                   }`}
                 >
                   {cta.label}
@@ -102,16 +102,16 @@ export default function HeroSlider() {
         </div>
       </div>
 
-      {/* Slider dots */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-3">
+      {/* Slider dots — pilule active animée */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 bg-black/25 backdrop-blur-md rounded-full px-4 py-2.5">
         {slides.map((_, i) => (
           <button
             key={i}
             onClick={() => setCurrent(i)}
-            className={`slider-dot rounded-full ${
+            className={`slider-dot rounded-full transition-all duration-300 ${
               i === current
-                ? 'w-8 h-3 bg-arina-gold'
-                : 'w-3 h-3 bg-white/50 hover:bg-white/80'
+                ? 'w-8 h-2.5 bg-arina-gold shadow-[0_0_12px_rgba(245,159,0,0.7)]'
+                : 'w-2.5 h-2.5 bg-white/50 hover:bg-white/90 hover:scale-110'
             }`}
             aria-label={`Slide ${i + 1}`}
           />

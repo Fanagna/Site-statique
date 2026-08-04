@@ -111,7 +111,7 @@ export default function NewsPage() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         {/* Page title */}
         <div className="mb-8">
-          <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
+          <span className="section-kicker mb-4">
             Restez informés
           </span>
           <h1 className="text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-arina-dark">

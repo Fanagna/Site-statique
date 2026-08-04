@@ -237,7 +237,7 @@ export default function ArticlePage() {
         <section className="bg-gray-50 py-16">
           <div className="max-w-7xl mx-auto px-4 lg:px-8">
             <div className="mb-8">
-              <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-3">
+              <span className="section-kicker mb-3">
                 À lire aussi
               </span>
               <h2 className="text-3xl font-serif font-bold text-arina-dark">

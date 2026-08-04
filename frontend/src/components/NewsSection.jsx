@@ -17,11 +17,9 @@ export default function NewsSection() {
         {/* Section header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-12">
           <div>
-            <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
-              Actualités
-            </span>
-            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-arina-dark">
-              Dernières Actualités
+            <span className="section-kicker mb-4">Actualités</span>
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-arina-dark tracking-tight">
+              Dernières <span className="text-gradient-brand">Actualités</span>
             </h2>
           </div>
           <Link to="/actualites" className="hidden sm:inline-flex items-center gap-2 text-arina-blue font-semibold text-sm hover:text-arina-blue-light transition-colors mt-4 sm:mt-0 group">
@@ -33,7 +31,7 @@ export default function NewsSection() {
         </div>
 
         {/* Featured article */}
-        <div className="mb-8 bg-gradient-to-r from-arina-accent to-arina-blue-dark rounded-2xl overflow-hidden shadow-xl">
+        <div className="mb-8 bg-gradient-to-r from-arina-accent to-arina-blue-dark rounded-2xl overflow-hidden shadow-soft-lg">
           <div className="flex flex-col lg:flex-row">
             <div className="lg:w-1/2">
               {featured.image ? (
@@ -80,7 +78,7 @@ export default function NewsSection() {
         {/* News grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.filter(n => !n.featured).slice(0, 3).map((item, i) => (
-            <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover">
+            <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-soft border border-arina-warm card-hover">
               <div className="relative overflow-hidden">
                 {item.image ? (
                   <img

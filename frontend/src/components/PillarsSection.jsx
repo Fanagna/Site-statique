@@ -45,13 +45,11 @@ export default function PillarsSection() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         {/* Section header */}
         <div className="text-center mb-14 lg:mb-18">
-          <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-4">
-            Nos Missions
-          </span>
-          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-arina-dark mb-4">
-            Nos 4 Piliers d'Action
+          <span className="section-kicker mb-4">Nos Missions</span>
+          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-arina-dark mb-4 tracking-tight">
+            Nos 4 Piliers <span className="text-gradient-brand">d'Action</span>
           </h2>
-          <p className="text-arina-gray max-w-2xl mx-auto text-lg">
+          <p className="text-arina-gray max-w-2xl mx-auto text-lg leading-relaxed">
             Une approche globale pour accompagner chaque jeune vers l'autonomie et la réinsertion.
           </p>
         </div>
@@ -61,7 +59,7 @@ export default function PillarsSection() {
           {pillars.map((pillar, i) => (
             <div
               key={i}
-              className={`group relative ${pillar.bgColor} rounded-2xl p-8 border ${pillar.borderColor} card-hover cursor-pointer`}
+              className={`group relative ${pillar.bgColor} rounded-2xl p-8 border ${pillar.borderColor} card-hover cursor-pointer shadow-soft`}
             >
               {/* Icon */}
               <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${pillar.color} text-white mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -79,7 +77,7 @@ export default function PillarsSection() {
               </p>
               
               {/* Link */}
-              <span className={`inline-flex items-center gap-1 text-sm font-semibold ${pillar.accentColor} group-hover:gap-2 transition-all`}>
+              <span className={`link-underline inline-flex items-center gap-1 text-sm font-semibold ${pillar.accentColor} group-hover:gap-2 transition-all`}>
                 En savoir plus
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
