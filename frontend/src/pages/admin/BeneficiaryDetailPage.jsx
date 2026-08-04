@@ -192,12 +192,12 @@ export default function BeneficiaryDetailPage() {
       <div className="print-area space-y-6">
         {/* ── EN-TÊTE DE FICHE (imprimable) ── */}
         <div className="print-header card-apple overflow-hidden">
-          <div className="bg-gradient-to-r from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-6 text-white flex flex-col sm:flex-row items-center gap-5">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 flex items-center justify-center flex-shrink-0 shadow-lg">
+          <div className="bg-gradient-to-r from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-6 text-white flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-28 h-28 lg:w-32 lg:h-32 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 flex items-center justify-center flex-shrink-0 shadow-xl">
               {data.photo ? (
                 <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
               ) : (
-                <User className="w-10 h-10 text-white/80" />
+                <User className="w-14 h-14 text-white/80" />
               )}
             </div>
             <div className="flex-1 text-center sm:text-left">
@@ -328,9 +328,9 @@ export default function BeneficiaryDetailPage() {
               )}
             </div>
 
-            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) */}
+            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes */}
             {data.dossier && (Object.keys(data.dossier).length > 0) && (
-              <div className="space-y-6 animate-fade-up" style={{ animationDelay: '220ms' }}>
+              <div className="grid md:grid-cols-2 gap-6 items-start animate-fade-up" style={{ animationDelay: '220ms' }}>
                 {/* IDENTITÉ */}
                 {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
                   <div className="card-apple p-6">
@@ -411,9 +411,9 @@ export default function BeneficiaryDetailPage() {
                   </div>
                 )}
 
-                {/* ARINA */}
+                {/* ARINA — pleine largeur (2 colonnes) */}
                 {((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation) && (
-                  <div className="card-apple p-6">
+                  <div className="card-apple p-6 md:col-span-2">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-gold to-amber-600 text-white flex items-center justify-center"><Icon name="star" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>

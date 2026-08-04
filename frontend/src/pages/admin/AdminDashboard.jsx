@@ -1096,7 +1096,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-ios-text3">Dossier complet confidentiel — une seule page</p>
               </div>
             </div>
-            <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto scroll-slim">
+            <div className="p-6 max-h-[72vh] overflow-y-auto scroll-slim grid md:grid-cols-2 gap-6 items-start">
               {/* ═══ IDENTITÉ ═══ */}
               <section className="rounded-2xl border border-ios-hairline overflow-hidden">
                 <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
@@ -1205,8 +1205,8 @@ export default function AdminDashboard() {
                 </div>
               </section>
 
-              {/* ═══ ARINA ═══ */}
-              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+              {/* ═══ ARINA — pleine largeur ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden md:col-span-2">
                 <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
                   <Icon name="star" className="w-4 h-4 text-arina-blue" />
                   <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>
