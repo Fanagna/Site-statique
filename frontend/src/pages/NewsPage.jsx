@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Eye, Search, Tag, X } from 'lucide-react';
-import { allNews, categories, months, categoryColors } from '../data/news';
+import useNews from '../hooks/useNews';
+import { categories, months, categoryColors } from '../data/news';
 
 const ITEMS_PER_PAGE = 6;
 const years = [2024, 2023, 2022];
@@ -12,6 +13,7 @@ const sortOptions = [
 ];
 
 export default function NewsPage() {
+  const { news } = useNews();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -45,15 +47,15 @@ export default function NewsPage() {
 
   // Filtered & sorted news
   const filteredNews = useMemo(() => {
-    let result = [...allNews];
+    let result = [...news];
 
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
         (n) =>
           n.title.toLowerCase().includes(q) ||
-          n.excerpt.toLowerCase().includes(q) ||
-          n.category.toLowerCase().includes(q)
+          (n.excerpt || '').toLowerCase().includes(q) ||
+          (n.category || '').toLowerCase().includes(q)
       );
     }
 

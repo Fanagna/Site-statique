@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Calendar, Eye, Newspaper, Tag } from 'lucide-react';
-import { allNews } from '../data/news';
+import useNews from '../hooks/useNews';
 
 export default function NewsSection() {
-  const featuredNews = allNews.filter((n) => n.featured).slice(0, 1);
-  const featured = featuredNews.length > 0 ? featuredNews[0] : allNews[0];
+  const { news } = useNews();
+  if (news.length === 0) return null;
+
+  const featuredNews = news.filter((n) => n.featured).slice(0, 1);
+  const featured = featuredNews.length > 0 ? featuredNews[0] : news[0];
 
   return (
     <section id="news" className="py-20 lg:py-28 bg-white">
@@ -64,7 +67,7 @@ export default function NewsSection() {
 
         {/* News grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {allNews.filter(n => !n.featured).slice(0, 3).map((item, i) => (
+          {news.filter(n => !n.featured).slice(0, 3).map((item, i) => (
             <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover">
               <div className="relative overflow-hidden">
                 <img

@@ -58,7 +58,7 @@ export default function NewsManagementPage() {
   /* ── Form modal ── */
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '' });
+  const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +86,7 @@ export default function NewsManagementPage() {
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       setEditing(null);
-      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '' });
+      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
       setShowForm(true);
       // Clean the param so a reload does not reopen the modal
       setSearchParams({}, { replace: true });
@@ -95,6 +95,11 @@ export default function NewsManagementPage() {
   }, []);
 
   useEffect(() => { setPage(1); }, [applied]);
+
+  const contentToText = (c) =>
+    Array.isArray(c)
+      ? c.filter((b) => b.type === 'paragraph').map((b) => b.text).join('\n\n')
+      : typeof c === 'string' ? c : '';
 
   const openForm = (n) => {
     if (n) {
@@ -105,10 +110,11 @@ export default function NewsManagementPage() {
         category: n.category || 'Événement',
         status: statusOf(n),
         image_url: n.image_url || '',
+        content: contentToText(n.content),
       });
     } else {
       setEditing(null);
-      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '' });
+      setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '' });
     }
     setShowForm(true);
   };
@@ -134,7 +140,7 @@ export default function NewsManagementPage() {
   const togglePublish = async (n) => {
     const next = statusOf(n) === 'published' ? 'draft' : 'published';
     const u = await updateNews(n.id, {
-      title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: next,
+      title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: next, content: typeof n.content === 'string' ? n.content : '',
     });
     setNews(news.map((x) => (x.id === n.id ? u || { ...x, status: next } : x)));
   };
@@ -414,7 +420,7 @@ export default function NewsManagementPage() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative w-full max-w-lg bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="relative w-full max-w-2xl bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center"><Icon name="file" className="w-5 h-5" /></div>
               <div>
@@ -422,9 +428,16 @@ export default function NewsManagementPage() {
                 <p className="text-xs text-ios-text3">Article public</p>
               </div>
             </div>
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto scroll-slim">
               <input placeholder="Titre de l'article" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={inputClass} />
-              <textarea placeholder="Extrait (résumé affiché sur le site)" rows={3} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className={inputClass} />
+              <textarea placeholder="Extrait (résumé affiché sur le site)" rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className={inputClass} />
+              <textarea
+                placeholder="Contenu de l'article (paragraphes séparés par une ligne vide)"
+                rows={6}
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                className={inputClass}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass}>
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}

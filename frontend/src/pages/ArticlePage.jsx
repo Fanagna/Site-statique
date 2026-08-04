@@ -1,12 +1,27 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Eye, FileText, Heart, Handshake } from 'lucide-react';
-import { allNews, categoryColors } from '../data/news';
+import useNews from '../hooks/useNews';
+import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
 
 export default function ArticlePage() {
   const { slug } = useParams();
   const location = useLocation();
-  const article = allNews.find((n) => n.slug === slug);
+  const { news } = useNews();
+  const article = news.find((n) => n.slug === slug);
+
+  /* Contenu : blocs structurés, texte brut (admin) ou extrait par défaut */
+  const renderContent = (a) => {
+    if (Array.isArray(a.content)) {
+      return a.content.map((block, i) => <ContentBlock key={i} block={block} />);
+    }
+    if (typeof a.content === 'string' && a.content.trim()) {
+      return a.content.split(/\n{2,}/).map((para, i) => (
+        <p key={i} className="text-lg text-gray-700 leading-relaxed mb-6">{para.trim()}</p>
+      ));
+    }
+    return <p className="text-lg text-gray-700 leading-relaxed mb-6">{a.excerpt}</p>;
+  };
 
   if (!article) {
     return (
@@ -27,7 +42,7 @@ export default function ArticlePage() {
   }
 
   const colors = categoryColors[article.category] || categoryColors['Événement'];
-  const relatedArticles = allNews
+  const relatedArticles = news
     .filter((n) => n.id !== article.id && n.category === article.category)
     .slice(0, 3);
 
@@ -145,11 +160,9 @@ export default function ArticlePage() {
           </div>
         </div>
 
-        {/* Content blocks */}
+        {/* Content */}
         <div>
-          {article.content.map((block, i) => (
-            <ContentBlock key={i} block={block} />
-          ))}
+          {renderContent(article)}
         </div>
 
         {/* Tags */}

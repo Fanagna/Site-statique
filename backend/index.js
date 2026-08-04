@@ -190,10 +190,34 @@ app.delete('/api/finances/:id', async (req, res) => {
 // NEWS
 // ═══════════════════════════════════════
 
+/* Normalise une ligne de la table news pour le frontend (slug, date, image…) */
+function normalizeNews(r) {
+  const raw = r.title || '';
+  const slug = (raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)) || 'article';
+  const d = r.created_at || r.date ? new Date(r.created_at || r.date) : null;
+  const fmt = (x) => String(x).padStart(2, '0');
+  const monthsFr = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const contentStr = typeof r.content === 'string' ? r.content : '';
+  const wordCount = Math.max(0, (r.excerpt || '').split(/\s+/).filter(Boolean).length) + Math.max(0, contentStr.split(/\s+/).filter(Boolean).length);
+  return {
+    ...r,
+    slug: `${slug}-${r.id}`,
+    image: r.image_url || '',
+    date: d ? `${fmt(d.getDate())}/${fmt(d.getMonth() + 1)}/${d.getFullYear()}` : '',
+    month: d ? monthsFr[d.getMonth()] : '',
+    year: d ? d.getFullYear() : '',
+    featured: false,
+    author: 'ARINA',
+    readTime: `${Math.max(1, Math.round(wordCount / 200))} min`,
+    tags: [],
+  };
+}
+
 app.get('/api/news', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM news ORDER BY created_at DESC, id DESC LIMIT 500');
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeNews));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -203,7 +227,7 @@ app.get('/api/news/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM news WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
+    res.json(normalizeNews(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -212,12 +236,12 @@ app.get('/api/news/:id', async (req, res) => {
 // POST create news
 app.post('/api/news', async (req, res) => {
   try {
-    const { title, excerpt, category, image_url, status } = req.body;
+    const { title, excerpt, category, image_url, status, content } = req.body;
     const result = await pool.query(
-      "INSERT INTO news (title, excerpt, category, image_url, status) VALUES ($1, $2, $3, $4, COALESCE($5, 'published')) RETURNING *",
-      [title, excerpt, category, image_url, status]
+      "INSERT INTO news (title, excerpt, category, image_url, status, content) VALUES ($1, $2, $3, $4, COALESCE($5, 'published'), $6) RETURNING *",
+      [title, excerpt, category, image_url, status, content]
     );
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(normalizeNews(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -226,13 +250,13 @@ app.post('/api/news', async (req, res) => {
 // PUT update news
 app.put('/api/news/:id', async (req, res) => {
   try {
-    const { title, excerpt, category, image_url, status } = req.body;
+    const { title, excerpt, category, image_url, status, content } = req.body;
     const result = await pool.query(
-      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status) WHERE id=$6 RETURNING *',
-      [title, excerpt, category, image_url, status, req.params.id]
+      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status), content=COALESCE($6, content) WHERE id=$7 RETURNING *',
+      [title, excerpt, category, image_url, status, content, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
+    res.json(normalizeNews(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
