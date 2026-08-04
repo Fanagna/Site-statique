@@ -177,6 +177,9 @@ function ensureSchema() {
       dossier JSONB DEFAULT '{}'::jsonb,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
+    `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS photo_url TEXT`,
+    `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS dossier JSONB DEFAULT '{}'::jsonb`,
+    `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS notes TEXT`,
   ];
 
   // Après création des tables : crée le compte admin par défaut s'il n'existe pas
