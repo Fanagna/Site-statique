@@ -58,6 +58,16 @@ function requireRole(...allowed) {
   };
 }
 
+// Authentification seule (n'importe quel rôle) — permet de lire l'aperçu du
+// tableau de bord (KPI + graphiques) sans donner accès à la gestion du domaine.
+function requireAuth(req, res, next) {
+  getUserFromKey(req.headers['x-admin-key']).then(({ ok, user }) => {
+    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = user;
+    next();
+  }).catch(() => res.status(401).json({ error: 'Unauthorized' }));
+}
+
 // Compat : l'ancien requireAdmin (clé globale) reste disponible
 // NB : ne protège PAS le système de rôles (les endpoints sensibles utilisent requireRole).
 function requireAdmin(req, res, next) {
@@ -321,8 +331,9 @@ function normalizeBenef(r) {
   };
 }
 
-// GET all
-app.get('/api/beneficiaries', requireRole(ROLES.educator), async (req, res) => {
+// GET all — lecture ouverte à tous les rôles authentifiés (aperçu du tableau de bord) ;
+// la création/modification/suppression reste réservée à l'éducateur et à l'admin.
+app.get('/api/beneficiaries', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM beneficiaries ORDER BY id DESC');
     res.json(result.rows.map(normalizeBenef));
@@ -380,8 +391,9 @@ app.delete('/api/beneficiaries/:id', requireRole(ROLES.educator), async (req, re
 // FINANCES CRUD
 // ═══════════════════════════════════════
 
-// GET all
-app.get('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
+// GET all — lecture ouverte à tous les rôles authentifiés (aperçu du tableau de bord) ;
+// la création/suppression reste réservée au comptable et à l'admin.
+app.get('/api/finances', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM finances ORDER BY date DESC, id DESC');
     const rows = result.rows.map(r => ({
@@ -742,10 +754,12 @@ app.delete('/api/newsletter/:id', requireRole(), async (req, res) => {
 // ═══ ACTIVITY FEED (ADMIN) ═══
 app.get('/api/activity', requireRole(), async (req, res) => {
   try {
-    const [newsR, finR, benefR] = await Promise.all([
+    const [newsR, finR, benefR, volR, msgR] = await Promise.all([
       pool.query("SELECT id, title, created_at FROM news ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, type, amount, description, date FROM finances ORDER BY date DESC, id DESC LIMIT 5"),
       pool.query("SELECT id, first_name, last_name, entry_date FROM beneficiaries ORDER BY id DESC LIMIT 5"),
+      pool.query("SELECT id, name, created_at FROM volunteers ORDER BY created_at DESC LIMIT 5"),
+      pool.query("SELECT id, name, created_at FROM contacts ORDER BY created_at DESC LIMIT 5"),
     ]);
     const items = [];
     newsR.rows.forEach(r => items.push({ id: `n${r.id}`, type: 'news', text: `Actualité publiée : « ${r.title} »`, date: r.created_at }));
@@ -755,6 +769,8 @@ app.get('/api/activity', requireRole(), async (req, res) => {
       date: r.date,
     }));
     benefR.rows.forEach(r => items.push({ id: `b${r.id}`, type: 'beneficiary', text: `Bénéficiaire ajouté : ${r.first_name} ${r.last_name}`, date: r.entry_date }));
+    volR.rows.forEach(r => items.push({ id: `v${r.id}`, type: 'volunteer', text: `Candidature reçue : ${r.name}`, date: r.created_at }));
+    msgR.rows.forEach(r => items.push({ id: `m${r.id}`, type: 'message', text: `Message de ${r.name}`, date: r.created_at }));
     items.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json(items.slice(0, 12));
   } catch (err) {

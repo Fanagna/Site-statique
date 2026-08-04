@@ -254,63 +254,62 @@ export default function AdminDashboard() {
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
     const can = (t) => allowedTabs.includes(t);
+    let anyOk = false;
+    let anyFail = false;
 
-    if (can('enfants')) {
-      const bFromApi = await fetchBeneficiaries();
-      if (bFromApi !== null) {
-        setApiStatus('online');
-        if (bFromApi.length) setBenefs(bFromApi);
-        else setBenefs([]);
-      } else {
-        setApiStatus('offline');
-        const s = localStorage.getItem('arina_benefs');
-        setBenefs(s ? JSON.parse(s) : []);
-      }
-      setBenefsLoading(false);
-    } else {
-      setBenefsLoading(false);
-    }
+    // L'aperçu du tableau de bord (KPI + graphiques) est visible par tous les rôles :
+    // bénéficiaires et finances sont donc chargés pour tout le monde (lecture seule —
+    // la gestion de chaque domaine reste réservée au rôle concerné).
+    const bFromApi = await fetchBeneficiaries();
+    if (bFromApi !== null) { anyOk = true; if (bFromApi.length) setBenefs(bFromApi); else setBenefs([]); }
+    else { anyFail = true; const s = localStorage.getItem('arina_benefs'); setBenefs(s ? JSON.parse(s) : []); }
+    setBenefsLoading(false);
 
-    if (can('finances')) {
-      const fFromApi = await fetchFinances();
-      if (fFromApi !== null) { if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
-      else { const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
-      setFinancesLoading(false);
-    } else {
-      setFinancesLoading(false);
-    }
+    const fFromApi = await fetchFinances();
+    if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
+    else { anyFail = true; const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
+    setFinancesLoading(false);
 
     if (can('actualites')) {
       const nFromApi = await fetchNews();
-      if (nFromApi !== null) { if (nFromApi.length) setNews(nFromApi); else setNews([]); }
-      else setNews(allNews);
+      if (nFromApi !== null) { anyOk = true; if (nFromApi.length) setNews(nFromApi); else setNews([]); }
+      else { anyFail = true; setNews(allNews); }
     }
 
     if (can('messages')) {
       const cFromApi = await fetchContacts();
-      if (cFromApi !== null) { if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
-      else { const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
+      if (cFromApi !== null) { anyOk = true; if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
+      else { anyFail = true; const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
     }
 
     if (can('newsletter')) {
       const subFromApi = await fetchNewsletterSubscribers();
-      if (subFromApi !== null) { if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
-      else { const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
+      if (subFromApi !== null) { anyOk = true; if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
+      else { anyFail = true; const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
     }
 
     if (can('volunteers')) {
       const vFromApi = await fetchVolunteers();
-      if (vFromApi !== null) { if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
-      else { const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+      if (vFromApi !== null) { anyOk = true; if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
+      else { anyFail = true; const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
     }
 
     if (can('comptes')) {
       const uFromApi = await fetchUsers();
-      if (uFromApi !== null && Array.isArray(uFromApi)) setUsers(uFromApi);
+      if (uFromApi !== null && Array.isArray(uFromApi)) { anyOk = true; setUsers(uFromApi); }
+      else anyFail = true;
     }
 
+    // L'activité est réservée à l'admin (requireRole() côté API) : pour les autres
+    // rôles, le fil local (construit à partir des données autorisées) prend le relais.
     const actFromApi = await fetchActivity();
     if (actFromApi?.length) setActivity(actFromApi);
+
+    // Statut de la base : « en ligne » dès qu'une requête autorisée aboutit,
+    // « hors ligne » seulement si toutes ont échoué, « en ligne » par défaut si
+    // aucun fetch autorisé n'a été tenté (rôle restreint) — plus de badge bloqué.
+    if (anyOk || !anyFail) setApiStatus('online');
+    else setApiStatus('offline');
   }, [allowedTabs]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -572,26 +571,35 @@ export default function AdminDashboard() {
   }, [volunteers, q]);
 
   /* Activity feed (real from API, else derived from loaded data) */
+  /* Fil d'activité local : l'aperçu (finances + enfants) est visible par tous ;
+     actualités/candidatures/messages seulement pour les rôles qui les gèrent
+     (évite aussi d'afficher les actualités de démonstration aux autres rôles). */
   const localActivity = useMemo(() => [
-    ...news.slice(0, 3).map((n) => ({ id: `ln${n.id}`, type: 'news', text: `Actualité publiée : « ${n.title} »`, date: n.date || n.created_at })),
+    ...(allowedTabs.includes('actualites') ? news.slice(0, 3).map((n) => ({ id: `ln${n.id}`, type: 'news', text: `Actualité publiée : « ${n.title} »`, date: n.date || n.created_at })) : []),
     ...finances.slice(0, 3).map((f) => ({ id: `lf${f.id}`, type: f.type === 'Revenu' ? 'income' : 'expense', text: `${f.type} : ${formatMGA(f.montant)}`, date: f.date })),
     ...benefs.slice(0, 3).map((b) => ({ id: `lb${b.id}`, type: 'beneficiary', text: `Bénéficiaire ajouté : ${b.prenom} ${b.nom}`, date: b.dateEntree })),
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [news, finances, benefs]);
+    ...(allowedTabs.includes('volunteers') ? volunteers.slice(0, 3).map((v) => ({ id: `lv${v.id}`, type: 'volunteer', text: `Candidature reçue : ${v.name}`, date: v.created_at })) : []),
+    ...(allowedTabs.includes('messages') ? contacts.slice(0, 3).map((c) => ({ id: `lc${c.id}`, type: 'message', text: `Message de ${c.name}`, date: c.created_at })) : []),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [allowedTabs, news, finances, benefs, volunteers, contacts]);
   const activityFeed = activity.length ? activity : localActivity;
 
-  /* Real alerts -> notifications bell */
+  /* Real alerts -> notifications bell. L'aperçu finances étant visible par tous,
+     les alertes financières s'affichent pour tout le monde — mais le clic n'ouvre
+     l'onglet Finances que si le rôle y a accès (sinon information seule). */
   const alerts = useMemo(() => {
     const a = [];
-    if (solde < 0) a.push({ level: 'error', icon: 'trendDown', text: `Solde négatif : ${formatMGA(Math.abs(solde))}`, tab: 'finances' });
-    else if (finances.length > 0 && totalDepenses > totalRevenus) a.push({ level: 'warn', icon: 'bell', text: 'Les dépenses dépassent les revenus', tab: 'finances' });
-    if (finances.length === 0) a.push({ level: 'info', icon: 'wallet', text: 'Aucune transaction — ajoutez un premier revenu', tab: 'finances' });
-    if (contacts.length > 0) a.push({ level: 'info', icon: 'mail', text: `${contacts.length} message${contacts.length > 1 ? 's' : ''} reçu${contacts.length > 1 ? 's' : ''} via le formulaire`, tab: 'messages' });
-    if (volunteers.length > 0) a.push({ level: 'info', icon: 'users', text: `${volunteers.length} candidature${volunteers.length > 1 ? 's' : ''} bénévole${volunteers.length > 1 ? 's' : ''} avec lettre de motivation`, tab: 'volunteers' });
-    if (news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', to: '/admin/actualites' });
+    const finTab = allowedTabs.includes('finances') ? 'finances' : null;
+    if (solde < 0) a.push({ level: 'error', icon: 'trendDown', text: `Solde négatif : ${formatMGA(Math.abs(solde))}`, tab: finTab });
+    else if (finances.length > 0 && totalDepenses > totalRevenus) a.push({ level: 'warn', icon: 'bell', text: 'Les dépenses dépassent les revenus', tab: finTab });
+    if (finances.length === 0) a.push({ level: 'info', icon: 'wallet', text: 'Aucune transaction enregistrée', tab: finTab });
+    if (allowedTabs.includes('messages') && contacts.length > 0) a.push({ level: 'info', icon: 'mail', text: `${contacts.length} message${contacts.length > 1 ? 's' : ''} reçu${contacts.length > 1 ? 's' : ''} via le formulaire`, tab: 'messages' });
+    if (allowedTabs.includes('volunteers') && volunteers.length > 0) a.push({ level: 'info', icon: 'users', text: `${volunteers.length} candidature${volunteers.length > 1 ? 's' : ''} bénévole${volunteers.length > 1 ? 's' : ''} avec lettre de motivation`, tab: 'volunteers' });
+    if (allowedTabs.includes('actualites') && news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', to: '/admin/actualites' });
     return a;
-  }, [solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length]);
+  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length]);
 
-  const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && news.length === 0;
+  /* Base connectée mais vide — selon les données que le rôle a le droit de voir */
+  const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && (!allowedTabs.includes('actualites') || news.length === 0);
 
   /* Navigation config for the layout (filtrée par rôle) */
   const principalItems = [];
@@ -627,7 +635,8 @@ export default function AdminDashboard() {
     comptes: 'Rechercher un compte…',
   }[tab] || 'Rechercher…';
 
-  /* KPI cards */
+  /* KPI cards — l'aperçu (enfants + finances) est visible par tous les rôles.
+     La gestion de chaque domaine reste réservée au rôle concerné (onglets masqués). */
   const kpis = [
     { icon: 'users', label: 'Enfants actifs', value: nbActifs, format: null, sub: `sur ${benefs.length} accompagnés · ${nbDiplomes} diplômés`, gradient: 'from-arina-blue to-arina-accent-dark', delta: null },
     { icon: 'trendUp', label: 'Revenus', value: totalRevenus, format: formatMGA, sub: `Ce mois : ${formatMGA(revThis)}`, gradient: 'from-emerald-500 to-teal-600', delta: revDelta },
@@ -652,6 +661,8 @@ export default function AdminDashboard() {
     income: { icon: 'trendUp', cls: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
     expense: { icon: 'trendDown', cls: 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400' },
     beneficiary: { icon: 'users', cls: 'bg-arina-warm text-arina-blue' },
+    volunteer: { icon: 'users', cls: 'bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400' },
+    message: { icon: 'mail', cls: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400' },
   };
 
   const actionBtn = 'px-4 py-2 rounded-xl text-sm font-semibold transition-all';
@@ -754,7 +765,7 @@ export default function AdminDashboard() {
           {dbEmpty && (
             <div className="rounded-2xl border border-arina-blue/20 bg-arina-warm/60 px-4 py-3 text-sm text-arina-blue flex items-center gap-2.5 animate-fade-up">
               <Icon name="plus" className="w-4 h-4 flex-shrink-0" />
-              <span>Base connectée mais vide — utilisez les actions rapides pour ajouter vos premiers enfants, transactions et actualités.</span>
+              <span>Base connectée mais vide — utilisez les actions rapides pour ajouter vos premières données.</span>
             </div>
           )}
 
