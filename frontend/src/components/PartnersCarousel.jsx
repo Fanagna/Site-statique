@@ -1,4 +1,5 @@
 const partners = [
+  { name: 'Association ARINA', logo: '/logo-arina.jpg' },
   { name: 'Grandir Dignement', logo: '/images/logo-grandir-dignement.png' },
 ];
 
@@ -8,10 +9,10 @@ export default function PartnersCarousel() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="text-center mb-10">
           <span className="inline-block px-4 py-1.5 bg-white/80 text-arina-blue text-sm font-semibold rounded-full mb-4">
-            Notre partenaire
+            Nos partenaires
           </span>
           <h2 className="text-3xl font-serif font-bold text-arina-dark">
-            Partenaire
+            Partenaires
           </h2>
         </div>
 
