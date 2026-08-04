@@ -4,19 +4,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Vif — brand & CTA (lever de soleil doré) */
-  --color-arina-blue: #E8590C;
-  --color-arina-accent: #F76707;
-  --color-arina-accent-dark: #D9480F;
+  /* Vif — brand & CTA (aube rosée / pêche) */
+  --color-arina-blue: #E0574F;
+  --color-arina-accent: #F2695D;
+  --color-arina-accent-dark: #D64A41;
   /* Foncé — gradients, footer, hovers */
-  --color-arina-blue-dark: #B45309;
-  --color-arina-dark: #3D1C0B;
+  --color-arina-blue-dark: #B14A54;
+  --color-arina-dark: #4A1E2B;
   --color-arina-gold: #F59F00;
   /* Doux — fonds & teintes claires */
-  --color-arina-blue-light: #FFA94D;
-  --color-arina-gold-light: #FFC078;
-  --color-arina-cream: #FFF9F0;
-  --color-arina-warm: #FFEEDB;
+  --color-arina-blue-light: #FFA18E;
+  --color-arina-gold-light: #FFD0B3;
+  --color-arina-cream: #FFF6F3;
+  --color-arina-warm: #FDE7E1;
   --color-arina-gray: #6B7280;
   /* Apple design system */
   --color-ios-bg: #F5F5F7;
@@ -46,9 +46,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom gradient utilities — lever de soleil doré */
+/* Custom gradient utilities — aube rosée */
 .hero-gradient {
-  background: linear-gradient(135deg, rgba(217,72,15,0.92) 0%, rgba(245,159,0,0.92) 62%, rgba(255,161,61,0.9) 100%);
+  background: linear-gradient(135deg, rgba(214,74,65,0.92) 0%, rgba(242,105,93,0.92) 58%, rgba(255,161,142,0.9) 100%);
 }
 
 .card-hover {
@@ -56,7 +56,7 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(245, 159, 0, 0.2);
+  box-shadow: 0 20px 40px rgba(224, 87, 79, 0.2);
 }
 
 /* Slider dots animation */
@@ -207,9 +207,9 @@ body {
   --color-ios-glass: rgba(28, 28, 30, 0.8);
   --color-ios-skeleton: rgba(255, 255, 255, 0.09);
   /* Brand accents légèrement éclaircis pour le fond sombre */
-  --color-arina-blue: #FF922B;
-  --color-arina-blue-dark: #B45309;
-  --color-arina-warm: rgba(232, 89, 12, 0.16);
+  --color-arina-blue: #FF8A80;
+  --color-arina-blue-dark: #C05663;
+  --color-arina-warm: rgba(224, 87, 79, 0.16);
 }
 
 .dark .scroll-slim::-webkit-scrollbar-thumb {
