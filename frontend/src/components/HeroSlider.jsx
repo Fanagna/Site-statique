@@ -61,8 +61,8 @@ export default function HeroSlider() {
         />
       ))}
       
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 hero-gradient" />
+      {/* Légère ombre pour la lisibilité (photo bien visible) */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40" />
       
       {/* Pattern overlay */}
       <div className="absolute inset-0 opacity-5" style={{

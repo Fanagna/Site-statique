@@ -109,7 +109,7 @@ export default function TestimonialsPage() {
                         className={`w-full object-cover ${expanded ? 'h-80 lg:h-full' : 'h-56'}`}
                         loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                       <div className="absolute bottom-4 left-4 right-4 text-white">
                         <div className="font-bold text-lg">{t.name}</div>
                         <div className="text-sm text-white/80">{t.role}</div>

@@ -12,7 +12,7 @@ export default function PillarPage() {
     return (
       <div className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/arina33.jpg')" }} />
-        <div className="absolute inset-0 hero-gradient opacity-90" />
+        <div className="absolute inset-0 bg-black/30" />
         <div className="relative z-10 text-center text-white px-6">
           <Search className="w-14 h-14 mx-auto text-white/80 mb-4" />
           <h1 className="text-3xl font-serif font-bold mb-2">Pilier introuvable</h1>
@@ -130,7 +130,7 @@ export default function PillarPage() {
               >
                 <div className="relative h-40 overflow-hidden">
                   <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className={`absolute inset-0 bg-gradient-to-t ${p.gradient} opacity-30`} />
+                  <div className={`absolute inset-0 bg-gradient-to-t ${p.gradient} opacity-10`} />
                   <div className="absolute bottom-4 left-4 text-white"><AppIcon name={p.icon} className="w-8 h-8" /></div>
                 </div>
                 <div className="p-5">

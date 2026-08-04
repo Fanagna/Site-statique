@@ -56,7 +56,7 @@ export default function ActionsPage() {
                       className="w-full h-64 lg:h-full object-cover group-hover:scale-105 transition-transform duration-700"
                       loading="lazy"
                     />
-                    <div className={`absolute inset-0 bg-gradient-to-t ${pillar.gradient} opacity-40`} />
+                    <div className={`absolute inset-0 bg-gradient-to-t ${pillar.gradient} opacity-10`} />
                     <div className="absolute bottom-6 left-6 text-white">
                       <AppIcon name={pillar.icon} className="w-10 h-10" />
                     </div>

@@ -48,7 +48,7 @@ body {
 
 /* Custom gradient utilities — aube rosée */
 .hero-gradient {
-  background: linear-gradient(135deg, rgba(214,74,65,0.92) 0%, rgba(242,105,93,0.92) 58%, rgba(255,161,142,0.9) 100%);
+  background: linear-gradient(135deg, rgba(214,74,65,0.25) 0%, rgba(242,105,93,0.2) 58%, rgba(255,161,142,0.15) 100%);
 }
 
 .card-hover {

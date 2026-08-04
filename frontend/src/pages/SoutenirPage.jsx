@@ -509,7 +509,7 @@ export default function SoutenirPage() {
                     className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
                   />
-                  <figcaption className="absolute inset-x-0 bottom-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent text-white text-sm font-semibold">
+                  <figcaption className="absolute inset-x-0 bottom-0 px-4 py-3 bg-gradient-to-t from-black/50 to-transparent text-white text-sm font-semibold">
                     {img.caption}
                   </figcaption>
                 </figure>

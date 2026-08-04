@@ -9,7 +9,7 @@ export default function NotFoundPage() {
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: "url('/images/arina31.jpg')" }}
       />
-      <div className="absolute inset-0 hero-gradient opacity-90" />
+      <div className="absolute inset-0 bg-black/30" />
 
       {/* Contenu */}
       <div className="relative z-10 text-center text-white px-6 py-20 max-w-2xl">

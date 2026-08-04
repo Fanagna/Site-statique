@@ -27,7 +27,7 @@ export default function ArticlePage() {
     return (
       <div className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/arina32.jpg')" }} />
-        <div className="absolute inset-0 hero-gradient opacity-90" />
+        <div className="absolute inset-0 bg-black/30" />
         <div className="relative z-10 text-center text-white px-6">
           <FileText className="w-14 h-14 mx-auto text-white/80 mb-4" />
           <h1 className="text-3xl font-serif font-bold mb-2">Article introuvable</h1>
@@ -67,7 +67,7 @@ export default function ArticlePage() {
             <ImageIcon className="w-24 h-24 text-white/30" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
         
         {/* Hero content */}
         <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-12">
