@@ -2,6 +2,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Eye, FileText, Heart, Handshake, ImageIcon } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import UpdatedBadge from '../components/UpdatedBadge';
+import EditNewsButton from '../components/EditNewsButton';
 import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
 
@@ -129,6 +130,7 @@ export default function ArticlePage() {
           
           {/* Share buttons */}
           <div className="flex items-center gap-2">
+            <EditNewsButton id={article.id} />
             <span className="text-xs text-arina-gray mr-1">Partager :</span>
             <a
               href={`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`}

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, Eye, ImageIcon, Newspaper, Tag } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import UpdatedBadge from './UpdatedBadge';
+import EditNewsButton from './EditNewsButton';
 
 export default function NewsSection() {
   const { news } = useNews();
@@ -63,12 +64,15 @@ export default function NewsSection() {
                 <span className="px-2 py-0.5 bg-white/15 rounded text-xs flex items-center gap-1"><Tag className="w-3 h-3" /> {featured.category}</span>
                 <UpdatedBadge updatedAt={featured.updatedAt} createdDate={featured.created_at} />
               </div>
-              <Link to={`/actualites/${featured.slug}`} className="inline-flex items-center gap-2 text-arina-gold font-semibold mt-6 hover:text-arina-gold-light transition-colors group">
-                Lire la suite
-                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
+              <div className="flex flex-wrap items-center gap-4 mt-6">
+                <Link to={`/actualites/${featured.slug}`} className="inline-flex items-center gap-2 text-arina-gold font-semibold hover:text-arina-gold-light transition-colors group">
+                  Lire la suite
+                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </Link>
+                <EditNewsButton id={featured.id} />
+              </div>
             </div>
           </div>
         </div>
@@ -105,12 +109,15 @@ export default function NewsSection() {
                 <p className="text-arina-gray text-sm leading-relaxed mb-4 line-clamp-2">
                   {item.excerpt}
                 </p>
-                <Link to={`/actualites/${item.slug}`} className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all">
-                  Lire plus
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
+                <div className="flex items-center justify-between">
+                  <Link to={`/actualites/${item.slug}`} className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all">
+                    Lire plus
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                  <EditNewsButton id={item.id} />
+                </div>
               </div>
             </article>
           ))}

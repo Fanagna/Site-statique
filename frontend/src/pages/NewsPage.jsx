@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, Eye, ImageIcon, Search, Tag, X } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import UpdatedBadge from '../components/UpdatedBadge';
+import EditNewsButton from '../components/EditNewsButton';
 import { categories, months, categoryColors } from '../data/news';
 
 const ITEMS_PER_PAGE = 6;
@@ -253,15 +254,18 @@ export default function NewsPage() {
                     <p className="text-arina-gray text-sm leading-relaxed mb-4 line-clamp-2 flex-1">
                       {item.excerpt}
                     </p>
-                    <Link
-                      to={`/actualites/${item.slug}`}
-                      className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all mt-auto"
-                    >
-                      Lire plus
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                    </Link>
+                    <div className="flex items-center justify-between mt-auto">
+                      <Link
+                        to={`/actualites/${item.slug}`}
+                        className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all"
+                      >
+                        Lire plus
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                      </Link>
+                      <EditNewsButton id={item.id} />
+                    </div>
                   </div>
                 </article>
               );

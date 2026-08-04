@@ -85,8 +85,15 @@ export default function NewsManagementPage() {
   }, [news]);
 
   /* Auto-open the creation form when arriving via ?new=1 (quick action) */
+  const [editRequested, setEditRequested] = useState(null);
+
   useEffect(() => {
-    if (searchParams.get('new') === '1') {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      // Bouton « Modifier » du site public → ouvrir le formulaire pour cet article
+      setEditRequested(editId);
+      setSearchParams({}, { replace: true });
+    } else if (searchParams.get('new') === '1') {
       setEditing(null);
       setForm({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
       setShowForm(true);
@@ -95,6 +102,17 @@ export default function NewsManagementPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Quand les données arrivent, ouvrir le formulaire d'édition demandé */
+  useEffect(() => {
+    if (!editRequested) return;
+    const target = news.find((n) => String(n.id) === editRequested);
+    if (target) {
+      openForm(target);
+      setEditRequested(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [news, editRequested]);
 
   useEffect(() => { setPage(1); }, [applied]);
 
