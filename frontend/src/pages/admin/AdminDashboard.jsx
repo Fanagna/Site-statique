@@ -11,7 +11,7 @@ import {
   fetchActivity,
 } from '../../services/api';
 import { allNews } from '../../data/news';
-import { CheckCircle2, Hand } from 'lucide-react';
+import { CheckCircle2, Hand, Printer } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 import {
@@ -760,7 +760,7 @@ export default function AdminDashboard() {
       {/* ═══════════ ENFANTS ═══════════ */}
       {tab === 'enfants' && (
         <div className="space-y-4 animate-fade-up">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="no-print grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: '', value: benefs.length, color: 'text-ios-text', onClick: () => setBenefFilter('') },
               { label: 'Actif', value: nbActifs, color: 'text-green-600 dark:text-green-400', onClick: () => setBenefFilter('Actif') },
@@ -774,15 +774,35 @@ export default function AdminDashboard() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select value={benefFilter} onChange={(e) => setBenefFilter(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+            <select value={benefFilter} onChange={(e) => setBenefFilter(e.target.value)} className="no-print px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               <option value="">Tous les statuts</option>
               <option value="Actif">Actif</option>
               <option value="Diplômé">Diplômé</option>
               <option value="Inactif">Inactif</option>
             </select>
-            <button onClick={() => openBenefForm(null)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5`}>
+            <button onClick={() => openBenefForm(null)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5 no-print`}>
               <Icon name="plus" className="w-4 h-4" /> Ajouter
             </button>
+            <button onClick={() => window.print()} className="no-print inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all">
+              <Printer className="w-4 h-4" /> Imprimer / PDF
+            </button>
+          </div>
+
+          {/* En-tête imprimable de la liste */}
+          <div className="print-list-header hidden print:block">
+            <div className="flex items-center justify-between border-b-2 border-arina-blue/40 pb-3 mb-4">
+              <div className="flex items-center gap-3">
+                <img src="/logo-arina.jpg" alt="ARINA" className="w-12 h-12 rounded-xl object-contain" />
+                <div>
+                  <div className="text-lg font-extrabold tracking-tight">Association ARINA — Liste des enfants</div>
+                  <div className="text-xs text-ios-text3">Édité le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                </div>
+              </div>
+              <div className="text-right text-xs text-ios-text3">
+                <div><span className="font-bold text-ios-text">{benefs.length}</span> enfants · <span className="font-bold text-emerald-600">{nbActifs}</span> actifs · <span className="font-bold text-purple-600">{nbDiplomes}</span> diplômés</div>
+                {benefFilter && <div>Filtre : {benefFilter}</div>}
+              </div>
+            </div>
           </div>
           <div className="card-apple overflow-hidden">
             {benefsLoading ? (

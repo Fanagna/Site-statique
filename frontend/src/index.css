@@ -257,14 +257,41 @@ body {
   }
 
   /* La zone imprimable prend toute la largeur */
+  .print-area, .print-list-header, table {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .print-area {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  }
+
+  /* Liste des enfants : en-tête imprimable visible, coquille masquée */
+  .print-list-header {
+    display: flex !important;
+  }
+
+  table {
+    width: 100% !important;
+    font-size: 11px !important;
+    border-collapse: collapse;
+  }
+
+  table thead {
+    display: table-header-group; /* répète l'en-tête sur chaque page */
+  }
+
+  table th, table td {
+    border-bottom: 1px solid #e5e5ea;
+    padding: 6px 8px !important;
+  }
+
+  table tr {
+    break-inside: avoid;
   }
 
   .print-area .card-apple {
