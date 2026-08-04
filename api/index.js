@@ -11,6 +11,8 @@ const app = express();
 
 // Simple admin guard for sensitive endpoints (contacts, newsletter, activity)
 const ADMIN_KEY = process.env.ADMIN_KEY || 'arina-admin-key-2024';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arina2024';
 function requireAdmin(req, res, next) {
   if (req.headers['x-admin-key'] === ADMIN_KEY) return next();
   return res.status(401).json({ error: 'Unauthorized' });
@@ -96,7 +98,7 @@ app.get('/api/health', async (req, res) => {
 // ═══ AUTH ═══
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
-  if (username === 'admin' && password === 'arina2024') {
+  if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
     res.json({ success: true, user: { username, role: 'admin' }, token: ADMIN_KEY });
   } else {
     res.status(401).json({ success: false, error: 'Identifiants incorrects' });

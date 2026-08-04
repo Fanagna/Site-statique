@@ -29,6 +29,23 @@ export async function apiLogin(username, password) {
   return data;
 }
 
+// Vérifie que la clé admin stockée est TOUJOURS acceptée par le serveur.
+// Renvoie true si la session est valide, false sinon (clé périmée / révoquée).
+export async function validateAdminKey() {
+  const adminKey = localStorage.getItem('arina_admin_key');
+  if (!adminKey) return false;
+  try {
+    // Endpoint protégé : 200 si la clé est valide, 401 sinon.
+    const res = await fetch(`${API_BASE}/newsletter/subscribers`, {
+      headers: { 'x-admin-key': adminKey },
+    });
+    return res.ok;
+  } catch {
+    // Serveur injoignable : on conserve la session locale (offline-friendly)
+    return true;
+  }
+}
+
 /* ── Beneficiaries ── */
 export async function fetchBeneficiaries() {
   return await apiCall('/beneficiaries');

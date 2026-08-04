@@ -1,29 +1,44 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { apiLogin } from '../services/api';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { apiLogin, validateAdminKey } from '../services/api';
 
 const AuthContext = createContext(null);
-
-const ADMIN_CREDENTIALS = { username: 'admin', password: 'arina2024' };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('arina_admin');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (parsed.username === ADMIN_CREDENTIALS.username) {
+    let cancelled = false;
+    (async () => {
+      const stored = localStorage.getItem('arina_admin');
+      const key = localStorage.getItem('arina_admin_key');
+      if (!stored || !key) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      // On ne fait confiance à une session stockée QUE si le serveur
+      // accepte encore la clé admin. Sinon on déconnecte (clé périmée).
+      const valid = await validateAdminKey();
+      if (cancelled) return;
+      if (valid) {
+        try {
+          const parsed = JSON.parse(stored);
           setUser(parsed);
+        } catch {
+          localStorage.removeItem('arina_admin');
+          localStorage.removeItem('arina_admin_key');
         }
-      } catch { localStorage.removeItem('arina_admin'); }
-    }
-    setLoading(false);
+      } else {
+        localStorage.removeItem('arina_admin');
+        localStorage.removeItem('arina_admin_key');
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  // Connexion : l'API est la SEULE source de vérité (pas de mot de passe en dur ici).
   const login = async (username, password) => {
-    // Try API first
     const apiResult = await apiLogin(username, password);
     if (apiResult && apiResult.success) {
       const userData = { ...apiResult.user, loginAt: new Date().toISOString() };
@@ -32,25 +47,14 @@ export function AuthProvider({ children }) {
       setUser(userData);
       return { success: true };
     }
-
-    // Fallback to hardcoded
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-      const userData = { username, role: 'admin', loginAt: new Date().toISOString() };
-      localStorage.setItem('arina_admin', JSON.stringify(userData));
-      // Matches the backend default ADMIN_KEY
-      localStorage.setItem('arina_admin_key', 'arina-admin-key-2024');
-      setUser(userData);
-      return { success: true };
-    }
-
-    return { success: false, error: 'Identifiants incorrects' };
+    return { success: false, error: apiResult?.error || 'Identifiants incorrects' };
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('arina_admin');
     localStorage.removeItem('arina_admin_key');
     setUser(null);
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
