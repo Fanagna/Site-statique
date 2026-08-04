@@ -51,8 +51,8 @@ export default function NewsManagementPage() {
   const [apiStatus, setApiStatus] = useState('checking');
 
   /* ── Filters (pending vs applied) ── */
-  const [pending, setPending] = useState({ q: '', status: '', category: '' });
-  const [applied, setApplied] = useState({ q: '', status: '', category: '' });
+  const [pending, setPending] = useState({ q: '', status: '', category: '', recent: '' });
+  const [applied, setApplied] = useState({ q: '', status: '', category: '', recent: '' });
   const [sort, setSort] = useState({ key: 'created_at', dir: -1 });
   const [page, setPage] = useState(1);
 
@@ -194,6 +194,15 @@ export default function NewsManagementPage() {
       const q = applied.q.trim().toLowerCase();
       arr = arr.filter((n) => `${n.title} ${n.excerpt || ''}`.toLowerCase().includes(q));
     }
+    if (applied.recent) {
+      const limit = applied.recent === '24h' ? 24 : applied.recent === '48h' ? 48 : 168; // h (7 jours)
+      arr = arr.filter((n) => {
+        const u = n.updatedAt || n.updated_at;
+        if (!u) return false;
+        const t = new Date(u).getTime();
+        return !Number.isNaN(t) && Date.now() - t <= limit * 3600000;
+      });
+    }
     return arr;
   }, [news, applied]);
 
@@ -224,7 +233,7 @@ export default function NewsManagementPage() {
   const displayTo = Math.min(startIdx + PAGE_SIZE, sorted.length);
 
   const applyFilters = () => { setApplied(pending); };
-  const resetFilters = () => { setPending({ q: '', status: '', category: '' }); setApplied({ q: '', status: '', category: '' }); };
+  const resetFilters = () => { setPending({ q: '', status: '', category: '', recent: '' }); setApplied({ q: '', status: '', category: '', recent: '' }); };
 
   const groups = [
     { group: 'Principal', items: [
@@ -318,6 +327,16 @@ export default function NewsManagementPage() {
             >
               <option value="">Toutes les catégories</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={pending.recent}
+              onChange={(e) => setPending({ ...pending, recent: e.target.value })}
+              className={`${inputClass} lg:w-44`}
+            >
+              <option value="">Toutes les dates de maj</option>
+              <option value="24h">Modifiées il y a &lt; 24 h</option>
+              <option value="48h">Modifiées il y a &lt; 48 h</option>
+              <option value="7d">Modifiées cette semaine</option>
             </select>
             <button onClick={applyFilters} className="px-5 py-2.5 rounded-xl bg-arina-blue text-white text-sm font-semibold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all">
               Appliquer
