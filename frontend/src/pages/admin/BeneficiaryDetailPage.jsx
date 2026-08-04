@@ -113,14 +113,19 @@ export default function BeneficiaryDetailPage() {
     return true;
   };
 
+  const saveNotes = async (value) => {
+    setData((d) => ({ ...d, notes: value }));
+    const ok = await persistBenef({ ...data, notes: value, dossier: { ...(data.dossier || {}), notes: value } });
+    if (!ok) setData((d) => ({ ...d, notes: data.notes }));
+  };
   const saveEdit = async () => {
-    setEditing(false);
-    await persistBenef({
+    const ok = await persistBenef({
       ...data, ...form,
       assiduite: Number(form.assiduite) || Number(data.assiduite) || 0,
       progression: Number(form.progression) || Number(data.progression) || 0,
       dossier: { ...(data.dossier || {}), assiduite: Number(form.assiduite) || Number(data.assiduite) || 0, progression: Number(form.progression) || Number(data.progression) || 0 },
     });
+    if (ok) setEditing(false);
   };
 
   const addSuivi = async () => {
@@ -554,7 +559,7 @@ export default function BeneficiaryDetailPage() {
           </div>
           <textarea rows={3} className="w-full px-4 py-3 bg-ios-card border border-amber-500/30 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-arina-blue/30"
             placeholder="Notes réservées à l'administrateur..."
-            value={data.notes} onChange={(e) => setData({ ...data, notes: e.target.value })} />
+            value={data.notes} onChange={(e) => setData({ ...data, notes: e.target.value })} onBlur={(e) => saveNotes(e.target.value)} />
         </div>
 
         {/* ── PIED DE PAGE OFFICIEL (impression / PDF) ── */}
