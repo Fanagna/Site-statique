@@ -13,22 +13,8 @@ import {
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
 
-// ── Rôles ──
-const ROLES = {
-  admin: 'admin', president: 'president', accountant: 'accountant', educator: 'educator',
-};
-const ROLE_LABELS = {
-  admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
-};
-// On affiche uniquement les onglets que le rôle a le droit de gérer.
-// Rôle inconnu → onglets restreints (fail-closed : jamais l'accès admin complet).
-const ROLE_TABS = {
-  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'messages', 'volunteers', 'newsletter', 'comptes'],
-  president: ['dashboard', 'actualites', 'messages', 'volunteers'],
-  accountant: ['dashboard', 'finances'],
-  educator: ['dashboard', 'enfants'],
-  unknown: ['dashboard'],
-};
+// Rôles & onglets autorisés (source unique : ./roles)
+import { ROLES, ROLE_LABELS, ROLE_TABS } from './roles';
 import { allNews } from '../../data/news';
 import { CheckCircle2, Hand, Printer } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
