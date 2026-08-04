@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Eye, FileText, Heart, Handshake } from 'lucide-react';
+import { ArrowLeft, Eye, FileText, Heart, Handshake, ImageIcon } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
@@ -52,13 +52,19 @@ export default function ArticlePage() {
 
   return (
     <div className="min-h-screen bg-white pt-20">
-      {/* Hero Image */}
+      {/* Hero Image (ou dégradé si l'article n'a pas d'image) */}
       <div className="relative h-[50vh] min-h-[400px] overflow-hidden">
-        <img
-          src={article.image}
-          alt={article.title}
-          className="w-full h-full object-cover"
-        />
+        {article.image ? (
+          <img
+            src={article.image}
+            alt={article.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
+            <ImageIcon className="w-24 h-24 text-white/30" />
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/20" />
         
         {/* Hero content */}
@@ -234,12 +240,18 @@ export default function ArticlePage() {
                     className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover"
                   >
                     <div className="relative overflow-hidden">
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-48 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
+                          <ImageIcon className="w-10 h-10 text-white/30" />
+                        </div>
+                      )}
                       <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 ${c.bg} ${c.text} rounded-lg text-xs font-semibold`}>
                         <span className={`w-2 h-2 ${c.dot} rounded-full`} />
                         {item.category}

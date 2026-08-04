@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calendar, Eye, Newspaper, Tag } from 'lucide-react';
+import { Calendar, Eye, ImageIcon, Newspaper, Tag } from 'lucide-react';
 import useNews from '../hooks/useNews';
 
 export default function NewsSection() {
@@ -34,11 +34,17 @@ export default function NewsSection() {
         <div className="mb-8 bg-gradient-to-r from-arina-accent to-arina-blue-dark rounded-2xl overflow-hidden shadow-xl">
           <div className="flex flex-col lg:flex-row">
             <div className="lg:w-1/2">
-              <img
-                src={featured.image}
-                alt={featured.title}
-                className="w-full h-64 lg:h-full object-cover"
-              />
+              {featured.image ? (
+                <img
+                  src={featured.image}
+                  alt={featured.title}
+                  className="w-full h-64 lg:h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-64 lg:h-full bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
+                  <ImageIcon className="w-16 h-16 text-white/30" />
+                </div>
+              )}
             </div>
             <div className="lg:w-1/2 p-8 lg:p-10 flex flex-col justify-center">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 text-white text-xs font-semibold rounded-full mb-4 w-fit">
@@ -70,11 +76,17 @@ export default function NewsSection() {
           {news.filter(n => !n.featured).slice(0, 3).map((item, i) => (
             <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover">
               <div className="relative overflow-hidden">
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-52 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
+                    <ImageIcon className="w-10 h-10 text-white/30" />
+                  </div>
+                )}
                 <div className="absolute top-3 right-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-semibold text-arina-blue inline-flex items-center gap-1">
                   <Tag className="w-3 h-3" /> {item.category}
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Eye, Search, Tag, X } from 'lucide-react';
+import { Calendar, Eye, ImageIcon, Search, Tag, X } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import { categories, months, categoryColors } from '../data/news';
 
@@ -220,12 +220,18 @@ export default function NewsPage() {
                 <article key={item.id} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover flex flex-col">
                   {/* Image */}
                   <div className="relative overflow-hidden">
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-56 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
+                        <ImageIcon className="w-10 h-10 text-white/30" />
+                      </div>
+                    )}
                     {/* Category badge */}
                     <div className={`absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 ${colors.bg} ${colors.text} rounded-lg text-xs font-semibold`}>
                       <span className={`w-2 h-2 ${colors.dot} rounded-full`} />
