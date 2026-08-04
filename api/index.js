@@ -48,14 +48,14 @@ async function getUserFromKey(apiKey) {
 }
 
 // Middleware : authentifie + vérifie que le rôle est autorisé.
-// requireRole() = admin uniquement. requireRole('president','accountant',…) = un de ces rôles.
+// requireRole() = ADMIN UNIQUEMENT. requireRole('president','accountant',…) = un de ces rôles.
+// L'admin peut tout ; les autres rôles doivent être explicitement listés.
 // NB : fonction NON-async (Express 5 refuse les middlewares qui retournent une Promise).
 function requireRole(...allowed) {
   return (req, res, next) => {
     getUserFromKey(req.headers['x-admin-key']).then(({ ok, user }) => {
       if (!ok) return res.status(401).json({ error: 'Unauthorized' });
       req.user = user;
-      if (allowed.length === 0) return next(); // admin seul
       if (user.role === ROLES.admin) return next(); // l'admin peut tout
       if (allowed.includes(user.role)) return next();
       return res.status(403).json({ error: 'Forbidden' });

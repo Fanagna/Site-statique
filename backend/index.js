@@ -51,7 +51,6 @@ function requireRole(...allowed) {
     getUserFromKey(req.headers['x-admin-key']).then(({ ok, user }) => {
       if (!ok) return res.status(401).json({ error: 'Unauthorized' });
       req.user = user;
-      if (allowed.length === 0) return next(); // admin seul
       if (user.role === ROLES.admin) return next(); // l'admin peut tout
       if (allowed.includes(user.role)) return next();
       return res.status(403).json({ error: 'Forbidden' });
