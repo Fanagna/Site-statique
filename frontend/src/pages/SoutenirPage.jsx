@@ -482,6 +482,40 @@ export default function SoutenirPage() {
               </div>
             ))}
           </div>
+
+          {/* Galerie — nos actions en images */}
+          <div className="mt-10">
+            <div className="text-center mb-6">
+              <span className="inline-block px-4 py-1.5 bg-arina-blue/10 text-arina-blue text-sm font-semibold rounded-full mb-3">
+                En images
+              </span>
+              <h2 className="text-2xl lg:text-3xl font-serif font-bold text-arina-dark">
+                Le terrain, chaque jour
+              </h2>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[
+                { src: '/images/arina34.jpg', caption: 'La vie au foyer de Tsaramandroso' },
+                { src: '/images/arina35.jpg', caption: 'Nos ateliers de formation' },
+                { src: '/images/arina36.jpg', caption: 'Les jeunes, au cœur de notre action' },
+              ].map((img, i) => (
+                <figure
+                  key={i}
+                  className="group relative rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover cursor-pointer"
+                >
+                  <img
+                    src={img.src}
+                    alt={img.caption}
+                    className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <figcaption className="absolute inset-x-0 bottom-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent text-white text-sm font-semibold">
+                    {img.caption}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </div>
