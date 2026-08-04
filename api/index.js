@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const { put, del } = require('@vercel/blob');
 
 // Pièces jointes candidatures : formats et taille max (sous la limite Vercel Blob de 5 Mo/upload direct)
@@ -9,10 +10,59 @@ const MAX_ATTACH_SIZE = 4 * 1024 * 1024; // 4 Mo
 
 const app = express();
 
-// Simple admin guard for sensitive endpoints (contacts, newsletter, activity)
+// ── Authentification par rôles ────────────────────────────────────────────
+// Chaque compte a un rôle (admin, president, accountant, educator) et une clé
+// API unique. La clé envoyée dans le header `x-admin-key` identifie le rôle.
+// L'ancienne clé globale ADMIN_KEY reste acceptée (équivaut au rôle admin).
 const ADMIN_KEY = process.env.ADMIN_KEY || 'arina-admin-key-2024';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arina2024';
+const ROLES = { admin: 'admin', president: 'president', accountant: 'accountant', educator: 'educator' };
+
+// Hachage des mots de passe (scrypt natif — aucune dépendance ajoutée)
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(password), salt, 32).toString('hex');
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, hash] = stored.split(':');
+  const candidate = crypto.scryptSync(String(password), salt, 32).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(hash, 'hex'));
+}
+
+// Récupère l'utilisateur associé à la clé passée dans le header.
+// Renvoie { ok:true, user } ou { ok:false }.
+async function getUserFromKey(apiKey) {
+  if (!apiKey) return { ok: false };
+  // Seuls les comptes de la table users sont reconnus (l'ancienne clé globale
+  // ADMIN_KEY n'est plus acceptée — elle contournait le système de rôles).
+  try {
+    const r = await pool.query('SELECT id, username, role FROM users WHERE api_key = $1', [apiKey]);
+    if (r.rows.length === 0) return { ok: false };
+    return { ok: true, user: r.rows[0] };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// Middleware : authentifie + vérifie que le rôle est autorisé.
+// requireRole() = admin uniquement. requireRole('president','accountant',…) = un de ces rôles.
+async function requireRole(...allowed) {
+  return async (req, res, next) => {
+    const { ok, user } = await getUserFromKey(req.headers['x-admin-key']);
+    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = user;
+    if (allowed.length === 0) return next(); // admin seul
+    if (user.role === ROLES.admin) return next(); // l'admin peut tout
+    if (allowed.includes(user.role)) return next();
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+// Compat : l'ancien requireAdmin (clé globale) reste disponible
+// NB : ne protège PAS le système de rôles (les endpoints sensibles utilisent requireRole).
 function requireAdmin(req, res, next) {
   if (req.headers['x-admin-key'] === ADMIN_KEY) return next();
   return res.status(401).json({ error: 'Unauthorized' });
@@ -74,7 +124,52 @@ function ensureSchema() {
     )`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published'`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(100) UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role VARCHAR(20) NOT NULL DEFAULT 'admin',
+      api_key VARCHAR(64) UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS finances (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(20) NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      description TEXT,
+      category VARCHAR(100),
+      date DATE DEFAULT CURRENT_DATE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS beneficiaries (
+      id SERIAL PRIMARY KEY,
+      first_name VARCHAR(255) NOT NULL,
+      last_name VARCHAR(255) NOT NULL,
+      age INTEGER DEFAULT 0,
+      entry_date DATE DEFAULT CURRENT_DATE,
+      status VARCHAR(50) DEFAULT 'active',
+      training VARCHAR(255),
+      notes TEXT,
+      photo_url TEXT,
+      dossier JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
   ];
+
+  // Après création des tables : crée le compte admin par défaut s'il n'existe pas
+  (async () => {
+    try {
+      const r = await pool.query('SELECT COUNT(*) AS n FROM users');
+      if (Number(r.rows[0].n) === 0) {
+        const apiKey = crypto.randomBytes(24).toString('hex');
+        await pool.query(
+          'INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4)',
+          [ADMIN_USER, hashPassword(ADMIN_PASSWORD), ROLES.admin, apiKey]
+        );
+        console.log('👤 Compte admin par défaut créé');
+      }
+    } catch (err) { console.error('⚠️ Seed admin :', err.message); }
+  })();
   // Exécution SÉQUENTIELLE (les ALTER doivent suivre le CREATE, sinon ils échouent)
   (async () => {
     for (const s of statements) {
@@ -96,13 +191,96 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ═══ AUTH ═══
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
-    res.json({ success: true, user: { username, role: 'admin' }, token: ADMIN_KEY });
-  } else {
-    res.status(401).json({ success: false, error: 'Identifiants incorrects' });
+// Connexion : vérifie la table users (comptes gérés par l'admin), puis l'ancien
+// compte global (ADMIN_USER/ADMIN_PASSWORD) pour compatibilité.
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ success: false, error: 'Identifiants manquants' });
+    // 1) Table users
+    const r = await pool.query('SELECT id, username, role, api_key, password_hash FROM users WHERE username = $1', [String(username).trim()]);
+    if (r.rows.length > 0) {
+      const u = r.rows[0];
+      if (verifyPassword(password, u.password_hash)) {
+        return res.json({ success: true, user: { username: u.username, role: u.role }, token: u.api_key });
+      }
+      return res.status(401).json({ success: false, error: 'Identifiants incorrects' });
+    }
+    // 2) Ancien compte global (env) — compat
+    if (username === ADMIN_USER && password === ADMIN_PASSWORD) {
+      // Crée le compte admin s'il n'existe pas ; ne fait PAS tourner la clé
+      // existante (sinon les sessions en cours seraient invalidées).
+      const seeded = await pool.query(
+        `INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4)
+         ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash
+         RETURNING api_key`,
+        [ADMIN_USER, hashPassword(ADMIN_PASSWORD), ROLES.admin, crypto.randomBytes(24).toString('hex')]
+      );
+      const key = seeded.rows[0]?.api_key || ADMIN_KEY;
+      return res.json({ success: true, user: { username: ADMIN_USER, role: ROLES.admin }, token: key });
+    }
+    return res.status(401).json({ success: false, error: 'Identifiants incorrects' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Qui suis-je ? (validation de session côté frontend — toute clé valide)
+app.get('/api/auth/me', async (req, res) => {
+  const { ok, user } = await getUserFromKey(req.headers['x-admin-key']);
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(user);
+});
+
+// ═══ USERS (comptes — admin uniquement) ═══
+function publicUser(u) {
+  return { id: u.id, username: u.username, role: u.role, created_at: u.created_at };
+}
+
+app.get('/api/users', requireRole(), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, username, role, created_at FROM users ORDER BY id');
+    res.json(r.rows.map(publicUser));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/users', requireRole(), async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    const name = String(username || '').trim();
+    if (!name || !password) return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
+    if (!ROLES[role]) return res.status(400).json({ error: 'Rôle invalide' });
+    const apiKey = crypto.randomBytes(24).toString('hex');
+    const r = await pool.query(
+      'INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4) RETURNING id, username, role, created_at',
+      [name, hashPassword(password), role, apiKey]
+    );
+    res.status(201).json(publicUser(r.rows[0]));
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Ce nom d\'utilisateur existe déjà' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/:id/password', requireRole(), async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+    const r = await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id',
+      [hashPassword(password), req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Compte introuvable' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/users/:id', requireRole(), async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM users WHERE id = $1 AND role <> $2 RETURNING id', [req.params.id, ROLES.admin]);
+    if (r.rows.length === 0) return res.status(400).json({ error: 'Impossible de supprimer ce compte' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ═══ BENEFICIARIES ═══
@@ -122,14 +300,14 @@ function normalizeBenef(r) {
   };
 }
 
-app.get('/api/beneficiaries', async (req, res) => {
+app.get('/api/beneficiaries', requireRole(ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM beneficiaries ORDER BY id DESC');
     res.json(result.rows.map(normalizeBenef));
   } catch (err) { res.json([]); }
 });
 
-app.post('/api/beneficiaries', async (req, res) => {
+app.post('/api/beneficiaries', requireRole(ROLES.educator), async (req, res) => {
   try {
     const { prenom, nom, age, statut, dateEntree, formation, photo, dossier } = req.body;
     const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
@@ -141,7 +319,7 @@ app.post('/api/beneficiaries', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/beneficiaries/:id', async (req, res) => {
+app.put('/api/beneficiaries/:id', requireRole(ROLES.educator), async (req, res) => {
   try {
     const { prenom, nom, age, statut, dateEntree, formation, photo, dossier } = req.body;
     const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
@@ -155,7 +333,7 @@ app.put('/api/beneficiaries/:id', async (req, res) => {
 });
 
 // PUT photo
-app.put('/api/beneficiaries/:id/photo', async (req, res) => {
+app.put('/api/beneficiaries/:id/photo', requireRole(ROLES.educator), async (req, res) => {
   try {
     const { photo } = req.body;
     const result = await pool.query(
@@ -167,7 +345,7 @@ app.put('/api/beneficiaries/:id/photo', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/beneficiaries/:id', async (req, res) => {
+app.delete('/api/beneficiaries/:id', requireRole(ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM beneficiaries WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -176,7 +354,7 @@ app.delete('/api/beneficiaries/:id', async (req, res) => {
 });
 
 // ═══ FINANCES ═══
-app.get('/api/finances', async (req, res) => {
+app.get('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM finances ORDER BY date DESC, id DESC');
     res.json(result.rows.map(r => ({
@@ -188,7 +366,7 @@ app.get('/api/finances', async (req, res) => {
   } catch (err) { res.json([]); }
 });
 
-app.post('/api/finances', async (req, res) => {
+app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
   try {
     const { type, categorie, montant, description, date } = req.body;
     const result = await pool.query(
@@ -202,7 +380,7 @@ app.post('/api/finances', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/finances/:id', async (req, res) => {
+app.delete('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM finances WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -256,8 +434,8 @@ app.post('/api/news/:id/view', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST create news (admin uniquement)
-app.post('/api/news', requireAdmin, async (req, res) => {
+// POST create news (président ou admin)
+app.post('/api/news', requireRole(ROLES.president), async (req, res) => {
   try {
     const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
@@ -268,8 +446,8 @@ app.post('/api/news', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PUT update news (admin uniquement)
-app.put('/api/news/:id', requireAdmin, async (req, res) => {
+// PUT update news (président ou admin)
+app.put('/api/news/:id', requireRole(ROLES.president), async (req, res) => {
   try {
     const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
@@ -281,8 +459,8 @@ app.put('/api/news/:id', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE news (admin uniquement)
-app.delete('/api/news/:id', requireAdmin, async (req, res) => {
+// DELETE news (président ou admin)
+app.delete('/api/news/:id', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM news WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -386,7 +564,7 @@ app.post('/api/volunteers', async (req, res) => {
 
 // GET admin — liste SANS les données base64 (sinon la réponse dépasse la limite Vercel).
 // Les pièces jointes sont accessibles via file_url / cv_url, ou via l'endpoint legacy ci-dessous.
-app.get('/api/volunteers', requireAdmin, async (req, res) => {
+app.get('/api/volunteers', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_url, cv_name, cv_type, cv_size, cv_url, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
@@ -394,7 +572,7 @@ app.get('/api/volunteers', requireAdmin, async (req, res) => {
 });
 
 // GET admin — renvoie une pièce jointe stockée en base64 (candidatures antérieures à Blob)
-app.get('/api/volunteers/:id/attachment', requireAdmin, async (req, res) => {
+app.get('/api/volunteers/:id/attachment', requireRole(ROLES.president), async (req, res) => {
   try {
     const kind = req.query.kind === 'cv' ? 'cv' : 'file';
     const result = await pool.query(
@@ -413,7 +591,7 @@ app.get('/api/volunteers/:id/attachment', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/volunteers/:id', requireAdmin, async (req, res) => {
+app.delete('/api/volunteers/:id', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM volunteers WHERE id=$1 RETURNING file_url, cv_url', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -427,14 +605,14 @@ app.delete('/api/volunteers/:id', requireAdmin, async (req, res) => {
 });
 
 // ═══ CONTACTS (ADMIN) ═══
-app.get('/api/contacts', requireAdmin, async (req, res) => {
+app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM contacts ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (err) { res.json([]); }
 });
 
-app.delete('/api/contacts/:id', requireAdmin, async (req, res) => {
+app.delete('/api/contacts/:id', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM contacts WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -443,14 +621,14 @@ app.delete('/api/contacts/:id', requireAdmin, async (req, res) => {
 });
 
 // ═══ NEWSLETTER (ADMIN) ═══
-app.get('/api/newsletter/subscribers', requireAdmin, async (req, res) => {
+app.get('/api/newsletter/subscribers', requireRole(), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM newsletters ORDER BY subscribed_at DESC LIMIT 200');
     res.json(result.rows);
   } catch (err) { res.json([]); }
 });
 
-app.delete('/api/newsletter/:id', requireAdmin, async (req, res) => {
+app.delete('/api/newsletter/:id', requireRole(), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM newsletters WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -459,7 +637,7 @@ app.delete('/api/newsletter/:id', requireAdmin, async (req, res) => {
 });
 
 // ═══ ACTIVITY FEED (ADMIN) ═══
-app.get('/api/activity', requireAdmin, async (req, res) => {
+app.get('/api/activity', requireRole(), async (req, res) => {
   try {
     const [newsR, finR, benefR] = await Promise.all([
       pool.query("SELECT id, title, created_at FROM news ORDER BY created_at DESC LIMIT 5"),

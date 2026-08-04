@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { apiLogin, validateAdminKey } from '../services/api';
+import { apiLogin, fetchMe } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -11,23 +11,16 @@ export function AuthProvider({ children }) {
     let cancelled = false;
     (async () => {
       const stored = localStorage.getItem('arina_admin');
-      const key = localStorage.getItem('arina_admin_key');
-      if (!stored || !key) {
+      if (!stored) {
         if (!cancelled) setLoading(false);
         return;
       }
-      // On ne fait confiance à une session stockée QUE si le serveur
-      // accepte encore la clé admin. Sinon on déconnecte (clé périmée).
-      const valid = await validateAdminKey();
+      // On ne fait confiance à une session stockée QUE si le serveur l'accepte
+      // encore (clé valide). Sinon on déconnecte (clé périmée / compte supprimé).
+      const me = await fetchMe();
       if (cancelled) return;
-      if (valid) {
-        try {
-          const parsed = JSON.parse(stored);
-          setUser(parsed);
-        } catch {
-          localStorage.removeItem('arina_admin');
-          localStorage.removeItem('arina_admin_key');
-        }
+      if (me && me.username) {
+        setUser({ ...me });
       } else {
         localStorage.removeItem('arina_admin');
         localStorage.removeItem('arina_admin_key');

@@ -55,21 +55,37 @@ export async function apiLogin(username, password) {
   return data;
 }
 
-// Vérifie que la clé admin stockée est TOUJOURS acceptée par le serveur.
-// Renvoie true si la session est valide, false sinon (clé périmée / révoquée).
-export async function validateAdminKey() {
+// Récupère l'utilisateur associé à la clé stockée ({ username, role }) ou null.
+// Vérifie aussi que la clé est TOUJOURS acceptée par le serveur (session valide).
+export async function fetchMe() {
   const adminKey = localStorage.getItem('arina_admin_key');
-  if (!adminKey) return false;
+  if (!adminKey) return null;
   try {
-    // Endpoint protégé : 200 si la clé est valide, 401 sinon.
-    const res = await fetch(`${API_BASE}/newsletter/subscribers`, {
-      headers: { 'x-admin-key': adminKey },
-    });
-    return res.ok;
+    const res = await fetch(`${API_BASE}/auth/me`, { headers: { 'x-admin-key': adminKey } });
+    if (!res.ok) return null;
+    return await res.json();
   } catch {
-    // Serveur injoignable : on conserve la session locale (offline-friendly)
-    return true;
+    // Serveur injoignable : on renvoie la session locale (offline-friendly)
+    const stored = localStorage.getItem('arina_admin');
+    try { return stored ? JSON.parse(stored) : null; } catch { return null; }
   }
+}
+
+/* ── Users / comptes (admin) ── */
+export async function fetchUsers() {
+  return await apiCall('/users');
+}
+
+export async function createUser(data) {
+  return await apiCall('/users', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function resetUserPassword(id, password) {
+  return await apiCall(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) });
+}
+
+export async function deleteUser(id) {
+  return await apiCall(`/users/${id}`, { method: 'DELETE' });
 }
 
 /* ── Beneficiaries ── */

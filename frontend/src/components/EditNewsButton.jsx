@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 /* Bouton « Modifier » visible UNIQUEMENT pour l'admin connecté.
    Ouvre directement le formulaire d'édition de l'actualité dans /admin/actualites. */
 export default function EditNewsButton({ id, compact = false, className = '' }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  // Seuls l'admin et le président gèrent les actualités
   if (!isAuthenticated || !id) return null;
+  if (user?.role && user.role !== 'admin' && user.role !== 'president') return null;
 
   return (
     <Link

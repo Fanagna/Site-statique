@@ -1,8 +1,9 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+// Rôles autorisés à accéder à la route (optionnel). Par défaut : tout utilisateur connecté.
+export default function ProtectedRoute({ children, roles = null }) {
+  const { user, isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -14,6 +15,11 @@ export default function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
+  }
+
+  // Restriction par rôle : l'admin peut tout, sinon le rôle doit être listé.
+  if (roles && user?.role !== 'admin' && !(roles || []).includes(user?.role)) {
+    return <Navigate to="/admin" replace />;
   }
 
   return children;

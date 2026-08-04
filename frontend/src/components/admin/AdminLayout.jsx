@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './icons';
 
+const ROLE_LABELS = {
+  admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
+};
+
 /* Apple-style admin shell: frosted-glass collapsible sidebar + topbar + mobile drawer.
    Props:
    - groups: [{ group, items: [{ key, label, icon, badge? }] }]
@@ -171,7 +175,7 @@ export default function AdminLayout({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate">{user?.username}</div>
-            <div className="text-[10px] text-ios-text3">Administrateur</div>
+            <div className="text-[10px] text-ios-text3">{ROLE_LABELS[user?.role] || 'Administrateur'}</div>
           </div>
           <button
             onClick={onLogout}

@@ -1,5 +1,15 @@
 -- ARINA Database Schema
 
+-- Users (comptes avec rôles : admin, president, accountant, educator)
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'admin',
+  api_key VARCHAR(64) UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- News table
 CREATE TABLE IF NOT EXISTS news (
   id SERIAL PRIMARY KEY,

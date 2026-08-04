@@ -33,10 +33,11 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Actualités : réservées à l'admin et au président */}
             <Route
               path="/admin/actualites"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute roles={['president']}>
                   <NewsManagementPage />
                 </ProtectedRoute>
               }

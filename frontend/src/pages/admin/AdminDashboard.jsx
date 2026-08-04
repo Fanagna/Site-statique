@@ -10,7 +10,25 @@ import {
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
   fetchActivity,
+  fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
+
+// ── Rôles ──
+const ROLES = {
+  admin: 'admin', president: 'president', accountant: 'accountant', educator: 'educator',
+};
+const ROLE_LABELS = {
+  admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
+};
+// On affiche uniquement les onglets que le rôle a le droit de gérer.
+// Rôle inconnu → onglets restreints (fail-closed : jamais l'accès admin complet).
+const ROLE_TABS = {
+  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'messages', 'volunteers', 'newsletter', 'comptes'],
+  president: ['dashboard', 'actualites', 'messages', 'volunteers'],
+  accountant: ['dashboard', 'finances'],
+  educator: ['dashboard', 'enfants'],
+  unknown: ['dashboard'],
+};
 import { allNews } from '../../data/news';
 import { CheckCircle2, Hand, Printer } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
@@ -178,7 +196,10 @@ export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') || 'dashboard';
+  const role = user?.role || ROLES.admin;
+  const allowedTabs = ROLE_TABS[role] || ROLE_TABS.unknown;
+  const rawTab = searchParams.get('tab') || 'dashboard';
+  const tab = allowedTabs.includes(rawTab) ? rawTab : 'dashboard';
   const setTab = (key) => setSearchParams(key === 'dashboard' ? {} : { tab: key }, { replace: true });
   const [apiStatus, setApiStatus] = useState('checking');
 
@@ -190,6 +211,7 @@ export default function AdminDashboard() {
   const [subs, setSubs] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [users, setUsers] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
   const [financesLoading, setFinancesLoading] = useState(true);
 
@@ -229,44 +251,67 @@ export default function AdminDashboard() {
   const [finCat, setFinCat] = useState('');
   const [finSort, setFinSort] = useState({ key: '', dir: 1 });
 
-  /* ── Load ── */
+  /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
-    const bFromApi = await fetchBeneficiaries();
-    if (bFromApi !== null) {
-      setApiStatus('online');
-      if (bFromApi.length) setBenefs(bFromApi);
-      else setBenefs([]);
+    const can = (t) => allowedTabs.includes(t);
+
+    if (can('enfants')) {
+      const bFromApi = await fetchBeneficiaries();
+      if (bFromApi !== null) {
+        setApiStatus('online');
+        if (bFromApi.length) setBenefs(bFromApi);
+        else setBenefs([]);
+      } else {
+        setApiStatus('offline');
+        const s = localStorage.getItem('arina_benefs');
+        setBenefs(s ? JSON.parse(s) : []);
+      }
+      setBenefsLoading(false);
     } else {
-      setApiStatus('offline');
-      const s = localStorage.getItem('arina_benefs');
-      setBenefs(s ? JSON.parse(s) : []);
+      setBenefsLoading(false);
     }
-    setBenefsLoading(false);
 
-    const fFromApi = await fetchFinances();
-    if (fFromApi !== null) { if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
-    else { const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
-    setFinancesLoading(false);
+    if (can('finances')) {
+      const fFromApi = await fetchFinances();
+      if (fFromApi !== null) { if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
+      else { const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
+      setFinancesLoading(false);
+    } else {
+      setFinancesLoading(false);
+    }
 
-    const nFromApi = await fetchNews();
-    if (nFromApi !== null) { if (nFromApi.length) setNews(nFromApi); else setNews([]); }
-    else setNews(allNews);
+    if (can('actualites')) {
+      const nFromApi = await fetchNews();
+      if (nFromApi !== null) { if (nFromApi.length) setNews(nFromApi); else setNews([]); }
+      else setNews(allNews);
+    }
 
-    const cFromApi = await fetchContacts();
-    if (cFromApi !== null) { if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
-    else { const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
+    if (can('messages')) {
+      const cFromApi = await fetchContacts();
+      if (cFromApi !== null) { if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
+      else { const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
+    }
 
-    const subFromApi = await fetchNewsletterSubscribers();
-    if (subFromApi !== null) { if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
-    else { const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
+    if (can('newsletter')) {
+      const subFromApi = await fetchNewsletterSubscribers();
+      if (subFromApi !== null) { if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
+      else { const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
+    }
 
-    const vFromApi = await fetchVolunteers();
-    if (vFromApi !== null) { if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
-    else { const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+    if (can('volunteers')) {
+      const vFromApi = await fetchVolunteers();
+      if (vFromApi !== null) { if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
+      else { const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+    }
+
+    if (can('comptes')) {
+      const uFromApi = await fetchUsers();
+      if (uFromApi !== null && Array.isArray(uFromApi)) setUsers(uFromApi);
+    }
 
     const actFromApi = await fetchActivity();
     if (actFromApi?.length) setActivity(actFromApi);
-  }, []);
+  }, [allowedTabs]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { if (benefs.length) localStorage.setItem('arina_benefs', JSON.stringify(benefs)); }, [benefs]);
@@ -395,6 +440,36 @@ export default function AdminDashboard() {
     setVolunteers(volunteers.filter((v) => v.id !== id));
     showToast('✅ Candidature supprimée de la base de données');
   };
+
+  /* ── Comptes (admin) ── */
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userForm, setUserForm] = useState({ username: '', password: '', role: 'educator' });
+  const [userMsg, setUserMsg] = useState(null);
+  const saveUser = async () => {
+    setUserMsg(null);
+    if (!userForm.username.trim() || !userForm.password) { setUserMsg({ ok: false, text: 'Nom d\'utilisateur et mot de passe requis.' }); return; }
+    if (userForm.password.length < 4) { setUserMsg({ ok: false, text: 'Le mot de passe doit contenir au moins 4 caractères.' }); return; }
+    const c = await createUser({ username: userForm.username.trim(), password: userForm.password, role: userForm.role });
+    if (!c || c.error) { setUserMsg({ ok: false, text: c?.error || 'Impossible de créer le compte.' }); return; }
+    setUsers([...users, c]);
+    setUserForm({ username: '', password: '', role: 'educator' });
+    setShowUserForm(false);
+    setUserMsg({ ok: true, text: `Compte « ${c.username} » créé.` });
+  };
+  const removeUser = async (u) => {
+    if (!confirm(`Supprimer le compte « ${u.username} » ?`)) return;
+    const r = await deleteUser(u.id);
+    if (r && r.deleted) { setUsers(users.filter((x) => x.id !== u.id)); setUserMsg({ ok: true, text: 'Compte supprimé.' }); }
+    else setUserMsg({ ok: false, text: r?.error || 'Impossible de supprimer ce compte.' });
+  };
+  const resetPass = async (u) => {
+    const p = prompt(`Nouveau mot de passe pour « ${u.username} » :`);
+    if (!p) return;
+    if (p.length < 4) { setUserMsg({ ok: false, text: 'Mot de passe trop court (min. 4 caractères).' }); return; }
+    const r = await resetUserPassword(u.id, p);
+    if (r && r.success) setUserMsg({ ok: true, text: `Mot de passe de « ${u.username} » réinitialisé.` });
+    else setUserMsg({ ok: false, text: r?.error || 'Échec de la réinitialisation.' });
+  };
   // Résout une pièce jointe : URL Blob (nouvelle) ou base64 récupérée à la demande (legacy)
   const resolveAttachment = async (v, kind = 'file') => {
     const url = kind === 'cv' ? v.cv_url : v.file_url;
@@ -518,19 +593,19 @@ export default function AdminDashboard() {
 
   const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && news.length === 0;
 
-  /* Navigation config for the layout */
+  /* Navigation config for the layout (filtrée par rôle) */
+  const principalItems = [];
+  if (allowedTabs.includes('actualites')) principalItems.push({ key: 'actualites', label: 'Actualités', icon: 'file', to: '/admin/actualites' });
+  if (allowedTabs.includes('enfants')) principalItems.push({ key: 'enfants', label: 'Enfants', icon: 'users' });
+  if (allowedTabs.includes('finances')) principalItems.push({ key: 'finances', label: 'Finances', icon: 'wallet' });
+  const communicationItems = [];
+  if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
+  if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
+  if (allowedTabs.includes('newsletter')) communicationItems.push({ key: 'newsletter', label: 'Newsletter', icon: 'send', badge: () => subs.length });
+  if (allowedTabs.includes('comptes')) principalItems.push({ key: 'comptes', label: 'Comptes', icon: 'shield' });
   const groups = [
-    { group: 'Principal', items: [
-      { key: 'dashboard', label: 'Tableau de bord', icon: 'grid' },
-      { key: 'actualites', label: 'Actualités', icon: 'file', to: '/admin/actualites' },
-      { key: 'enfants', label: 'Enfants', icon: 'users' },
-      { key: 'finances', label: 'Finances', icon: 'wallet' },
-    ] },
-    { group: 'Communication', items: [
-      { key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length },
-      { key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length },
-      { key: 'newsletter', label: 'Newsletter', icon: 'send', badge: () => subs.length },
-    ] },
+    { group: 'Principal', items: [{ key: 'dashboard', label: 'Tableau de bord', icon: 'grid' }, ...principalItems] },
+    ...(communicationItems.length ? [{ group: 'Communication', items: communicationItems }] : []),
   ];
   const meta = {
     dashboard: { title: 'Tableau de bord', subtitle: "Vue d'ensemble de votre structure" },
@@ -539,6 +614,7 @@ export default function AdminDashboard() {
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
     newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
+    comptes: { title: 'Comptes', subtitle: "Utilisateurs et rôles de l'espace admin" },
   };
   const currentMeta = meta[tab] || meta.dashboard;
   const searchPlaceholder = {
@@ -548,6 +624,7 @@ export default function AdminDashboard() {
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
     newsletter: 'Rechercher un e-mail…',
+    comptes: 'Rechercher un compte…',
   }[tab] || 'Rechercher…';
 
   /* KPI cards */
@@ -559,13 +636,15 @@ export default function AdminDashboard() {
   ];
 
   const quickActions = [
-    { label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') },
-    { label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FDE7E1] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } },
-    { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-    { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-    { label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') },
-    { label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') },
-    { label: 'Newsletter', icon: 'send', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('newsletter') },
+    ...(allowedTabs.includes('actualites') ? [{ label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') }] : []),
+    ...(allowedTabs.includes('enfants') ? [{ label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FDE7E1] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } }] : []),
+    ...(allowedTabs.includes('finances') ? [
+      { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+      { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+    ] : []),
+    ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
+    ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
+    ...(allowedTabs.includes('newsletter') ? [{ label: 'Newsletter', icon: 'send', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('newsletter') }] : []),
   ];
 
   const activityMeta = {
@@ -1097,6 +1176,113 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══════════ COMPTES (admin uniquement) ═══════════ */}
+      {tab === 'comptes' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-ios-text2 flex-1 min-w-[220px]">
+              Créez les comptes de vos collaborateurs : <b>Éducateur</b> (enfants), <b>Comptable</b> (finances), <b>Président</b> (actualités, candidatures, messages). Chacun se connecte avec son identifiant.
+            </p>
+            <button onClick={() => setShowUserForm(true)} className={`${primaryBtn} inline-flex items-center gap-1.5`}>
+              <Icon name="plus" className="w-4 h-4" /> Nouveau compte
+            </button>
+          </div>
+
+          {userMsg && (
+            <div className={`rounded-2xl px-4 py-3 text-sm flex items-center gap-2.5 ${userMsg.ok ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30'}`}>
+              <Icon name={userMsg.ok ? 'check' : 'alert'} className="w-4 h-4 flex-shrink-0" />
+              <span>{userMsg.text}</span>
+            </div>
+          )}
+
+          <div className="card-apple overflow-hidden">
+            {users.length === 0 ? (
+              <EmptyState icon="shield" text="Aucun compte pour le moment — créez le premier compte éducateur, comptable ou président." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-ios-fill">
+                    <tr>
+                      <Th label="Identifiant" />
+                      <Th label="Rôle" />
+                      <Th label="Créé le" />
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ios-hairline">
+                    {users.map((u) => (
+                      <tr key={u.id} className="hover:bg-ios-fill transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white ${u.role === 'admin' ? 'bg-gradient-to-br from-arina-gold to-arina-accent' : u.role === 'president' ? 'bg-gradient-to-br from-purple-500 to-purple-700' : u.role === 'accountant' ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-arina-blue to-arina-blue-dark'}`}>
+                              {initials(u.username)}
+                            </div>
+                            <div>
+                              <div className="font-medium text-ios-text">{u.username}</div>
+                              {u.username === user?.username && <div className="text-[11px] text-arina-blue font-semibold">Vous</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' : u.role === 'president' ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' : u.role === 'accountant' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-arina-warm text-arina-blue'}`}>
+                            {ROLE_LABELS[u.role] || u.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(u.created_at)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => resetPass(u)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Réinitialiser le mot de passe"><Icon name="key" className="w-4 h-4" /></button>
+                            {u.role !== 'admin' && (
+                              <button onClick={() => removeUser(u)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Modal — nouveau compte */}
+          {showUserForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowUserForm(false)} />
+              <div className="relative w-full max-w-md card-apple p-6 animate-pop">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold">Nouveau compte</h3>
+                  <button onClick={() => setShowUserForm(false)} className="p-1.5 rounded-lg text-ios-text3 hover:bg-ios-fill"><Icon name="x" className="w-5 h-5" /></button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-ios-text2 mb-1.5">Identifiant</label>
+                    <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} placeholder="ex. educateur1" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-ios-text2 mb-1.5">Mot de passe</label>
+                    <input type="text" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} placeholder="Minimum 4 caractères" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-ios-text2 mb-1.5">Rôle</label>
+                    <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className={`${inputClass} cursor-pointer`}>
+                      <option value="educator">Éducateur — gère les enfants</option>
+                      <option value="accountant">Comptable — gère les finances</option>
+                      <option value="president">Président — actualités, candidatures, messages</option>
+                      <option value="admin">Administrateur — contrôle total</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={() => setShowUserForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
+                  <button onClick={saveUser} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Créer le compte</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
