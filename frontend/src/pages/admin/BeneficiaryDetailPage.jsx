@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Circle, Lock, Printer, Search, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
-import { fetchBeneficiaries, updateBeneficiaryPhoto } from '../../services/api';
+import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 import Toast, { useToast } from '../../components/admin/Toast';
 import { Icon } from '../../components/admin/icons';
@@ -50,11 +50,12 @@ export default function BeneficiaryDetailPage() {
   useEffect(() => {
     let cancelled = false;
     const hydrate = (b) => {
+      const dossier = b.dossier || {};
       const detail = {
         ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
         situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
-        assiduite: 0, progression: 0, formations: [], suivis: [], notes: '',
-        dossier: b.dossier || {},
+        assiduite: 0, progression: 0, formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
+        dossier,
       };
       setData(detail);
       setForm({ ...detail });
@@ -94,15 +95,47 @@ export default function BeneficiaryDetailPage() {
     </div>
   );
 
-  const saveEdit = () => {
-    setData({ ...data, ...form });
-    setEditing(false);
+  /* Sauvegarde STRICTE : le dossier n'est mis à jour que si la base l'a accepté. */
+  const persistBenef = async (next) => {
+    const payload = {
+      prenom: next.prenom, nom: next.nom, age: Number(next.age) || 0,
+      statut: next.statut, dateEntree: next.dateEntree, formation: next.formation,
+      photo: next.photo, dossier: next.dossier || {},
+    };
+    const r = await updateBeneficiary(id, payload);
+    if (!r.ok) {
+      showToast(`❌ Modifications NON enregistrées dans la base : ${r.error}`, 'error');
+      return false;
+    }
+    setData(r.data);
+    setForm({ ...r.data, ...form });
+    showToast('✅ Fiche mise à jour et enregistrée dans la base de données');
+    return true;
   };
 
-  const addSuivi = () => {
+  const saveEdit = async () => {
+    setEditing(false);
+    await persistBenef({
+      ...data, ...form,
+      assiduite: Number(form.assiduite) || Number(data.assiduite) || 0,
+      progression: Number(form.progression) || Number(data.progression) || 0,
+      dossier: { ...(data.dossier || {}), assiduite: Number(form.assiduite) || Number(data.assiduite) || 0, progression: Number(form.progression) || Number(data.progression) || 0 },
+    });
+  };
+
+  const addSuivi = async () => {
     if (!newSuivi.trim()) return;
-    setSuivis([{ date: new Date().toLocaleDateString('fr-FR'), type: 'Suivi', note: newSuivi }, ...suivis]);
-    setNewSuivi('');
+    const entry = { date: new Date().toLocaleDateString('fr-FR'), type: 'Suivi', note: newSuivi };
+    const nextSuivis = [entry, ...suivis];
+    const saved = await persistBenef({
+      ...data,
+      suivis: nextSuivis,
+      dossier: { ...(data.dossier || {}), suivis: nextSuivis },
+    });
+    if (saved) {
+      setSuivis(nextSuivis);
+      setNewSuivi('');
+    }
   };
 
   const handlePhotoClick = () => {
