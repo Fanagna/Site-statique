@@ -80,8 +80,14 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
   status VARCHAR(50) DEFAULT 'active',
   training VARCHAR(255),
   notes TEXT,
+  photo_url TEXT,
+  dossier JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration : ajouter dossier + photo_url si la table existe déjà
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS dossier JSONB DEFAULT '{}'::jsonb;
 
 -- Finances (for admin)
 CREATE TABLE IF NOT EXISTS finances (

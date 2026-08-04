@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Circle, Lock, Search, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
-import { updateBeneficiaryPhoto } from '../../services/api';
+import { fetchBeneficiaries, updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
@@ -46,23 +46,40 @@ export default function BeneficiaryDetailPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    let detail = benefDetails[id];
-    if (!detail) {
-      const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-      const b = stored.find((x) => x.id === Number(id));
-      if (b) {
-        detail = {
-          ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
-          situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
-          assiduite: 0, progression: 0, formations: [], suivis: [], notes: '',
-        };
-      }
-    }
-    if (detail) {
+    let cancelled = false;
+    const hydrate = (b) => {
+      const detail = {
+        ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
+        situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
+        assiduite: 0, progression: 0, formations: [], suivis: [], notes: '',
+        dossier: b.dossier || {},
+      };
       setData(detail);
       setForm({ ...detail });
       setSuivis(detail.suivis || []);
-    }
+    };
+
+    (async () => {
+      // Priorité : API (dossier complet) — puis localStorage — puis mock
+      const fromApi = await fetchBeneficiaries();
+      if (cancelled) return;
+      if (Array.isArray(fromApi) && fromApi.length) {
+        const b = fromApi.find((x) => String(x.id) === String(id));
+        if (b) { hydrate(b); return; }
+      }
+      let detail = benefDetails[id];
+      if (!detail) {
+        const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+        const b = stored.find((x) => x.id === Number(id));
+        if (b) { hydrate(b); return; }
+      }
+      if (detail) {
+        setData(detail);
+        setForm({ ...detail });
+        setSuivis(detail.suivis || []);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   if (!data) return (
@@ -282,6 +299,97 @@ export default function BeneficiaryDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) */}
+            {data.dossier && (Object.keys(data.dossier).length > 0) && (
+              <div className="space-y-6 animate-fade-up" style={{ animationDelay: '220ms' }}>
+                {/* IDENTITÉ */}
+                {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
+                  <div className="card-apple p-6">
+                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Identité</h4>
+                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                      {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
+                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SITUATION FAMILIALE */}
+                {(data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v)) && (
+                  <div className="card-apple p-6">
+                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Situation familiale</h4>
+                    <div className="space-y-4 text-sm">
+                      {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
+                        <div key={s.t}>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">{s.t}</div>
+                          <div className="grid sm:grid-cols-4 gap-3">
+                            {[{ l: 'Nom', f: s.k[0] }, { l: 'Profession', f: s.k[1] }, { l: 'Contact', f: s.k[2] }, { l: 'Adresse', f: s.k[3] }].map((r, i) => (
+                              <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Tuteur</div>
+                        <div className="grid sm:grid-cols-3 gap-3">
+                          {[{ l: 'Nom', f: 'tuteurNom' }, { l: 'Contacts', f: 'tuteurContact' }, { l: 'Adresse', f: 'tuteurAdresse' }].map((r, i) => (
+                            <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
+                        {[{ l: 'Nombre de frères et sœurs', f: 'nbFreresSoeurs' }, { l: 'Situation des parents', f: 'situationParents' }, { l: 'Niveau de vie des parents', f: 'niveauVie' }].map((r, i) => (
+                          <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SITUATION JURIDIQUE */}
+                {(data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v)) && (
+                  <div className="card-apple p-6">
+                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Situation juridique</h4>
+                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                      {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
+                        <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ÉTUDE */}
+                {(data.dossier.etude && Object.values(data.dossier.etude).some((v) => v)) && (
+                  <div className="card-apple p-6">
+                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">Étude</h4>
+                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                      {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
+                        <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ARINA */}
+                {((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation) && (
+                  <div className="card-apple p-6">
+                    <h4 className="font-bold uppercase tracking-wide text-sm mb-4">ARINA</h4>
+                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                      {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
+                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                      ))}
+                    </div>
+                    {data.dossier.arina?.felicitations && (
+                      <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Félicitations et encouragements</div>
+                        <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{data.dossier.arina.felicitations}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 

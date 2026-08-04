@@ -108,21 +108,30 @@ app.post('/api/auth/login', (req, res) => {
 // BENEFICIARIES CRUD
 // ═══════════════════════════════════════
 
+/* Normalise une ligne bénéficiaire (colonnes → champs frontend, inclut le dossier complet) */
+function normalizeBenef(r) {
+  let dossier = {};
+  if (r.dossier) {
+    try { dossier = typeof r.dossier === 'string' ? JSON.parse(r.dossier) : r.dossier; } catch { dossier = {}; }
+  }
+  return {
+    id: r.id,
+    nom: r.last_name,
+    prenom: r.first_name,
+    age: r.age || 0,
+    statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
+    dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
+    formation: r.training || '—',
+    photo: r.photo_url || '',
+    dossier,
+  };
+}
+
 // GET all
 app.get('/api/beneficiaries', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM beneficiaries ORDER BY id DESC');
-    // Normalize column names for frontend
-    const rows = result.rows.map(r => ({
-      id: r.id,
-      nom: r.last_name,
-      prenom: r.first_name,
-      age: r.age || 0,
-      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
-      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
-      formation: r.training || '—',
-    }));
-    res.json(rows);
+    res.json(result.rows.map(normalizeBenef));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -131,21 +140,14 @@ app.get('/api/beneficiaries', async (req, res) => {
 // POST create
 app.post('/api/beneficiaries', async (req, res) => {
   try {
-    const { prenom, nom, age, statut, dateEntree, formation } = req.body;
+    const { prenom, nom, age, statut, dateEntree, formation, photo, dossier } = req.body;
     const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
     const result = await pool.query(
-      `INSERT INTO beneficiaries (first_name, last_name, age, status, entry_date, training)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation]
+      `INSERT INTO beneficiaries (first_name, last_name, age, status, entry_date, training, photo_url, dossier)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, photo || null, dossier || {}]
     );
-    const r = result.rows[0];
-    res.status(201).json({
-      id: r.id, nom: r.last_name, prenom: r.first_name,
-      age: r.age || 0,
-      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
-      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
-      formation: r.training || '—',
-    });
+    res.status(201).json(normalizeBenef(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -154,22 +156,16 @@ app.post('/api/beneficiaries', async (req, res) => {
 // PUT update
 app.put('/api/beneficiaries/:id', async (req, res) => {
   try {
-    const { prenom, nom, age, statut, dateEntree, formation } = req.body;
+    const { prenom, nom, age, statut, dateEntree, formation, photo, dossier } = req.body;
     const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
     const result = await pool.query(
-      `UPDATE beneficiaries SET first_name=$1, last_name=$2, age=$3, status=$4, entry_date=$5, training=$6
-       WHERE id=$7 RETURNING *`,
-      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, req.params.id]
+      `UPDATE beneficiaries SET first_name=$1, last_name=$2, age=$3, status=$4, entry_date=$5, training=$6,
+        photo_url=COALESCE($7, photo_url), dossier=COALESCE($8, dossier)
+       WHERE id=$9 RETURNING *`,
+      [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, photo || null, dossier || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    const r = result.rows[0];
-    res.json({
-      id: r.id, nom: r.last_name, prenom: r.first_name,
-      age: r.age || 0,
-      statut: r.status === 'active' ? 'Actif' : r.status === 'graduated' ? 'Diplômé' : 'Inactif',
-      dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
-      formation: r.training || '—',
-    });
+    res.json(normalizeBenef(result.rows[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

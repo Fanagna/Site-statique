@@ -201,7 +201,22 @@ export default function AdminDashboard() {
   /* ── Benef CRUD ── */
   const [showBenefForm, setShowBenefForm] = useState(false);
   const [editingBenef, setEditingBenef] = useState(null);
-  const [benefForm, setBenefForm] = useState({ prenom: '', nom: '', age: '', statut: 'Actif', dateEntree: today(), formation: '' });
+  const benefFormInit = {
+    prenom: '', nom: '', age: '', statut: 'Actif', dateEntree: today(), formation: '', photo: '',
+    dossier: {
+      identite: { pseudo: '', dateNaissance: '', lieuNaissance: '', adresse: '', contact: '', situationScolaire: '', loisirs: '' },
+      familiale: {
+        pereNom: '', pereProfession: '', pereContact: '', pereAdresse: '',
+        mereNom: '', mereProfession: '', mereContact: '', mereAdresse: '',
+        tuteurNom: '', tuteurContact: '', tuteurAdresse: '',
+        nbFreresSoeurs: '', situationParents: '', niveauVie: '',
+      },
+      juridique: { motifInculpation: '', dateEcrou: '', dureeDetention: '', dateLiberation: '', motifLiberation: '' },
+      etude: { classeActuelle: '', etablissement: '', carriereEnvisagee: '', diplomeObtenu: '', specialites: '' },
+      arina: { dateEntreeCentre: '', felicitations: '' },
+    },
+  };
+  const [benefForm, setBenefForm] = useState(benefFormInit);
   const [benefFilter, setBenefFilter] = useState('');
   const [benefSort, setBenefSort] = useState({ key: '', dir: 1 });
 
@@ -259,16 +274,62 @@ export default function AdminDashboard() {
   useEffect(() => { if (subs.length) localStorage.setItem('arina_subs', JSON.stringify(subs)); }, [subs]);
 
   /* ── CRUD handlers ── */
+  /* Met à jour un champ du dossier (section.module) */
+  const setDoss = (section, field) => (e) => {
+    const v = e.target ? e.target.value : e;
+    setBenefForm((prev) => ({
+      ...prev,
+      dossier: { ...prev.dossier, [section]: { ...(prev.dossier[section] || {}), [field]: v } },
+    }));
+  };
+
+  /* Upload photo (base64) avec aperçu */
+  const onBenefPhoto = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) { alert('Format non accepté — utilisez JPG, PNG, WebP ou GIF.'); return; }
+    if (f.size > 3 * 1024 * 1024) { alert('Photo trop volumineuse (maximum 3 Mo).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setBenefForm((prev) => ({ ...prev, photo: String(reader.result) }));
+    reader.readAsDataURL(f);
+  };
+
   const openBenefForm = (b) => {
-    if (b) { setEditingBenef(b); setBenefForm({ prenom: b.prenom, nom: b.nom, age: String(b.age), statut: b.statut, dateEntree: b.dateEntree, formation: b.formation }); }
-    else { setEditingBenef(null); setBenefForm({ prenom: '', nom: '', age: '', statut: 'Actif', dateEntree: today(), formation: '' }); }
+    if (b) {
+      setEditingBenef(b);
+      setBenefForm({
+        prenom: b.prenom, nom: b.nom, age: String(b.age), statut: b.statut, dateEntree: b.dateEntree || today(), formation: b.formation || '', photo: b.photo || '',
+        dossier: {
+          identite: { ...benefFormInit.dossier.identite, ...(b.dossier?.identite || {}) },
+          familiale: { ...benefFormInit.dossier.familiale, ...(b.dossier?.familiale || {}) },
+          juridique: { ...benefFormInit.dossier.juridique, ...(b.dossier?.juridique || {}) },
+          etude: { ...benefFormInit.dossier.etude, ...(b.dossier?.etude || {}) },
+          arina: { ...benefFormInit.dossier.arina, ...(b.dossier?.arina || {}) },
+        },
+      });
+    } else {
+      setEditingBenef(null);
+      setBenefForm({ ...benefFormInit, dateEntree: today() });
+    }
     setShowBenefForm(true);
   };
   const saveBenef = async () => {
-    const d = { ...benefForm, age: Number(benefForm.age) || 0 };
+    // Âge calculé depuis la date de naissance si renseignée
+    let age = Number(benefForm.age) || 0;
+    const dob = benefForm.dossier.identite.dateNaissance;
+    if (!age && dob) {
+      const d = new Date(dob);
+      if (!Number.isNaN(d.getTime())) {
+        const diff = Date.now() - d.getTime();
+        age = Math.floor(diff / (365.25 * 24 * 3600000));
+      }
+    }
+    const d = { ...benefForm, age };
     if (editingBenef) { const u = await updateBeneficiary(editingBenef.id, d); setBenefs(benefs.map((b) => (b.id === editingBenef.id ? u || { ...b, ...d } : b))); }
     else { const c = await createBeneficiary(d); setBenefs([c || { id: Date.now(), ...d }, ...benefs]); }
     setShowBenefForm(false);
+    setBenefForm({ ...benefFormInit, dateEntree: today() });
   };
   const removeBenef = async (id) => { if (!confirm('Supprimer ce bénéficiaire ?')) return; await deleteBeneficiary(id); setBenefs(benefs.filter((b) => b.id !== id)); };
 
@@ -1027,29 +1088,156 @@ export default function AdminDashboard() {
       {showBenefForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowBenefForm(false)} />
-          <div className="relative w-full max-w-md bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="relative w-full max-w-4xl bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><Icon name="users" className="w-5 h-5" /></div>
               <div>
-                <h3 className="font-bold">{editingBenef ? 'Modifier' : 'Ajouter'} un bénéficiaire</h3>
-                <p className="text-xs text-ios-text3">Fiche confidentielle</p>
+                <h3 className="font-bold">{editingBenef ? 'Modifier' : 'Ajouter'} un enfant</h3>
+                <p className="text-xs text-ios-text3">Dossier complet confidentiel — une seule page</p>
               </div>
             </div>
-            <div className="p-6 space-y-3">
-              <input placeholder="Prénom" value={benefForm.prenom} onChange={(e) => setBenefForm({ ...benefForm, prenom: e.target.value })} className={inputClass} />
-              <input placeholder="Nom" value={benefForm.nom} onChange={(e) => setBenefForm({ ...benefForm, nom: e.target.value })} className={inputClass} />
-              <input type="number" placeholder="Âge" value={benefForm.age} onChange={(e) => setBenefForm({ ...benefForm, age: e.target.value })} className={inputClass} />
-              <select value={benefForm.statut} onChange={(e) => setBenefForm({ ...benefForm, statut: e.target.value })} className={inputClass}>
-                <option value="Actif">Actif</option>
-                <option value="Diplômé">Diplômé</option>
-                <option value="Inactif">Inactif</option>
-              </select>
-              <input placeholder="Formation" value={benefForm.formation} onChange={(e) => setBenefForm({ ...benefForm, formation: e.target.value })} className={inputClass} />
-              <input type="date" value={benefForm.dateEntree} onChange={(e) => setBenefForm({ ...benefForm, dateEntree: e.target.value })} className={inputClass} />
+            <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto scroll-slim">
+              {/* ═══ IDENTITÉ ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+                <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
+                  <Icon name="users" className="w-4 h-4 text-arina-blue" />
+                  <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
+                </div>
+                <div className="p-5 grid md:grid-cols-2 gap-3">
+                  <input placeholder="Prénom" value={benefForm.prenom} onChange={(e) => setBenefForm({ ...benefForm, prenom: e.target.value })} className={inputClass} />
+                  <input placeholder="Nom" value={benefForm.nom} onChange={(e) => setBenefForm({ ...benefForm, nom: e.target.value })} className={inputClass} />
+                  <input placeholder="Pseudo" value={benefForm.dossier.identite.pseudo} onChange={setDoss('identite', 'pseudo')} className={inputClass} />
+                  <input type="date" placeholder="Date de naissance" value={benefForm.dossier.identite.dateNaissance} onChange={setDoss('identite', 'dateNaissance')} className={inputClass} />
+                  <input placeholder="Lieu de naissance" value={benefForm.dossier.identite.lieuNaissance} onChange={setDoss('identite', 'lieuNaissance')} className={inputClass} />
+                  <input placeholder="Adresse exacte" value={benefForm.dossier.identite.adresse} onChange={setDoss('identite', 'adresse')} className={inputClass} />
+                  <input placeholder="Contact" value={benefForm.dossier.identite.contact} onChange={setDoss('identite', 'contact')} className={inputClass} />
+                  <input placeholder="Situation scolaire" value={benefForm.dossier.identite.situationScolaire} onChange={setDoss('identite', 'situationScolaire')} className={inputClass} />
+                  <div className="md:col-span-2">
+                    <input placeholder="Loisirs" value={benefForm.dossier.identite.loisirs} onChange={setDoss('identite', 'loisirs')} className={inputClass} />
+                  </div>
+                  {/* Photo */}
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Photo</label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20 rounded-2xl overflow-hidden bg-ios-fill flex items-center justify-center flex-shrink-0">
+                        {benefForm.photo ? <img src={benefForm.photo} alt="" className="w-full h-full object-cover" /> : <Icon name="users" className="w-8 h-8 text-ios-text3" />}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="px-4 py-2 rounded-xl bg-arina-blue/10 text-arina-blue text-sm font-semibold cursor-pointer hover:bg-arina-blue/20 transition-colors text-center">
+                          Choisir une photo
+                          <input type="file" accept="image/*" onChange={onBenefPhoto} className="hidden" />
+                        </label>
+                        {benefForm.photo && <button type="button" onClick={() => setBenefForm((p) => ({ ...p, photo: '' }))} className="text-xs text-red-500 hover:text-red-600 transition-colors">Retirer</button>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* ═══ SITUATION FAMILIALE ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+                <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
+                  <Icon name="grid" className="w-4 h-4 text-arina-blue" />
+                  <h4 className="font-bold uppercase tracking-wide text-sm">Situation familiale</h4>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-2">Père</div>
+                    <div className="grid md:grid-cols-4 gap-3">
+                      <input placeholder="Nom du père" value={benefForm.dossier.familiale.pereNom} onChange={setDoss('familiale', 'pereNom')} className={inputClass} />
+                      <input placeholder="Profession" value={benefForm.dossier.familiale.pereProfession} onChange={setDoss('familiale', 'pereProfession')} className={inputClass} />
+                      <input placeholder="Contact" value={benefForm.dossier.familiale.pereContact} onChange={setDoss('familiale', 'pereContact')} className={inputClass} />
+                      <input placeholder="Adresse" value={benefForm.dossier.familiale.pereAdresse} onChange={setDoss('familiale', 'pereAdresse')} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-2">Mère</div>
+                    <div className="grid md:grid-cols-4 gap-3">
+                      <input placeholder="Nom de la mère" value={benefForm.dossier.familiale.mereNom} onChange={setDoss('familiale', 'mereNom')} className={inputClass} />
+                      <input placeholder="Profession" value={benefForm.dossier.familiale.mereProfession} onChange={setDoss('familiale', 'mereProfession')} className={inputClass} />
+                      <input placeholder="Contact" value={benefForm.dossier.familiale.mereContact} onChange={setDoss('familiale', 'mereContact')} className={inputClass} />
+                      <input placeholder="Adresse" value={benefForm.dossier.familiale.mereAdresse} onChange={setDoss('familiale', 'mereAdresse')} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-2">Tuteur</div>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <input placeholder="Nom du tuteur" value={benefForm.dossier.familiale.tuteurNom} onChange={setDoss('familiale', 'tuteurNom')} className={inputClass} />
+                      <input placeholder="Contacts" value={benefForm.dossier.familiale.tuteurContact} onChange={setDoss('familiale', 'tuteurContact')} className={inputClass} />
+                      <input placeholder="Adresse" value={benefForm.dossier.familiale.tuteurAdresse} onChange={setDoss('familiale', 'tuteurAdresse')} className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
+                    <input placeholder="Nombre de frères et sœurs" value={benefForm.dossier.familiale.nbFreresSoeurs} onChange={setDoss('familiale', 'nbFreresSoeurs')} className={inputClass} />
+                    <input placeholder="Situation des parents" value={benefForm.dossier.familiale.situationParents} onChange={setDoss('familiale', 'situationParents')} className={inputClass} />
+                    <input placeholder="Niveau de vie des parents" value={benefForm.dossier.familiale.niveauVie} onChange={setDoss('familiale', 'niveauVie')} className={inputClass} />
+                  </div>
+                </div>
+              </section>
+
+              {/* ═══ SITUATION JURIDIQUE ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+                <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
+                  <Icon name="file" className="w-4 h-4 text-arina-blue" />
+                  <h4 className="font-bold uppercase tracking-wide text-sm">Situation juridique</h4>
+                </div>
+                <div className="p-5 grid md:grid-cols-2 gap-3">
+                  <div className="md:col-span-2"><input placeholder="Motifs d'inculpation" value={benefForm.dossier.juridique.motifInculpation} onChange={setDoss('juridique', 'motifInculpation')} className={inputClass} /></div>
+                  <input type="date" placeholder="Date d'écrou" value={benefForm.dossier.juridique.dateEcrou} onChange={setDoss('juridique', 'dateEcrou')} className={inputClass} />
+                  <input placeholder="Durée de détention" value={benefForm.dossier.juridique.dureeDetention} onChange={setDoss('juridique', 'dureeDetention')} className={inputClass} />
+                  <input type="date" placeholder="Date de libération" value={benefForm.dossier.juridique.dateLiberation} onChange={setDoss('juridique', 'dateLiberation')} className={inputClass} />
+                  <input placeholder="Motifs de libération" value={benefForm.dossier.juridique.motifLiberation} onChange={setDoss('juridique', 'motifLiberation')} className={inputClass} />
+                </div>
+              </section>
+
+              {/* ═══ ÉTUDE ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+                <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
+                  <Icon name="calendar" className="w-4 h-4 text-arina-blue" />
+                  <h4 className="font-bold uppercase tracking-wide text-sm">Étude</h4>
+                </div>
+                <div className="p-5 grid md:grid-cols-2 gap-3">
+                  <input placeholder="Classe actuelle" value={benefForm.dossier.etude.classeActuelle} onChange={setDoss('etude', 'classeActuelle')} className={inputClass} />
+                  <input placeholder="Établissement" value={benefForm.dossier.etude.etablissement} onChange={setDoss('etude', 'etablissement')} className={inputClass} />
+                  <input placeholder="Carrière envisagée" value={benefForm.dossier.etude.carriereEnvisagee} onChange={setDoss('etude', 'carriereEnvisagee')} className={inputClass} />
+                  <input placeholder="Diplôme obtenu" value={benefForm.dossier.etude.diplomeObtenu} onChange={setDoss('etude', 'diplomeObtenu')} className={inputClass} />
+                  <div className="md:col-span-2"><input placeholder="Spécialités" value={benefForm.dossier.etude.specialites} onChange={setDoss('etude', 'specialites')} className={inputClass} /></div>
+                </div>
+              </section>
+
+              {/* ═══ ARINA ═══ */}
+              <section className="rounded-2xl border border-ios-hairline overflow-hidden">
+                <div className="px-5 py-3 bg-arina-warm/70 dark:bg-white/5 flex items-center gap-2">
+                  <Icon name="star" className="w-4 h-4 text-arina-blue" />
+                  <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>
+                </div>
+                <div className="p-5 grid md:grid-cols-2 gap-3">
+                  <input type="date" placeholder="Date d'entrée au centre" value={benefForm.dossier.arina.dateEntreeCentre} onChange={setDoss('arina', 'dateEntreeCentre')} className={inputClass} />
+                  <input placeholder="Formation au centre" value={benefForm.formation} onChange={(e) => setBenefForm({ ...benefForm, formation: e.target.value })} className={inputClass} />
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Félicitations et encouragements</label>
+                    <textarea
+                      rows={5}
+                      placeholder="Écrivez ici vos félicitations et encouragements pour cet enfant (plusieurs lignes)..."
+                      value={benefForm.dossier.arina.felicitations}
+                      onChange={setDoss('arina', 'felicitations')}
+                      className={`${inputClass} resize-y`}
+                    />
+                  </div>
+                  <div className="md:col-span-2 grid md:grid-cols-2 gap-3">
+                    <select value={benefForm.statut} onChange={(e) => setBenefForm({ ...benefForm, statut: e.target.value })} className={inputClass}>
+                      <option value="Actif">Statut : Actif</option>
+                      <option value="Diplômé">Statut : Diplômé</option>
+                      <option value="Inactif">Statut : Inactif</option>
+                    </select>
+                    <input type="date" value={benefForm.dateEntree} onChange={(e) => setBenefForm({ ...benefForm, dateEntree: e.target.value })} className={inputClass} />
+                  </div>
+                </div>
+              </section>
             </div>
-            <div className="px-6 pb-6 flex gap-3">
+            <div className="px-6 py-4 border-t border-ios-hairline flex gap-3">
               <button onClick={() => setShowBenefForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
-              <button onClick={saveBenef} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
+              <button onClick={saveBenef} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer le dossier</button>
             </div>
           </div>
         </div>
