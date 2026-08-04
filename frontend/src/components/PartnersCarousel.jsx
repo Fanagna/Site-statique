@@ -1,5 +1,5 @@
 const partners = [
-  { name: 'Grandir Dignement', logo: 'GD' },
+  { name: 'Grandir Dignement', logo: '/images/logo-grandir-dignement.png' },
 ];
 
 export default function PartnersCarousel() {
@@ -23,9 +23,12 @@ export default function PartnersCarousel() {
                 key={i}
                 className="partner-logo group flex-shrink-0 w-40 h-24 bg-arina-cream rounded-xl flex items-center justify-center shadow-sm border border-arina-warm"
               >
-                <span className="text-2xl font-bold text-arina-gray/50 group-hover:text-arina-blue transition-colors">
-                  {partner.logo}
-                </span>
+                <img
+                  src={partner.logo}
+                  alt={partner.name}
+                  loading="lazy"
+                  className="max-w-[80%] max-h-16 object-contain opacity-80 group-hover:opacity-100 transition-opacity"
+                />
               </div>
             ))}
           </div>
