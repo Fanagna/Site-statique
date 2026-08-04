@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Eye, ImageIcon, Search, Tag, X } from 'lucide-react';
 import useNews from '../hooks/useNews';
+import UpdatedBadge from '../components/UpdatedBadge';
 import { categories, months, categoryColors } from '../data/news';
 
 const ITEMS_PER_PAGE = 6;
@@ -241,9 +242,10 @@ export default function NewsPage() {
 
                   {/* Content */}
                   <div className="p-6 flex flex-col flex-1">
-                    <div className="flex items-center gap-3 text-xs text-arina-gray mb-3">
+                    <div className="flex items-center gap-3 text-xs text-arina-gray mb-3 flex-wrap">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {item.date}</span>
                       <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {item.views} vues</span>
+                      <UpdatedBadge updatedAt={item.updatedAt} createdDate={item.created_at} />
                     </div>
                     <h3 className="font-bold text-arina-dark mb-2 leading-snug group-hover:text-arina-blue transition-colors line-clamp-2">
                       {item.title}

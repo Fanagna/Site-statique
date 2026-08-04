@@ -1,6 +1,7 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Eye, FileText, Heart, Handshake, ImageIcon } from 'lucide-react';
 import useNews from '../hooks/useNews';
+import UpdatedBadge from '../components/UpdatedBadge';
 import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
 
@@ -123,6 +124,7 @@ export default function ArticlePage() {
               <div className="text-sm font-semibold text-arina-dark">{article.author}</div>
               <div className="text-xs text-arina-gray">Auteur</div>
             </div>
+            <UpdatedBadge updatedAt={article.updatedAt} createdDate={article.created_at} />
           </div>
           
           {/* Share buttons */}

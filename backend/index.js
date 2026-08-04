@@ -260,6 +260,7 @@ function normalizeNews(r) {
     featured: !!r.featured,
     author: 'ARINA',
     readTime: `${Math.max(1, Math.round(wordCount / 200))} min`,
+    updatedAt: r.updated_at || r.created_at || null,
     tags: [],
   };
 }
@@ -303,7 +304,7 @@ app.put('/api/news/:id', requireAdmin, async (req, res) => {
   try {
     const { title, excerpt, category, image_url, status, content, featured } = req.body;
     const result = await pool.query(
-      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status), content=COALESCE($6, content), featured=COALESCE($7, featured) WHERE id=$8 RETURNING *',
+      'UPDATE news SET title=$1, excerpt=$2, category=$3, image_url=$4, status=COALESCE($5, status), content=COALESCE($6, content), featured=COALESCE($7, featured), updated_at=CURRENT_TIMESTAMP WHERE id=$8 RETURNING *',
       [title, excerpt, category, image_url, status, content, featured, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
