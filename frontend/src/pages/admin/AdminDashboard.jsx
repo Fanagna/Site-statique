@@ -32,6 +32,7 @@ const monthKey = (d) => {
   return y && m ? `${y}-${String(m).padStart(2, '0')}` : '';
 };
 const pctDelta = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0);
+const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 /* ═══════════════════════════════════════
    Charts (real data)
@@ -232,10 +233,11 @@ export default function AdminDashboard() {
 
   /* ── Finance CRUD ── */
   const [showFinanceForm, setShowFinanceForm] = useState(false);
-  const [financeForm, setFinanceForm] = useState({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() });
+  const [financeForm, setFinanceForm] = useState({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
   const [finType, setFinType] = useState('');
   const [finCat, setFinCat] = useState('');
   const [finSort, setFinSort] = useState({ key: '', dir: 1 });
+  const [evalYear, setEvalYear] = useState(new Date().getFullYear());
 
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
@@ -385,7 +387,16 @@ export default function AdminDashboard() {
   };
 
   const saveFinance = async () => {
-    const d = { ...financeForm, montant: Number(financeForm.montant) || 0 };
+    const q = financeForm.quantity !== '' ? Number(financeForm.quantity) || 0 : 0;
+    const p = financeForm.unit_price !== '' ? Number(financeForm.unit_price) || 0 : 0;
+    // MNT = QT × PU (calcul automatique) pour une dépense ; sinon montant saisi (ex. un don).
+    const auto = financeForm.type === 'Dépense' && q > 0 && p > 0 ? Math.round(q * p) : 0;
+    const d = {
+      ...financeForm,
+      quantity: q || null,
+      unit_price: p || null,
+      montant: auto || Number(financeForm.montant) || 0,
+    };
     const r = await createFinance(d);
     if (!r.ok) {
       showToast(`❌ Transaction NON enregistrée dans la base : ${r.error}`, 'error');
@@ -394,7 +405,7 @@ export default function AdminDashboard() {
     setFinances([r.data, ...finances]);
     showToast(`✅ ${r.data.type} enregistré${r.data.type === 'Dépense' ? 'e' : ''} dans la base : ${formatMGA(r.data.montant)}`);
     setShowFinanceForm(false);
-    setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() });
+    setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
   };
   const removeFinance = async (id) => {
     if (!confirm('Supprimer cette transaction ?')) return;
@@ -556,6 +567,32 @@ export default function AdminDashboard() {
     return volunteers.filter((v) => `${v.name} ${v.email} ${v.skills} ${v.motivation}`.toLowerCase().includes(q));
   }, [volunteers, q]);
 
+  /* ── Évaluation mensuelle (admin + comptable) ── */
+  // Montant automatique affiché dans le formulaire de dépense : MNT = QT × PU
+  const finAutoMnt = financeForm.type === 'Dépense' && Number(financeForm.quantity) > 0 && Number(financeForm.unit_price) > 0
+    ? Math.round(Number(financeForm.quantity) * Number(financeForm.unit_price))
+    : 0;
+  // Années disponibles (données présentes + année courante)
+  const evalYears = useMemo(() => {
+    const set = new Set([new Date().getFullYear()]);
+    finances.forEach((f) => { const k = monthKey(f.date); if (k) set.add(Number(k.split('-')[0])); });
+    return [...set].sort((a, b) => b - a);
+  }, [finances]);
+  // 12 colonnes-mois avec dons détaillés et dépenses (QT / PU / MNT) + totaux
+  const evalMonths = useMemo(() => MONTH_NAMES.map((name, i) => {
+    const key = `${evalYear}-${String(i + 1).padStart(2, '0')}`;
+    const rows = finances.filter((f) => monthKey(f.date) === key);
+    const dons = rows.filter((f) => f.type === 'Revenu');
+    const depenses = rows.filter((f) => f.type === 'Dépense');
+    return {
+      name, key,
+      dons,
+      depenses,
+      donTotal: dons.reduce((s, f) => s + (Number(f.montant) || 0), 0),
+      depTotal: depenses.reduce((s, f) => s + (Number(f.montant) || 0), 0),
+    };
+  }), [finances, evalYear]);
+
   /* Activity feed (real from API, else derived from loaded data) */
   /* Fil d'activité local : l'aperçu (finances + enfants) est visible par tous ;
      actualités/candidatures/messages seulement pour les rôles qui les gèrent
@@ -592,6 +629,7 @@ export default function AdminDashboard() {
   if (allowedTabs.includes('actualites')) principalItems.push({ key: 'actualites', label: 'Actualités', icon: 'file', to: '/admin/actualites' });
   if (allowedTabs.includes('enfants')) principalItems.push({ key: 'enfants', label: 'Enfants', icon: 'users' });
   if (allowedTabs.includes('finances')) principalItems.push({ key: 'finances', label: 'Finances', icon: 'wallet' });
+  if (allowedTabs.includes('evaluation')) principalItems.push({ key: 'evaluation', label: 'Évaluation', icon: 'calendar' });
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
@@ -605,6 +643,7 @@ export default function AdminDashboard() {
     dashboard: { title: 'Tableau de bord', subtitle: "Vue d'ensemble de votre structure" },
     enfants: { title: 'Enfants', subtitle: 'Bénéficiaires accompagnés par ARINA' },
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
+    evaluation: { title: 'Évaluation mensuelle', subtitle: 'Transactions par mois — calcul automatique QT × PU' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
     newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
@@ -615,6 +654,7 @@ export default function AdminDashboard() {
     dashboard: 'Rechercher…',
     enfants: 'Rechercher un enfant…',
     finances: 'Rechercher une transaction…',
+    evaluation: 'Rechercher une transaction…',
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
     newsletter: 'Rechercher un e-mail…',
@@ -634,8 +674,8 @@ export default function AdminDashboard() {
     ...(allowedTabs.includes('actualites') ? [{ label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') }] : []),
     ...(allowedTabs.includes('enfants') ? [{ label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FDE7E1] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } }] : []),
     ...(allowedTabs.includes('finances') ? [
-      { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
-      { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+      { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
+      { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
     ] : []),
     ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
     ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
@@ -1086,6 +1126,108 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══════════ ÉVALUATION MENSUELLE (admin + comptable) ═══════════ */}
+      {tab === 'evaluation' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="no-print flex flex-wrap items-center gap-3">
+            <select value={evalYear} onChange={(e) => setEvalYear(Number(e.target.value))} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
+              {evalYears.map((y) => <option key={y} value={y}>Année {y}</option>)}
+            </select>
+            <span className="text-xs text-ios-text3">MNT calculé automatiquement (QT × PU) — défilement horizontal pour voir les 12 mois</span>
+            <button onClick={() => window.print()} className="ml-auto inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
+              <Printer className="w-4 h-4" /> Imprimer / PDF
+            </button>
+          </div>
+
+          {/* En-tête imprimable */}
+          <div className="print-list-header hidden print:block">
+            <div className="flex items-center justify-between border-b-2 border-arina-blue/40 pb-3 mb-4">
+              <div className="flex items-center gap-3">
+                <img src="/logo-arina.jpg" alt="ARINA" className="w-12 h-12 rounded-xl object-contain" />
+                <div>
+                  <div className="text-lg font-extrabold tracking-tight">Association ARINA — Évaluation mensuelle des transactions</div>
+                  <div className="text-xs text-ios-text3">Année {evalYear} — éditée le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {evalMonths.every((m) => m.dons.length === 0 && m.depenses.length === 0) ? (
+            <EmptyState icon="calendar" text="Aucune transaction enregistrée pour cette année — les 12 mois apparaîtront ici avec leurs totaux automatiques." />
+          ) : (
+            <div className="overflow-x-auto pb-2 eval-scroll">
+              <div className="flex gap-4 min-w-max eval-months">
+                {evalMonths.map((m) => (
+                  <div key={m.key} className={`eval-month w-[260px] flex-shrink-0 card-apple p-4 ${m.dons.length === 0 && m.depenses.length === 0 ? 'opacity-45' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-sm">{m.name}</h4>
+                      <span className="text-[10px] text-ios-text3">{evalYear}</span>
+                    </div>
+
+                    {/* Dons reçus (détail par date) */}
+                    <div className="mt-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Dons reçus</div>
+                      {m.dons.length === 0 ? (
+                        <div className="text-xs text-ios-text3 mt-1">—</div>
+                      ) : (
+                        <div className="mt-1 space-y-1">
+                          {m.dons.map((d) => (
+                            <div key={d.id} className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="text-ios-text3 whitespace-nowrap">{fmtDate(d.date)}</span>
+                              <span className="text-ios-text2 font-medium truncate">{d.categorie}</span>
+                              <span className="font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.montant)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-1.5 flex items-center justify-between border-t border-ios-hairline pt-1.5 text-xs">
+                        <span className="font-semibold">DON REÇUS</span>
+                        <span className="font-bold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(m.donTotal)}</span>
+                      </div>
+                    </div>
+
+                    {/* Dépenses (QT / PU / MNT) */}
+                    <div className="mt-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-red-500 dark:text-red-400">Dépenses</div>
+                      {m.depenses.length === 0 ? (
+                        <div className="text-xs text-ios-text3 mt-1">—</div>
+                      ) : (
+                        <table className="w-full text-[11px] mt-1">
+                          <thead>
+                            <tr className="text-ios-text3">
+                              <th className="text-left font-medium py-0.5">Date</th>
+                              <th className="text-left font-medium py-0.5">Désignation</th>
+                              <th className="text-right font-medium py-0.5">QT</th>
+                              <th className="text-right font-medium py-0.5">PU</th>
+                              <th className="text-right font-medium py-0.5">MNT</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-ios-hairline/60">
+                            {m.depenses.map((d) => (
+                              <tr key={d.id}>
+                                <td className="py-1 text-ios-text3 whitespace-nowrap">{fmtDate(d.date)}</td>
+                                <td className="py-1 text-ios-text2 truncate max-w-[72px]">{d.categorie}{d.description ? ` · ${d.description}` : ''}</td>
+                                <td className="py-1 text-right tabular">{d.quantity ?? '—'}</td>
+                                <td className="py-1 text-right tabular">{d.unit_price != null ? formatMGA(d.unit_price) : '—'}</td>
+                                <td className="py-1 text-right font-semibold tabular">{formatMGA(d.montant)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      <div className="mt-1.5 flex items-center justify-between border-t border-ios-hairline pt-1.5 text-xs">
+                        <span className="font-semibold">TOTAL DÉPENSE</span>
+                        <span className="font-bold tabular text-red-500 dark:text-red-400">{formatMGA(m.depTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1550,7 +1692,29 @@ export default function AdminDashboard() {
                 <option value="Salaire">Salaire</option>
                 <option value="Autre">Autre</option>
               </select>
-              <input type="number" placeholder="Montant (Ar)" value={financeForm.montant} onChange={(e) => setFinanceForm({ ...financeForm, montant: e.target.value })} className={inputClass} />
+              {financeForm.type === 'Dépense' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-ios-text2 mb-1">Quantité (QT)</label>
+                      <input type="number" min="0" placeholder="Ex. 3" value={financeForm.quantity} onChange={(e) => setFinanceForm({ ...financeForm, quantity: e.target.value })} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-ios-text2 mb-1">Prix unitaire (PU)</label>
+                      <input type="number" min="0" placeholder="Ex. 160000" value={financeForm.unit_price} onChange={(e) => setFinanceForm({ ...financeForm, unit_price: e.target.value })} className={inputClass} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-ios-fill px-3.5 py-3">
+                    <span className="text-sm text-ios-text2">Montant (MNT = QT × PU)</span>
+                    <span className="text-sm font-bold tabular">{finAutoMnt ? formatMGA(finAutoMnt) : formatMGA(Number(financeForm.montant) || 0)}</span>
+                  </div>
+                  {finAutoMnt === 0 && (
+                    <input type="number" placeholder="Montant direct (Ar) — utilisé si QT × PU non renseigné" value={financeForm.montant} onChange={(e) => setFinanceForm({ ...financeForm, montant: e.target.value })} className={inputClass} />
+                  )}
+                </>
+              ) : (
+                <input type="number" placeholder="Montant (Ar)" value={financeForm.montant} onChange={(e) => setFinanceForm({ ...financeForm, montant: e.target.value })} className={inputClass} />
+              )}
               <input placeholder="Description" value={financeForm.description} onChange={(e) => setFinanceForm({ ...financeForm, description: e.target.value })} className={inputClass} />
               <input type="date" value={financeForm.date} onChange={(e) => setFinanceForm({ ...financeForm, date: e.target.value })} className={inputClass} />
             </div>

@@ -169,6 +169,8 @@ function ensureSchema() {
       date DATE DEFAULT CURRENT_DATE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
+    `ALTER TABLE finances ADD COLUMN IF NOT EXISTS quantity INTEGER`,
+    `ALTER TABLE finances ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2)`,
     `CREATE TABLE IF NOT EXISTS beneficiaries (
       id SERIAL PRIMARY KEY,
       first_name VARCHAR(255) NOT NULL,
@@ -401,6 +403,8 @@ app.get('/api/finances', requireAuth, async (req, res) => {
       type: r.type === 'income' ? 'Revenu' : 'Dépense',
       categorie: r.category || 'Autre',
       montant: Number(r.amount),
+      quantity: r.quantity != null ? Number(r.quantity) : null,
+      unit_price: r.unit_price != null ? Number(r.unit_price) : null,
       description: r.description || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
     }));
@@ -413,11 +417,16 @@ app.get('/api/finances', requireAuth, async (req, res) => {
 // POST create
 app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
   try {
-    const { type, categorie, montant, description, date } = req.body;
+    const { type, categorie, montant, description, date, quantity, unit_price } = req.body;
+    const q = quantity != null && quantity !== '' ? Number(quantity) : null;
+    const p = unit_price != null && unit_price !== '' ? Number(unit_price) : null;
+    // Montant automatique : MNT = QT × PU quand les deux sont fournis (dépense) ;
+    // sinon le montant saisi (ex. un don).
+    const computed = q != null && p != null ? Math.round(q * p) : (Number(montant) || 0);
     const result = await pool.query(
-      `INSERT INTO finances (type, category, amount, description, date)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [type === 'Revenu' ? 'income' : 'expense', categorie, Number(montant) || 0, description, date]
+      `INSERT INTO finances (type, category, amount, description, date, quantity, unit_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p]
     );
     const r = result.rows[0];
     res.status(201).json({
@@ -425,6 +434,8 @@ app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
       type: r.type === 'income' ? 'Revenu' : 'Dépense',
       categorie: r.category || 'Autre',
       montant: Number(r.amount),
+      quantity: r.quantity != null ? Number(r.quantity) : null,
+      unit_price: r.unit_price != null ? Number(r.unit_price) : null,
       description: r.description || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
     });

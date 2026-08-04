@@ -435,3 +435,29 @@ textarea:focus-visible,
     print-color-adjust: exact;
   }
 }
+
+/* ═══ ÉVALUATION MENSUELLE : impression A4 ═══
+   À l'écran : 12 colonnes-mois avec défilement horizontal.
+   À l'impression : les mois s'empilent verticalement, un mois par bloc,
+   pleine largeur — plus de colonnes coupées par le bord de page. */
+@media print {
+  .eval-scroll {
+    overflow: visible !important;
+  }
+  .eval-months {
+    display: block !important;
+    min-width: 0 !important;
+    gap: 0 !important;
+  }
+  .eval-month {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+    opacity: 1 !important;
+    margin-bottom: 6mm;
+    break-inside: avoid;
+  }
+  .eval-month table {
+    max-width: 100%;
+  }
+}
