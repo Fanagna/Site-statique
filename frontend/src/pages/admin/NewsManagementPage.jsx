@@ -59,6 +59,7 @@ export default function NewsManagementPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
+  const [imageDragOver, setImageDragOver] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,9 +121,7 @@ export default function NewsManagementPage() {
     setShowForm(true);
   };
 
-  const handleImageChange = (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
+  const applyImageFile = (f) => {
     if (!f) return;
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) {
       alert('Format non accepté — utilisez JPG, PNG, WebP ou GIF.');
@@ -133,8 +132,14 @@ export default function NewsManagementPage() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setForm({ ...form, image_url: String(reader.result) });
+    reader.onload = () => setForm((prev) => ({ ...prev, image_url: String(reader.result) }));
     reader.readAsDataURL(f);
+  };
+
+  const handleImageChange = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    applyImageFile(f);
   };
 
   const saveNews = async () => {
@@ -488,19 +493,33 @@ export default function NewsManagementPage() {
               {/* Image de l'article */}
               <div>
                 <label className="block text-sm font-semibold text-ios-text mb-1.5">Image de l'article</label>
-                <label className={`relative flex items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden ${
-                  form.image_url ? 'border-arina-blue/40' : 'border-ios-hairline bg-ios-fill hover:border-arina-blue/40'
-                }`}>
+                <label
+                  className={`relative flex items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden ${
+                    imageDragOver
+                      ? 'border-arina-accent bg-arina-accent/10 ring-2 ring-arina-accent/30'
+                      : form.image_url
+                        ? 'border-arina-blue/40'
+                        : 'border-ios-hairline bg-ios-fill hover:border-arina-blue/40'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setImageDragOver(true); }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    if (e.currentTarget.contains(e.relatedTarget)) return;
+                    setImageDragOver(false);
+                  }}
+                  onDrop={(e) => { e.preventDefault(); setImageDragOver(false); applyImageFile(e.dataTransfer.files?.[0]); }}
+                >
                   <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                   {form.image_url ? (
                     <>
                       <img src={form.image_url} alt="" className="w-full h-40 object-cover" />
                       <span className="absolute bottom-2 right-2 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-semibold backdrop-blur-sm">Changer</span>
+                      <span className="absolute top-2 left-2 px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-semibold backdrop-blur-sm">Déposer une image pour remplacer</span>
                     </>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 py-10 text-ios-text3">
+                    <div className={`flex flex-col items-center gap-2 py-10 ${imageDragOver ? 'text-arina-accent' : 'text-ios-text3'}`}>
                       <Icon name="camera" className="w-6 h-6" />
-                      <span className="text-sm font-medium">Cliquez pour choisir une image</span>
+                      <span className="text-sm font-medium">{imageDragOver ? 'Déposez l\'image ici' : 'Cliquez ou glissez-déposez une image'}</span>
                       <span className="text-xs">JPG, PNG, WebP, GIF — max 2 Mo</span>
                     </div>
                   )}
