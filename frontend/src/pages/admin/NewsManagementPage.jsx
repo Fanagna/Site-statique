@@ -4,9 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchNews, createNews, updateNews, deleteNews } from '../../services/api';
 import { allNews, categories } from '../../data/news';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Toast, { useToast } from '../../components/admin/Toast';
 import { Icon } from '../../components/admin/icons';
 import UpdatedBadge from '../../components/UpdatedBadge';
-import { fmtDate, timeAgo, today, inputClass, EmptyState, Th } from '../../components/admin/ui';
+import { fmtDate, timeAgo, inputClass, EmptyState, Th } from '../../components/admin/ui';
 
 const PAGE_SIZE = 8;
 
@@ -61,6 +62,7 @@ export default function NewsManagementPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ title: '', excerpt: '', category: 'Événement', status: 'published', image_url: '', content: '', featured: false });
   const [imageDragOver, setImageDragOver] = useState(false);
+  const { toast, showToast, closeToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -163,37 +165,50 @@ export default function NewsManagementPage() {
 
   const saveNews = async () => {
     const d = { ...form };
+    // Sauvegarde STRICTE : l'actualité ne compte comme enregistrée que si elle a
+    // réellement atteint la base de données. Sinon erreur claire + formulaire ouvert.
+    const r = editing ? await updateNews(editing.id, d) : await createNews(d);
+    if (!r.ok) {
+      showToast(`❌ ${editing ? 'Modification' : 'Création'} NON enregistrée dans la base : ${r.error}`, 'error');
+      return;
+    }
     if (editing) {
-      const u = await updateNews(editing.id, d);
-      setNews(news.map((n) => (n.id === editing.id ? u || { ...n, ...d } : n)));
+      setNews(news.map((n) => (n.id === editing.id ? r.data : n)));
+      showToast(`✅ Actualité « ${r.data.title} » modifiée et enregistrée dans la base`);
     } else {
-      const c = await createNews(d);
-      setNews([c || { id: Date.now(), ...d, views: 0, date: today() }, ...news]);
+      setNews([r.data, ...news]);
+      showToast(`✅ Actualité « ${r.data.title} » créée et enregistrée dans la base`);
     }
     setShowForm(false);
   };
 
   const removeNews = async (id) => {
     if (!confirm('Supprimer cette actualité ?')) return;
-    await deleteNews(id);
+    const r = await deleteNews(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
     setNews(news.filter((n) => n.id !== id));
+    showToast('✅ Actualité supprimée de la base de données');
   };
 
   const togglePublish = async (n) => {
     const next = statusOf(n) === 'published' ? 'draft' : 'published';
-    const u = await updateNews(n.id, {
+    const r = await updateNews(n.id, {
       title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: next, content: typeof n.content === 'string' ? n.content : '', featured: !!n.featured,
     });
-    setNews(news.map((x) => (x.id === n.id ? u || { ...x, status: next } : x)));
+    if (!r.ok) { showToast(`❌ Changement de statut NON enregistré dans la base : ${r.error}`, 'error'); return; }
+    setNews(news.map((x) => (x.id === n.id ? r.data : x)));
+    showToast(next === 'published' ? '✅ Actualité publiée sur le site' : '✅ Actualité dépubliée (brouillon)');
   };
 
   const toggleFeatured = async (n) => {
     const next = !n.featured;
-    const u = await updateNews(n.id, {
+    const r = await updateNews(n.id, {
       title: n.title, excerpt: n.excerpt, category: n.category, image_url: n.image_url, status: statusOf(n),
       content: typeof n.content === 'string' ? n.content : '', featured: next,
     });
-    setNews(news.map((x) => (x.id === n.id ? u || { ...x, featured: next } : x)));
+    if (!r.ok) { showToast(`❌ Mise en avant NON enregistrée dans la base : ${r.error}`, 'error'); return; }
+    setNews(news.map((x) => (x.id === n.id ? r.data : x)));
+    showToast(next ? '✅ Actualité mise à la une' : '✅ Actualité retirée de la une');
   };
 
   /* ── Derived ── */
@@ -609,6 +624,9 @@ export default function NewsManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Notification de sauvegarde (base de données) */}
+      <Toast toast={toast} onClose={closeToast} />
     </AdminLayout>
   );
 }

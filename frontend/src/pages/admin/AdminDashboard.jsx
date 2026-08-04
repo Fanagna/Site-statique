@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import Toast, { useToast } from '../../components/admin/Toast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, deleteFinance,
@@ -197,6 +198,7 @@ export default function AdminDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [expandedMsg, setExpandedMsg] = useState(null);
   const [expandedVol, setExpandedVol] = useState(null);
+  const { toast, showToast, closeToast } = useToast();
 
   /* ── Benef CRUD ── */
   const [showBenefForm, setShowBenefForm] = useState(false);
@@ -326,25 +328,73 @@ export default function AdminDashboard() {
       }
     }
     const d = { ...benefForm, age };
-    if (editingBenef) { const u = await updateBeneficiary(editingBenef.id, d); setBenefs(benefs.map((b) => (b.id === editingBenef.id ? u || { ...b, ...d } : b))); }
-    else { const c = await createBeneficiary(d); setBenefs([c || { id: Date.now(), ...d }, ...benefs]); }
+    // Sauvegarde STRICTE : le dossier ne compte comme enregistré que s'il a
+    // réellement atteint la base de données. Sinon, erreur claire + formulaire
+    // laissé ouvert (les données ne sont pas perdues) — jamais d'enregistrement fantôme.
+    const r = editingBenef ? await updateBeneficiary(editingBenef.id, d) : await createBeneficiary(d);
+    if (!r.ok) {
+      showToast(`❌ ${editingBenef ? 'Modification' : 'Ajout'} NON enregistré dans la base : ${r.error}`, 'error');
+      return;
+    }
+    if (editingBenef) {
+      setBenefs(benefs.map((b) => (b.id === editingBenef.id ? r.data : b)));
+      showToast(`✅ Dossier de ${r.data.prenom} ${r.data.nom} modifié et enregistré dans la base`);
+    } else {
+      setBenefs([r.data, ...benefs]);
+      showToast(`✅ Dossier de ${r.data.prenom} ${r.data.nom} créé et enregistré dans la base`);
+    }
     setShowBenefForm(false);
     setBenefForm({ ...benefFormInit, dateEntree: today() });
   };
-  const removeBenef = async (id) => { if (!confirm('Supprimer ce bénéficiaire ?')) return; await deleteBeneficiary(id); setBenefs(benefs.filter((b) => b.id !== id)); };
+  const removeBenef = async (id) => {
+    if (!confirm('Supprimer ce bénéficiaire ?')) return;
+    const r = await deleteBeneficiary(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setBenefs(benefs.filter((b) => b.id !== id));
+    showToast('✅ Bénéficiaire supprimé de la base de données');
+  };
 
   const saveFinance = async () => {
     const d = { ...financeForm, montant: Number(financeForm.montant) || 0 };
-    const c = await createFinance(d);
-    setFinances([c || { id: Date.now(), ...d }, ...finances]);
+    const r = await createFinance(d);
+    if (!r.ok) {
+      showToast(`❌ Transaction NON enregistrée dans la base : ${r.error}`, 'error');
+      return;
+    }
+    setFinances([r.data, ...finances]);
+    showToast(`✅ ${r.data.type} enregistré${r.data.type === 'Dépense' ? 'e' : ''} dans la base : ${formatMGA(r.data.montant)}`);
     setShowFinanceForm(false);
     setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', description: '', date: today() });
   };
-  const removeFinance = async (id) => { if (!confirm('Supprimer cette transaction ?')) return; await deleteFinance(id); setFinances(finances.filter((f) => f.id !== id)); };
+  const removeFinance = async (id) => {
+    if (!confirm('Supprimer cette transaction ?')) return;
+    const r = await deleteFinance(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setFinances(finances.filter((f) => f.id !== id));
+    showToast('✅ Transaction supprimée de la base de données');
+  };
 
-  const removeContact = async (id) => { if (!confirm('Supprimer ce message ?')) return; await deleteContact(id); setContacts(contacts.filter((c) => c.id !== id)); };
-  const removeSub = async (id) => { if (!confirm("Supprimer cet abonné ?")) return; await deleteNewsletterSubscriber(id); setSubs(subs.filter((s) => s.id !== id)); };
-  const removeVolunteer = async (id) => { if (!confirm('Supprimer cette candidature ?')) return; await deleteVolunteer(id); setVolunteers(volunteers.filter((v) => v.id !== id)); };
+  const removeContact = async (id) => {
+    if (!confirm('Supprimer ce message ?')) return;
+    const r = await deleteContact(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setContacts(contacts.filter((c) => c.id !== id));
+    showToast('✅ Message supprimé de la base de données');
+  };
+  const removeSub = async (id) => {
+    if (!confirm('Supprimer cet abonné ?')) return;
+    const r = await deleteNewsletterSubscriber(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setSubs(subs.filter((s) => s.id !== id));
+    showToast('✅ Abonné supprimé de la base de données');
+  };
+  const removeVolunteer = async (id) => {
+    if (!confirm('Supprimer cette candidature ?')) return;
+    const r = await deleteVolunteer(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setVolunteers(volunteers.filter((v) => v.id !== id));
+    showToast('✅ Candidature supprimée de la base de données');
+  };
   // Résout une pièce jointe : URL Blob (nouvelle) ou base64 récupérée à la demande (legacy)
   const resolveAttachment = async (v, kind = 'file') => {
     const url = kind === 'cv' ? v.cv_url : v.file_url;
@@ -619,7 +669,7 @@ export default function AdminDashboard() {
           {apiStatus === 'offline' && (
             <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2.5 animate-fade-up">
               <Icon name="activity" className="w-4 h-4 flex-shrink-0" />
-              <span>Mode local — les données proviennent de ce navigateur. Déployez sur Vercel pour lire votre base PostgreSQL.</span>
+              <span>Base de données injoignable — lecture seule (données locales). L'enregistrement est bloqué tant que la base n'est pas joignable.</span>
             </div>
           )}
           {dbEmpty && (
@@ -1329,6 +1379,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* Notification de sauvegarde (base de données) */}
+      <Toast toast={toast} onClose={closeToast} />
     </AdminLayout>
   );
 }

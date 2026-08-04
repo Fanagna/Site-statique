@@ -5,6 +5,7 @@ import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchBeneficiaries, updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Toast, { useToast } from '../../components/admin/Toast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
 
@@ -44,6 +45,7 @@ export default function BeneficiaryDetailPage() {
   const [newSuivi, setNewSuivi] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const { toast, showToast, closeToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -116,26 +118,36 @@ export default function BeneficiaryDetailPage() {
     }
     setUploading(true);
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const base64 = reader.result;
       const updated = { ...data, photo: base64 };
       setData(updated);
       setForm({ ...form, photo: base64 });
-      // Persist photo
+      // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
       const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
       const idx = stored.findIndex((x) => x.id === Number(id));
       if (idx >= 0) {
         stored[idx].photo = base64;
         localStorage.setItem('arina_benefs', JSON.stringify(stored));
       }
-      // Try API
-      updateBeneficiaryPhoto(id, base64).catch(() => {});
+      // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
+      const r = await updateBeneficiaryPhoto(id, base64);
       setUploading(false);
+      if (!r.ok) {
+        showToast(`❌ Photo NON enregistrée dans la base : ${r.error}`, 'error');
+        return;
+      }
+      showToast('✅ Photo enregistrée dans la base de données');
     };
     reader.readAsDataURL(file);
   };
 
-  const removePhoto = () => {
+  const removePhoto = async () => {
+    const r = await updateBeneficiaryPhoto(id, null);
+    if (!r.ok) {
+      showToast(`❌ Photo NON retirée de la base : ${r.error}`, 'error');
+      return;
+    }
     const updated = { ...data };
     delete updated.photo;
     setData(updated);
@@ -146,6 +158,7 @@ export default function BeneficiaryDetailPage() {
       delete stored[idx].photo;
       localStorage.setItem('arina_benefs', JSON.stringify(stored));
     }
+    showToast('✅ Photo retirée de la base de données');
   };
 
   const groups = [
@@ -541,6 +554,8 @@ export default function BeneficiaryDetailPage() {
           </div>
         </div>
       </div>
+      {/* Notification de sauvegarde (base de données) */}
+      <Toast toast={toast} onClose={closeToast} />
     </AdminLayout>
   );
 }

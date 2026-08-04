@@ -20,6 +20,32 @@ async function apiCall(url, options = {}) {
   }
 }
 
+/* Variante « détaillée » utilisée par les SAUVEGARDES admin : renvoie
+   { ok: true, data } ou { ok: false, error }.
+   Permet de distinguer un vrai enregistrement en base d'un échec (réseau,
+   serveur, base injoignable) — plus jamais d'enregistrement « fantôme »
+   créé en local à l'insu de l'administrateur. */
+async function apiCallDetailed(url, options = {}) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}${url}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(adminKey ? { 'x-admin-key': adminKey } : {}),
+        ...options.headers,
+      },
+      ...options,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: body.error || `Erreur serveur (HTTP ${res.status})` };
+    }
+    return { ok: true, data: body };
+  } catch {
+    return { ok: false, error: 'Base de données injoignable — vérifiez la connexion puis réessayez.' };
+  }
+}
+
 /* ── Auth ── */
 export async function apiLogin(username, password) {
   const data = await apiCall('/auth/login', {
@@ -52,25 +78,25 @@ export async function fetchBeneficiaries() {
 }
 
 export async function createBeneficiary(benef) {
-  return await apiCall('/beneficiaries', {
+  return apiCallDetailed('/beneficiaries', {
     method: 'POST',
     body: JSON.stringify(benef),
   });
 }
 
 export async function updateBeneficiary(id, benef) {
-  return await apiCall(`/beneficiaries/${id}`, {
+  return apiCallDetailed(`/beneficiaries/${id}`, {
     method: 'PUT',
     body: JSON.stringify(benef),
   });
 }
 
 export async function deleteBeneficiary(id) {
-  return await apiCall(`/beneficiaries/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/beneficiaries/${id}`, { method: 'DELETE' });
 }
 
 export async function updateBeneficiaryPhoto(id, photoData) {
-  return await apiCall(`/beneficiaries/${id}/photo`, {
+  return apiCallDetailed(`/beneficiaries/${id}/photo`, {
     method: 'PUT',
     body: JSON.stringify({ photo: photoData }),
   });
@@ -82,14 +108,14 @@ export async function fetchFinances() {
 }
 
 export async function createFinance(transaction) {
-  return await apiCall('/finances', {
+  return apiCallDetailed('/finances', {
     method: 'POST',
     body: JSON.stringify(transaction),
   });
 }
 
 export async function deleteFinance(id) {
-  return await apiCall(`/finances/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/finances/${id}`, { method: 'DELETE' });
 }
 
 /* ── News ── */
@@ -99,15 +125,15 @@ export async function fetchNews() {
 }
 
 export async function createNews(data) {
-  return await apiCall('/news', { method: 'POST', body: JSON.stringify(data) });
+  return apiCallDetailed('/news', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function updateNews(id, data) {
-  return await apiCall(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  return apiCallDetailed(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
 export async function deleteNews(id) {
-  return await apiCall(`/news/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/news/${id}`, { method: 'DELETE' });
 }
 
 export async function incrementNewsViews(id) {
@@ -120,7 +146,7 @@ export async function fetchContacts() {
 }
 
 export async function deleteContact(id) {
-  return await apiCall(`/contacts/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/contacts/${id}`, { method: 'DELETE' });
 }
 
 /* ── Volunteers (public submit + admin list) ── */
@@ -160,7 +186,7 @@ export async function fetchVolunteers() {
 }
 
 export async function deleteVolunteer(id) {
-  return await apiCall(`/volunteers/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/volunteers/${id}`, { method: 'DELETE' });
 }
 
 // Récupère une pièce jointe stockée en base64 (candidatures antérieures à Blob)
@@ -190,7 +216,7 @@ export async function fetchNewsletterSubscribers() {
 }
 
 export async function deleteNewsletterSubscriber(id) {
-  return await apiCall(`/newsletter/${id}`, { method: 'DELETE' });
+  return apiCallDetailed(`/newsletter/${id}`, { method: 'DELETE' });
 }
 
 /* ── Activity feed (admin) ── */

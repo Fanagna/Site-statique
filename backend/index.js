@@ -161,7 +161,7 @@ app.put('/api/beneficiaries/:id', async (req, res) => {
     const statusMap = { 'Actif': 'active', 'Diplômé': 'graduated', 'Inactif': 'inactive' };
     const result = await pool.query(
       `UPDATE beneficiaries SET first_name=$1, last_name=$2, age=$3, status=$4, entry_date=$5, training=$6,
-        photo_url=COALESCE($7, photo_url), dossier=COALESCE($8, dossier)
+        photo_url=CASE WHEN $7 = '' THEN NULL ELSE COALESCE($7, photo_url) END, dossier=COALESCE($8, dossier)
        WHERE id=$9 RETURNING *`,
       [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, photo || null, dossier || null, req.params.id]
     );
