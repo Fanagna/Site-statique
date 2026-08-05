@@ -5,6 +5,7 @@ import useNews from '../hooks/useNews';
 import UpdatedBadge from '../components/UpdatedBadge';
 import EditNewsButton from '../components/EditNewsButton';
 import { categories, months, categoryColors } from '../data/news';
+import usePageMeta from '../hooks/usePageMeta';
 
 const ITEMS_PER_PAGE = 6;
 const sortOptions = [
@@ -14,6 +15,7 @@ const sortOptions = [
 ];
 
 export default function NewsPage() {
+  usePageMeta('Actualités', "Les dernières nouvelles d'ARINA : actions sur le terrain, ateliers de formation, réussites des jeunes accompagnés.");
   const { news } = useNews();
   // Années disponibles dérivées des actualités réelles (jamais obsolètes)
   const availableYears = useMemo(() => {

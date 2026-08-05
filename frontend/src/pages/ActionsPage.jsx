@@ -2,8 +2,10 @@ import { Link } from 'react-router-dom';
 import { Target } from 'lucide-react';
 import AppIcon from '../components/icons';
 import { pillars } from '../data/actions';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function ActionsPage() {
+  usePageMeta('Nos actions', "Les 4 piliers d'ARINA : hébergement sécurisé, soutien psychosocial, formation professionnelle et insertion sociale des jeunes vulnérables.");
   return (
     <div className="min-h-screen bg-white pt-20">
       {/* Hero */}

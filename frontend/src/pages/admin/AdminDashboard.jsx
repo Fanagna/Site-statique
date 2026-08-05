@@ -7,6 +7,7 @@ import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchDonors, createDonor, updateDonor, deleteDonor,
+  fetchDonations, updateDonation, deleteDonation,
   fetchNews,
   fetchContacts, deleteContact,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
@@ -67,6 +68,7 @@ export default function AdminDashboard() {
   const [contacts, setContacts] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
+  const [donations, setDonations] = useState([]);
   const [activity, setActivity] = useState([]);
   const [users, setUsers] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
@@ -166,6 +168,12 @@ export default function AdminDashboard() {
       else { anyFail = true; const s = localStorage.getItem('arina_testimonials'); setTestimonials(s ? JSON.parse(s) : []); }
     }
 
+    if (can('dons')) {
+      const dFromApi = await fetchDonations();
+      if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonations(dFromApi); }
+      else { anyFail = true; const s = localStorage.getItem('arina_donations'); setDonations(s ? JSON.parse(s) : []); }
+    }
+
     if (can('comptes')) {
       const uFromApi = await fetchUsers();
       if (uFromApi !== null && Array.isArray(uFromApi)) { anyOk = true; setUsers(uFromApi); }
@@ -191,6 +199,7 @@ export default function AdminDashboard() {
   useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
   useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
   useEffect(() => { if (testimonials.length) localStorage.setItem('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
+  useEffect(() => { if (donations.length) localStorage.setItem('arina_donations', JSON.stringify(donations)); }, [donations]);
 
   /* ── CRUD handlers ── */
   /* Met à jour un champ du dossier (section.module) */
@@ -435,6 +444,22 @@ export default function AdminDashboard() {
     showToast('✅ Témoignage supprimé de la base de données');
   };
 
+  /* ── Dons : confirmer la réception d'une promesse / remettre en attente ── */
+  const toggleDonation = async (d) => {
+    const next = d.status === 'received' ? 'pledge' : 'received';
+    const r = await updateDonation(d.id, { status: next });
+    if (!r.ok) { showToast(`❌ Statut NON enregistré dans la base : ${r.error}`, 'error'); return; }
+    setDonations(donations.map((x) => (x.id === d.id ? { ...x, status: next } : x)));
+    showToast(next === 'received' ? `✅ Don de ${d.name} confirmé comme reçu` : `Promesse de ${d.name} remise en attente`);
+  };
+  const removeDonation = async (id) => {
+    if (!confirm('Supprimer cette promesse de don ?')) return;
+    const r = await deleteDonation(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setDonations(donations.filter((d) => d.id !== id));
+    showToast('✅ Promesse de don supprimée de la base de données');
+  };
+
   /* ── Comptes (admin) ── */
   const [showUserForm, setShowUserForm] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'educator' });
@@ -564,6 +589,10 @@ export default function AdminDashboard() {
     if (!q) return testimonials;
     return testimonials.filter((t) => `${t.name} ${t.quote} ${t.location} ${t.role}`.toLowerCase().includes(q));
   }, [testimonials, q]);
+  const filteredDonations = useMemo(() => {
+    if (!q) return donations;
+    return donations.filter((d) => `${d.name} ${d.email} ${d.method || ''}`.toLowerCase().includes(q));
+  }, [donations, q]);
 
   /* ── Évaluation mensuelle (admin + comptable) ── */
   // Montant automatique affiché dans le formulaire de dépense : MNT = QT × PU
@@ -666,7 +695,8 @@ export default function AdminDashboard() {
     ...(allowedTabs.includes('volunteers') ? volunteers.slice(0, 3).map((v) => ({ id: `lv${v.id}`, type: 'volunteer', text: `Candidature reçue : ${v.name}`, date: v.created_at })) : []),
     ...(allowedTabs.includes('messages') ? contacts.slice(0, 3).map((c) => ({ id: `lc${c.id}`, type: 'message', text: `Message de ${c.name}`, date: c.created_at })) : []),
     ...(allowedTabs.includes('testimonials') ? testimonials.slice(0, 3).map((t) => ({ id: `lt${t.id}`, type: 'testimonial', text: t.status === 'published' ? `Témoignage publié : ${t.name}` : `Témoignage reçu : ${t.name}`, date: t.created_at })) : []),
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [allowedTabs, news, finances, benefs, volunteers, contacts, testimonials]);
+    ...(allowedTabs.includes('dons') ? donations.slice(0, 3).map((d) => ({ id: `ld${d.id}`, type: 'donation', text: d.status === 'received' ? `Don reçu : ${d.name} (${Number(d.amount) || 0} €)` : `Promesse de don : ${d.name}`, date: d.created_at })) : []),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [allowedTabs, news, finances, benefs, volunteers, contacts, testimonials, donations]);
   const activityFeed = activity.length ? activity : localActivity;
 
   /* Real alerts -> notifications bell. L'aperçu finances étant visible par tous,
@@ -691,8 +721,10 @@ export default function AdminDashboard() {
     });
     const pendingTest = testimonials.filter((t) => t.status === 'pending').length;
     if (allowedTabs.includes('testimonials') && pendingTest > 0) a.push({ level: 'info', icon: 'star', text: `${pendingTest} témoignage${pendingTest > 1 ? 's' : ''} en attente de validation`, tab: 'testimonials' });
+    const pendingDonations = donations.filter((d) => d.status === 'pledge').length;
+    if (allowedTabs.includes('dons') && pendingDonations > 0) a.push({ level: 'info', icon: 'heart', text: `${pendingDonations} promesse${pendingDonations > 1 ? 's' : ''} de don à confirmer`, tab: 'dons' });
     return a;
-  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length, donorStats, testimonials]);
+  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length, donorStats, testimonials, donations]);
 
   /* Base connectée mais vide — selon les données que le rôle a le droit de voir */
   const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && (!allowedTabs.includes('actualites') || news.length === 0);
@@ -704,6 +736,7 @@ export default function AdminDashboard() {
   if (allowedTabs.includes('finances')) principalItems.push({ key: 'finances', label: 'Finances', icon: 'wallet' });
   if (allowedTabs.includes('evaluation')) principalItems.push({ key: 'evaluation', label: 'Évaluation', icon: 'calendar' });
   if (allowedTabs.includes('donateurs')) principalItems.push({ key: 'donateurs', label: 'Donateurs', icon: 'handshake' });
+  if (allowedTabs.includes('dons')) principalItems.push({ key: 'dons', label: 'Dons', icon: 'heart', badge: () => donations.filter((d) => d.status === 'pledge').length });
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
@@ -719,6 +752,7 @@ export default function AdminDashboard() {
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
     evaluation: { title: 'Évaluation mensuelle', subtitle: 'Analytics temps réel et transactions par mois et par donateur — export Excel' },
     donateurs: { title: 'Donateurs', subtitle: 'Partenaires financiers et besoins financés' },
+    dons: { title: 'Dons', subtitle: "Promesses de don des visiteurs — à confirmer à réception" },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
     testimonials: { title: 'Témoignages', subtitle: "Témoignages envoyés par les visiteurs — à valider avant publication" },
@@ -731,6 +765,7 @@ export default function AdminDashboard() {
     finances: 'Rechercher une transaction…',
     evaluation: 'Rechercher une transaction…',
     donateurs: 'Rechercher un donateur…',
+    dons: 'Rechercher une promesse de don…',
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
     testimonials: 'Rechercher un témoignage…',
@@ -756,6 +791,7 @@ export default function AdminDashboard() {
     ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
     ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
     ...(allowedTabs.includes('testimonials') ? [{ label: 'Témoignages', icon: 'star', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('testimonials') }] : []),
+    ...(allowedTabs.includes('dons') ? [{ label: 'Dons', icon: 'heart', color: 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/25', action: () => setTab('dons') }] : []),
   ];
 
   const activityMeta = {
@@ -766,6 +802,7 @@ export default function AdminDashboard() {
     volunteer: { icon: 'users', cls: 'bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400' },
     message: { icon: 'mail', cls: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400' },
     testimonial: { icon: 'star', cls: 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+    donation: { icon: 'heart', cls: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400' },
   };
 
   const actionBtn = 'px-4 py-2 rounded-xl text-sm font-semibold transition-all';
@@ -2047,6 +2084,80 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══════════ DONS (promesses de don) ═══════════ */}
+      {tab === 'dons' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { label: 'Promesses de don', value: donations.length },
+              { label: 'À confirmer (en attente)', value: donations.filter((d) => d.status === 'pledge').length },
+              { label: 'Dons confirmés reçus', value: donations.filter((d) => d.status === 'received').length },
+            ].map((s, i) => (
+              <div key={i} className="card-apple p-5">
+                <div className="text-2xl font-extrabold tabular">{s.value}</div>
+                <div className="text-xs text-ios-text3 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card-apple overflow-hidden">
+            {filteredDonations.length === 0 ? (
+              <EmptyState icon="heart" text={donations.length === 0 ? 'Aucune promesse de don pour le moment — les engagements pris depuis la page Soutenir du site apparaîtront ici. Confirmez chaque don à sa réception.' : 'Aucune promesse ne correspond à votre recherche.'} />
+            ) : (
+              <div className="divide-y divide-ios-hairline">
+                {filteredDonations.map((d) => (
+                  <div key={d.id} className="p-5 hover:bg-ios-fill transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${d.status === 'received' ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-arina-gold to-arina-accent'}`}>
+                        {initials(d.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-semibold text-sm truncate">{d.name}</span>
+                            {d.anonymous && <span className="text-[11px] text-ios-text3">(anonyme)</span>}
+                            <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${d.status === 'received' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                              {d.status === 'received' ? 'Don reçu ✓' : 'À confirmer'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-ios-text3 whitespace-nowrap">{timeAgo(d.created_at)}</span>
+                        </div>
+                        <div className="text-[11px] text-ios-text3 mt-0.5">
+                          {d.email}{d.method ? ` · ${d.method}` : ''}
+                        </div>
+                        <div className="mt-1.5 text-lg font-extrabold text-arina-blue tabular">
+                          {Number(d.amount) || 0} {d.currency || '€'}
+                        </div>
+                        {d.message && <p className="text-sm text-ios-text2 mt-1 leading-relaxed line-clamp-2">« {d.message} »</p>}
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button
+                            onClick={() => toggleDonation(d)}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                              d.status === 'received'
+                                ? 'bg-ios-fill text-ios-text2 hover:bg-ios-fill-2'
+                                : 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            <Icon name="check" className="w-3.5 h-3.5" />
+                            {d.status === 'received' ? 'Remettre en attente' : 'Confirmer le don reçu'}
+                          </button>
+                          <button onClick={() => removeDonation(d.id)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:underline">
+                            <Icon name="trash" className="w-3.5 h-3.5" /> Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] text-ios-text3 px-1">
+            💡 Une promesse de don ne correspond pas à un paiement prélevé : confirmez la réception après vérification (Orange Money, virement, crypto…). Le montant confirmé peut ensuite être saisi dans Finances → Revenu.
+          </p>
         </div>
       )}
 

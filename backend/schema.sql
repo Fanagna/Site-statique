@@ -69,9 +69,11 @@ CREATE TABLE IF NOT EXISTS contacts (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL,
+  subject VARCHAR(255),
   message TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS subject VARCHAR(255);
 
 -- Beneficiaries (for admin)
 CREATE TABLE IF NOT EXISTS beneficiaries (
@@ -165,3 +167,19 @@ CREATE TABLE IF NOT EXISTS testimonials (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';
+
+-- Promesses de don (visiteurs) : statut pledge → received quand l'équipe confirme
+-- la réception du don (Orange Money, virement, crypto…). Aucun paiement en ligne prélevé.
+CREATE TABLE IF NOT EXISTS donations (
+  id SERIAL PRIMARY KEY,
+  amount NUMERIC(12,2) NOT NULL,
+  currency VARCHAR(8) DEFAULT 'EUR',
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  message TEXT,
+  method VARCHAR(30) DEFAULT 'orange',
+  anonymous BOOLEAN DEFAULT FALSE,
+  status VARCHAR(20) DEFAULT 'pledge',
+  received_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

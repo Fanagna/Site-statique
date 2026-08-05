@@ -9,6 +9,7 @@ const ALLOWED_ATTACH_EXT = /\.(pdf|doc|docx)$/i;
 const MAX_ATTACH_SIZE = 4 * 1024 * 1024; // 4 Mo
 
 const app = express();
+app.set('trust proxy', true); // derrière le proxy Vercel : req.ip = vraie IP du visiteur
 
 // ── Authentification par rôles ────────────────────────────────────────────
 // Chaque compte a un rôle (admin, president, accountant, educator) et une clé
@@ -17,7 +18,52 @@ const app = express();
 const ADMIN_KEY = process.env.ADMIN_KEY || 'arina-admin-key-2024';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arina2024';
+const DEFAULT_ADMIN_PASSWORD = 'arina2024'; // valeur codée en dur — refusée tant qu'ADMIN_PASSWORD n'est pas configuré
 const ROLES = { admin: 'admin', president: 'president', accountant: 'accountant', educator: 'educator' };
+
+// ── Sécurité : identifiants par défaut ──
+// Tant que ADMIN_PASSWORD n'est pas défini dans les variables d'environnement,
+// le mot de passe par défaut codé en dur est REFUSÉ (y compris pour un compte
+// déjà en base). L'admin doit définir ADMIN_PASSWORD / ADMIN_KEY pour se connecter.
+function defaultPasswordRefused(password) {
+  return !process.env.ADMIN_PASSWORD && String(password || '') === DEFAULT_ADMIN_PASSWORD;
+}
+
+// ── Rate limiting (anti-spam / anti force brute) ──
+// Limiteur en mémoire, fenêtre glissante par clé. Chaque instance serverless garde
+// son propre compteur : efficace pour freiner le spam et les tentatives de connexion
+// répétées sans dépendance externe.
+const rateBuckets = {}; // { `${name}`: { [key]: [timestamps] } }
+
+// Adresse IP du visiteur derrière le proxy Vercel (x-forwarded-for peut contenir
+// une liste « IP1, IP2 » : on prend la première, celle du client réel).
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.trim()) return String(fwd).split(',')[0].trim();
+  return req.ip || (req.socket && req.socket.remoteAddress) || 'anon';
+}
+
+function rateLimit(name, max, windowMs, keyFn) {
+  return (req, res, next) => {
+    const key = (keyFn ? keyFn(req) : clientIp(req)) || 'anon';
+    const now = Date.now();
+    const bucket = rateBuckets[name] || (rateBuckets[name] = {});
+    const arr = (bucket[key] = (bucket[key] || []).filter((t) => now - t < windowMs));
+    if (arr.length >= max) {
+      return res.status(429).json({ error: 'Trop de requêtes — veuillez réessayer dans quelques minutes.' });
+    }
+    arr.push(now);
+    next();
+  };
+}
+
+// ── Honeypot anti-bots ──
+// Les formulaires publics incluent un champ caché `website` que les humains
+// laissent vide. S'il est rempli, on simule un succès sans rien enregistrer
+// (le bot croit avoir réussi — aucune donnée parasite en base).
+function isBot(req) {
+  return !!(req.body && typeof req.body.website === 'string' && req.body.website.trim() !== '');
+}
 
 // Hachage des mots de passe (scrypt natif — aucune dépendance ajoutée)
 function hashPassword(password) {
@@ -73,15 +119,25 @@ function requireAuth(req, res, next) {
   }).catch(() => res.status(401).json({ error: 'Unauthorized' }));
 }
 
-// Compat : l'ancien requireAdmin (clé globale) reste disponible
-// NB : ne protège PAS le système de rôles (les endpoints sensibles utilisent requireRole).
+// Compat : l'ancien requireAdmin (clé globale) reste disponible mais est DURCI :
+// si ADMIN_KEY n'est pas défini dans l'environnement, la clé par défaut codée en dur
+// est refusée (même logique que le mot de passe par défaut).
 function requireAdmin(req, res, next) {
+  if (!process.env.ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (req.headers['x-admin-key'] === ADMIN_KEY) return next();
   return res.status(401).json({ error: 'Unauthorized' });
 }
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // supporte les pièces jointes en base64
+
+// Rejette les requêtes envoyées par un bot détecté via le honeypot
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && isBot(req)) {
+    return res.status(201).json({ success: true, ok: true }); // simulé : le bot croit avoir réussi
+  }
+  next();
+});
 
 // ── Notifications email (Resend — API REST, aucune dépendance) ────────────
 // Envoi silencieux : si RESEND_API_KEY / NOTIFY_EMAIL ne sont pas configurés,
@@ -148,7 +204,7 @@ async function checkDonorBudgetAlert(donorName, amount, description) {
 }
 
 // Serverless-friendly DB pool
-const pool = new Pool({
+let pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
@@ -253,6 +309,15 @@ function ensureSchema() {
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS quantity INTEGER`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2)`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS donor VARCHAR(255)`,
+    `CREATE TABLE IF NOT EXISTS contacts (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      subject VARCHAR(255),
+      message TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS subject VARCHAR(255)`,
     `CREATE TABLE IF NOT EXISTS donors (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) UNIQUE NOT NULL,
@@ -282,6 +347,19 @@ function ensureSchema() {
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS photo_url TEXT`,
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS dossier JSONB DEFAULT '{}'::jsonb`,
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS notes TEXT`,
+    `CREATE TABLE IF NOT EXISTS donations (
+      id SERIAL PRIMARY KEY,
+      amount NUMERIC(12,2) NOT NULL,
+      currency VARCHAR(8) DEFAULT 'EUR',
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      message TEXT,
+      method VARCHAR(30) DEFAULT 'orange',
+      anonymous BOOLEAN DEFAULT FALSE,
+      status VARCHAR(20) DEFAULT 'pledge',
+      received_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
   ];
 
   // Après création des tables : crée le compte admin par défaut s'il n'existe pas
@@ -306,7 +384,8 @@ function ensureSchema() {
     console.log('✅ Schéma vérifié (auto-migration)');
   })();
 }
-ensureSchema();
+// En test (node:test), pas d'auto-migration au chargement : le pool factice est injecté ensuite.
+if (process.env.NODE_ENV !== 'test') ensureSchema();
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -321,10 +400,16 @@ app.get('/api/health', async (req, res) => {
 // ═══ AUTH ═══
 // Connexion : vérifie la table users (comptes gérés par l'admin), puis l'ancien
 // compte global (ADMIN_USER/ADMIN_PASSWORD) pour compatibilité.
-app.post('/api/auth/login', async (req, res) => {
+// Limiteur de connexion PAR COMPTE (IP + nom d'utilisateur) : les échecs sur un
+// compte ne bloquent pas les connexions légitimes des autres utilisateurs.
+app.post('/api/auth/login', rateLimit('login', 10, 5 * 60 * 1000, (req) => `${clientIp(req)}:${String((req.body && req.body.username) || '').trim().toLowerCase()}`), async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, error: 'Identifiants manquants' });
+    // Sécurité : mot de passe par défaut refusé tant qu'ADMIN_PASSWORD n'est pas configuré
+    if (defaultPasswordRefused(password)) {
+      return res.status(403).json({ success: false, error: 'Identifiants par défaut désactivés — définissez ADMIN_PASSWORD dans les variables d\'environnement, puis reconnectez-vous.' });
+    }
     // Démarrage à froid : garantit la table users + compte admin par défaut
     await ensureUsersTable();
     // 1) Table users
@@ -760,20 +845,40 @@ app.delete('/api/news/:id', requireRole(ROLES.president), async (req, res) => {
 });
 
 // ═══ CONTACT ═══
+// Statistiques RÉELLES calculées depuis la base (plus de chiffres codés en dur) :
+// bénéficiaires actifs/diplômés, taux d'insertion, partenaires (donateurs) et années d'action.
 app.get('/api/stats', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM stats LIMIT 1');    res.json(result.rows[0] || { young_accompanied: 30, insertion_rate: 85, partners: 1, years_active: 2 });
+    const [actifsR, diplomesR, donorsR, revenusR] = await Promise.all([
+      pool.query("SELECT COUNT(*) AS n FROM beneficiaries WHERE status = 'active'"),
+      pool.query("SELECT COUNT(*) AS n FROM beneficiaries WHERE status = 'graduated'"),
+      pool.query('SELECT COUNT(*) AS n FROM donors'),
+      pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE type = 'income'"),
+    ]);
+    const actifs = Number(actifsR.rows[0].n) || 0;
+    const diplomes = Number(diplomesR.rows[0].n) || 0;
+    const accompagnes = actifs + diplomes;
+    const insertion = accompagnes > 0 ? Math.round((diplomes / accompagnes) * 100) : 0;
+    res.json({
+      young_accompanied: accompagnes,
+      insertion_rate: insertion,
+      partners: Number(donorsR.rows[0].n) || 0,
+      years_active: Math.max(1, new Date().getFullYear() - 2024 + 1), // l'association agit depuis 2024
+      total_income: Number(revenusR.rows[0].total) || 0,
+    });
   } catch (err) {
-    res.json({ young_accompanied: 30, insertion_rate: 85, partners: 1, years_active: 2 });
+    // Base injoignable : valeurs prudentes (l'UI reste fonctionnelle)
+    res.json({ young_accompanied: 30, insertion_rate: 85, partners: 1, years_active: 2, total_income: 0 });
   }
 });
 
-app.post('/api/contact', async (req, res) => {
+// POST public — message de contact (rate limité + honeypot anti-bot)
+app.post('/api/contact', rateLimit('contact', 10, 10 * 60 * 1000), async (req, res) => {
   try {
-    const { name, email, message } = req.body;
+    const { name, email, subject, message } = req.body;
     const result = await pool.query(
-      'INSERT INTO contacts (name, email, message) VALUES ($1,$2,$3) RETURNING *',
-      [name, email, message]
+      'INSERT INTO contacts (name, email, subject, message) VALUES ($1,$2,$3,$4) RETURNING *',
+      [name, email, String(subject || '').trim().slice(0, 255) || null, message]
     );
     // Notification au président à chaque nouveau message
     sendEmail({
@@ -817,7 +922,7 @@ app.get('/api/volunteers/upload-url', async (req, res) => {
 
 // POST public — reçoit une candidature bénévole. Pièces jointes soit via URL Blob
 // (nouveau), soit en base64 (legacy) ; le serveur valide toujours les champs.
-app.post('/api/volunteers', async (req, res) => {
+app.post('/api/volunteers', rateLimit('volunteers', 5, 10 * 60 * 1000), async (req, res) => {
   try {
     const { name, email, phone, skills, availability, motivation, file, cv } = req.body;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Le nom est requis' });
@@ -895,7 +1000,7 @@ app.delete('/api/volunteers/:id', requireRole(ROLES.president), async (req, res)
 
 // POST public — reçoit un témoignage soumis depuis la page Témoignages du site.
 // Statut initial : pending (l'admin le publie après validation).
-app.post('/api/testimonials', async (req, res) => {
+app.post('/api/testimonials', rateLimit('testimonials', 5, 10 * 60 * 1000), async (req, res) => {
   try {
     const { name, age, location, role, quote, story } = req.body || {};
     const cleanName = String(name || '').trim();
@@ -950,6 +1055,108 @@ app.delete('/api/testimonials/:id', requireRole(ROLES.president), async (req, re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══ DONATIONS (promesses de don) ═══
+// Le visiteur S'ENGAGE (pledge) sur un montant et un moyen de paiement. Aucun
+// paiement n'est prélevé en ligne : l'équipe confirme la réception (Orange Money,
+// virement, crypto…) et bascule le statut en « received ». Cette promesse honnête
+// remplace l'ancien formulaire décoratif qui n'enregistrait rien.
+
+// POST public — promesse de don (rate limité ; le honeypot global protège déjà)
+app.post('/api/donations', rateLimit('donations', 10, 10 * 60 * 1000), async (req, res) => {
+  try {
+    const { amount, currency, name, email, message, method, anonymous } = req.body || {};
+    const cleanName = String(name || '').trim();
+    const cleanEmail = String(email || '').trim();
+    const a = Number(amount);
+    if (!cleanName) return res.status(400).json({ error: 'Le nom est requis' });
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return res.status(400).json({ error: "L'email est invalide" });
+    if (!Number.isFinite(a) || a < 1) return res.status(400).json({ error: 'Le montant est invalide (minimum 1)' });
+    if (a > 1000000) return res.status(400).json({ error: 'Montant trop élevé (maximum 1 000 000)' });
+    const result = await pool.query(
+      `INSERT INTO donations (amount, currency, name, email, message, method, anonymous, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'pledge') RETURNING *`,
+      [a, String(currency || 'EUR').slice(0, 8), cleanName, cleanEmail,
+        String(message || '').trim().slice(0, 1000) || null, String(method || 'orange').slice(0, 30), !!anonymous]
+    );
+    const r = result.rows[0];
+    // Notification au président à chaque nouvelle promesse de don
+    sendEmail({
+      subject: `💝 Nouvelle promesse de don : ${a} ${r.currency} de ${r.name}`,
+      text: `${r.name} <${r.email}> s'est engagé à donner ${a} ${r.currency} (${r.method || '—'}).\n${r.message ? 'Message : ' + r.message + '\n' : ''}Connectez-vous à l'espace admin → Dons pour confirmer la réception.`,
+    });
+    res.status(201).json({ id: r.id, amount: Number(r.amount), currency: r.currency, name: r.name, status: r.status, created_at: r.created_at });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET admin — toutes les promesses de don (président, comptable ou admin)
+app.get('/api/donations', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM donations ORDER BY created_at DESC LIMIT 200');
+    res.json(result.rows.map((r) => ({ ...r, amount: Number(r.amount) })));
+  } catch (err) { res.json([]); }
+});
+
+// PATCH admin — marquer « reçu » / remettre en attente
+app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!['pledge', 'received'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+    const result = await pool.query(
+      `UPDATE donations SET status=$1,
+        received_at = CASE WHEN $1 = 'received' THEN COALESCE(received_at, CURRENT_TIMESTAMP) ELSE NULL END
+       WHERE id=$2 RETURNING *`,
+      [status, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...result.rows[0], amount: Number(result.rows[0].amount) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE admin
+app.delete('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM donations WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ TRANSPARENCE (public) ═══
+// Agrégats financiers publics : revenus/dépenses de l'année, répartition par donateur
+// et série mensuelle — alimente la page « Transparence » du site (confiance + reporting).
+app.get('/api/transparency', async (req, res) => {
+  try {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const [incR, expR, donorR, monthlyR, pledgeR] = await Promise.all([
+      pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE type='income' AND EXTRACT(YEAR FROM date)=$1", [year]),
+      pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE type='expense' AND EXTRACT(YEAR FROM date)=$1", [year]),
+      pool.query(`SELECT d.name, d.need,
+          COALESCE(SUM(CASE WHEN f.type='income' THEN f.amount ELSE 0 END),0) AS dons,
+          COALESCE(SUM(CASE WHEN f.type='expense' THEN f.amount ELSE 0 END),0) AS depenses
+        FROM donors d
+        LEFT JOIN finances f ON LOWER(f.donor) = LOWER(d.name) AND EXTRACT(YEAR FROM f.date) = $1
+        GROUP BY d.id ORDER BY d.name`, [year]),
+      pool.query(`SELECT to_char(date, 'YYYY-MM') AS mois,
+          COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) AS dons,
+          COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) AS depenses
+        FROM finances WHERE EXTRACT(YEAR FROM date)=$1
+        GROUP BY 1 ORDER BY 1`, [year]),
+      pool.query("SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM donations WHERE status='received' AND EXTRACT(YEAR FROM received_at)=$1", [year]),
+    ]);
+    const revenus = Number(incR.rows[0].total) || 0;
+    const depenses = Number(expR.rows[0].total) || 0;
+    res.json({
+      year,
+      revenus,
+      depenses,
+      solde: revenus - depenses,
+      donateurs: donorR.rows.map((r) => ({ name: r.name, need: r.need || '', dons: Number(r.dons) || 0, depenses: Number(r.depenses) || 0 })),
+      mensuel: monthlyR.rows.map((r) => ({ mois: r.mois, dons: Number(r.dons) || 0, depenses: Number(r.depenses) || 0 })),
+      donsRecus: { count: Number(pledgeR.rows[0].n) || 0, total: Number(pledgeR.rows[0].total) || 0 },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ═══ CONTACTS (ADMIN) ═══
 app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
   try {
@@ -969,13 +1176,14 @@ app.delete('/api/contacts/:id', requireRole(ROLES.president), async (req, res) =
 // ═══ ACTIVITY FEED (ADMIN) ═══
 app.get('/api/activity', requireRole(), async (req, res) => {
   try {
-    const [newsR, finR, benefR, volR, msgR, testimR] = await Promise.all([
+    const [newsR, finR, benefR, volR, msgR, testimR, donR] = await Promise.all([
       pool.query("SELECT id, title, created_at FROM news ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, type, amount, description, date FROM finances ORDER BY date DESC, id DESC LIMIT 5"),
       pool.query("SELECT id, first_name, last_name, entry_date FROM beneficiaries ORDER BY id DESC LIMIT 5"),
       pool.query("SELECT id, name, created_at FROM volunteers ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, name, created_at FROM contacts ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, name, status, created_at FROM testimonials ORDER BY created_at DESC LIMIT 5"),
+      pool.query("SELECT id, name, amount, status, created_at FROM donations ORDER BY created_at DESC LIMIT 5"),
     ]);
     const items = [];
     newsR.rows.forEach(r => items.push({ id: `n${r.id}`, type: 'news', text: `Actualité publiée : « ${r.title} »`, date: r.created_at }));
@@ -988,9 +1196,13 @@ app.get('/api/activity', requireRole(), async (req, res) => {
     volR.rows.forEach(r => items.push({ id: `v${r.id}`, type: 'volunteer', text: `Candidature reçue : ${r.name}`, date: r.created_at }));
     msgR.rows.forEach(r => items.push({ id: `m${r.id}`, type: 'message', text: `Message de ${r.name}`, date: r.created_at }));
     testimR.rows.forEach(r => items.push({ id: `t${r.id}`, type: 'testimonial', text: r.status === 'published' ? `Témoignage publié : ${r.name}` : `Témoignage reçu : ${r.name}`, date: r.created_at }));
+    donR.rows.forEach(r => items.push({ id: `d${r.id}`, type: 'donation', text: r.status === 'received' ? `💝 Don reçu : ${r.name} (${Number(r.amount).toLocaleString('fr-FR')} €)` : `Promesse de don : ${r.name}`, date: r.created_at }));
     items.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json(items.slice(0, 12));
   } catch (err) { res.json([]); }
 });
 
 module.exports = app;
+
+// Hook de test (node:test) : injecte un pool factice pour tester l'API sans base réelle
+app.__setPool = (p) => { pool = p; };

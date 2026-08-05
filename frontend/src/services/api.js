@@ -194,6 +194,51 @@ export async function incrementNewsViews(id) {
   return await apiCall(`/news/${id}/view`, { method: 'POST' });
 }
 
+/* ── Dons (promesses de don — page Soutenir + admin) ── */
+
+// Soumet une promesse de don. Renvoie { ok: true, data } ou { ok: false, error } :
+// le succès ne s'affiche QUE si la promesse a réellement été enregistrée en base.
+export async function submitDonation(data) {
+  try {
+    const res = await fetch(`${API_BASE}/donations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: body.error || 'Une erreur est survenue, veuillez réessayer.' };
+    return { ok: true, data: body };
+  } catch {
+    return { ok: false, error: 'Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.' };
+  }
+}
+
+// Toutes les promesses de don (admin — président / comptable)
+export async function fetchDonations() {
+  return await apiCall('/donations');
+}
+
+export async function updateDonation(id, data) {
+  return apiCallDetailed(`/donations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDonation(id) {
+  return apiCallDetailed(`/donations/${id}`, { method: 'DELETE' });
+}
+
+/* ── Transparence (page publique) ── */
+export async function fetchTransparency(year) {
+  return await apiCall(`/transparency${year ? `?year=${year}` : ''}`);
+}
+
+/* ── Stats réelles (page d'accueil) ── */
+export async function fetchStats() {
+  return await apiCall('/stats');
+}
+
 /* ── Contacts (admin) ── */
 export async function fetchContacts() {
   return await apiCall('/contacts');
@@ -201,6 +246,22 @@ export async function fetchContacts() {
 
 export async function deleteContact(id) {
   return apiCallDetailed(`/contacts/${id}`, { method: 'DELETE' });
+}
+
+/* Soumission du formulaire de contact — succès uniquement si réellement enregistré */
+export async function submitContact(data) {
+  try {
+    const res = await fetch(`${API_BASE}/contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: body.error || 'Une erreur est survenue, veuillez réessayer.' };
+    return { ok: true, data: body };
+  } catch {
+    return { ok: false, error: 'Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.' };
+  }
 }
 
 /* ── Volunteers (public submit + admin list) ── */

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { testimonials } from '../data/testimonials';
 import { submitTestimonial, fetchPublishedTestimonials } from '../services/api';
+import usePageMeta from '../hooks/usePageMeta';
 
 const initialForm = { name: '', age: '', location: '', role: '', quote: '', story: '' };
 
@@ -18,6 +19,7 @@ const fmtPubDate = (d) => {
 };
 
 export default function TestimonialsPage() {
+  usePageMeta('Témoignages', "Les histoires inspirantes de jeunes qui, grâce à ARINA, ont repris confiance en l'avenir.");
   const [expandedId, setExpandedId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [submitted, setSubmitted] = useState(false);
@@ -66,7 +68,7 @@ export default function TestimonialsPage() {
     if (!validate()) return;
     setSending(true);
     setSubmitError('');
-    const r = await submitTestimonial({ ...form, age: Number(form.age) || null });
+    const r = await submitTestimonial({ ...form, age: Number(form.age) || null, website: '' }); // website : champ caché anti-bots
     setSending(false);
     if (r && r.ok) {
       setSubmitted(true);
@@ -412,6 +414,8 @@ export default function TestimonialsPage() {
               )}
 
               {/* Submit */}
+              {/* Honeypot anti-spam — champ invisible, les humains le laissent vide */}
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
               <button
                 type="submit"
                 disabled={sending}

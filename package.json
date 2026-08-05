@@ -6,7 +6,8 @@
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "build": "cd frontend && npm run build"
+    "build": "cd frontend && npm run build",
+    "test": "node --test test/api.test.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.6.1",

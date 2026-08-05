@@ -3,6 +3,8 @@ import {
   CheckCircle2, HelpCircle, Mail, MapPin, Phone, Play, Smartphone,
 } from 'lucide-react';
 import AppIcon from '../components/icons';
+import { submitContact } from '../services/api';
+import usePageMeta from '../hooks/usePageMeta';
 
 const initialForm = { name: '', email: '', subject: '', message: '' };
 
@@ -47,8 +49,11 @@ const contactInfo = [
 ];
 
 export default function ContactPage() {
+  usePageMeta('Contact', "Une question, une suggestion, ou l'envie de vous engager ? Écrivez à ARINA — réponse sous 48h.");
   const [form, setForm] = useState(initialForm);
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [errors, setErrors] = useState({});
 
   const validate = () => {
@@ -63,18 +68,22 @@ export default function ContactPage() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  // Succès RÉEL uniquement : le message n'est affiché comme envoyé que si
+  // l'enregistrement en base a abouti (plus de succès affiché à l'aveugle).
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-    setSubmitted(true);
-    setForm(initialForm);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    // Send to backend (non-blocking)
-    fetch('/api/contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    }).catch(() => {});
+    setSubmitError('');
+    setSending(true);
+    const r = await submitContact({ ...form, website: '' }); // website : champ caché anti-bots
+    setSending(false);
+    if (r && r.ok) {
+      setSubmitted(true);
+      setForm(initialForm);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setSubmitError(r?.error || 'Une erreur est survenue, veuillez réessayer.');
+    }
   };
 
   return (
@@ -251,14 +260,23 @@ export default function ContactPage() {
                       </div>
                     </div>
 
+                    {submitError && (
+                      <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                        {submitError}
+                      </p>
+                    )}
+
+                    {/* Honeypot anti-spam — champ invisible, les humains le laissent vide */}
+                    <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
                     <button
                       type="submit"
-                      className="w-full py-3.5 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                      disabled={sending}
+                      className="w-full py-3.5 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      Envoyer le message
+                      {sending ? 'Envoi en cours…' : 'Envoyer le message'}
                     </button>
                   </form>
                 )}

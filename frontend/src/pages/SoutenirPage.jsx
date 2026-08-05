@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
-  AlertCircle, Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, Loader2, PartyPopper, Smartphone,
+  AlertCircle, ArrowUpRight, Bitcoin, Check, Copy, Handshake, Heart, HeartHandshake, Landmark, Loader2, PartyPopper, Smartphone,
 } from 'lucide-react';
 import AppIcon from '../components/icons';
 import FileDropzone from '../components/FileDropzone';
-import { paymentMethods } from '../data/donations';
-import { getVolunteerUploadUrl, submitVolunteer } from '../services/api';
+import { paymentMethods, ONLINE_DONATION_URL } from '../data/donations';
+import { getVolunteerUploadUrl, submitDonation, submitVolunteer } from '../services/api';
+import usePageMeta from '../hooks/usePageMeta';
 
 const methodIcons = { smartphone: Smartphone, bitcoin: Bitcoin, landmark: Landmark };
 
@@ -13,10 +14,13 @@ const donorInit = { amount: '', name: '', email: '', message: '', anonymous: fal
 const volunteerInit = { name: '', email: '', phone: '', skills: '', availability: '', motivation: '' };
 
 export default function SoutenirPage() {
+  usePageMeta('Soutenir ARINA', 'Faites un don (Orange Money, virement, carte en ligne) ou devenez bénévole pour accompagner les jeunes vulnérables de Mahajanga.');
   const [tab, setTab] = useState('don');
   const [donor, setDonor] = useState(donorInit);
   const [volunteer, setVolunteer] = useState(volunteerInit);
   const [donorSubmitted, setDonorSubmitted] = useState(false);
+  const [donorSubmitting, setDonorSubmitting] = useState(false);
+  const [donorError, setDonorError] = useState('');
   const [volSubmitted, setVolSubmitted] = useState(false);
   const [donorErrors, setDonorErrors] = useState({});
   const [volErrors, setVolErrors] = useState({});
@@ -101,11 +105,32 @@ export default function SoutenirPage() {
   };
   const toFallback = (f) => (f ? { name: f.name, type: f.type, size: f.size, data: f.data } : null);
 
-  const handleDonor = (e) => {
+  /* Soumission RÉELLE : la promesse de don n'est confirmée que si elle a été
+     enregistrée en base (plus de succès factice — l'équipe suit chaque engagement). */
+  const handleDonor = async (e) => {
     e.preventDefault();
     if (!validateDonor()) return;
-    setDonorSubmitted(true);
-    setDonor(donorInit);
+    setDonorError('');
+    setDonorSubmitting(true);
+    try {
+      const res = await submitDonation({
+        amount: donor.amount,
+        currency: 'EUR',
+        name: donor.name,
+        email: donor.email,
+        message: donor.message,
+        method,
+        anonymous: donor.anonymous,
+        website: '', // champ caché anti-bots (honeypot)
+      });
+      if (!res.ok) throw new Error(res.error);
+      setDonorSubmitted(true);
+      setDonor(donorInit);
+    } catch (err) {
+      setDonorError(err.message || 'Une erreur est survenue, veuillez réessayer.');
+    } finally {
+      setDonorSubmitting(false);
+    }
   };
   const handleVol = async (e) => {
     e.preventDefault();
@@ -195,7 +220,7 @@ export default function SoutenirPage() {
                   <HeartHandshake className="w-14 h-14 mx-auto text-arina-accent mb-4" />
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2">Merci pour votre générosité !</h2>
                   <p className="text-arina-gray mb-6 max-w-md mx-auto">
-                    Votre don va changer des vies. Vous recevrez un email de confirmation avec votre reçu fiscal.
+                    Merci pour votre engagement ! Notre équipe vous contactera rapidement pour confirmer la réception de votre don — et un reçu peut vous être délivré sur demande.
                   </p>
                   <button onClick={() => setDonorSubmitted(false)} className="px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors">
                     Faire un autre don
@@ -205,6 +230,25 @@ export default function SoutenirPage() {
                 <>
                   <h2 className="text-2xl font-serif font-bold text-arina-dark mb-2 flex items-center gap-2"><Heart className="w-6 h-6 text-arina-accent" fill="currentColor" /> Faire un don</h2>
                   <p className="text-arina-gray text-sm mb-6">Choisissez un montant ou saisissez le vôtre.</p>
+
+                  {/* Paiement en ligne sécurisé (Stripe Payment Link — configurable) */}
+                  {ONLINE_DONATION_URL && (
+                    <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 animate-fade-up">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0"><Heart className="w-5 h-5" fill="currentColor" /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-emerald-900 text-sm">Don sécurisé en ligne</div>
+                        <p className="text-xs text-emerald-700 mt-0.5 leading-relaxed">Paiement par carte bancaire (Visa, Mastercard…) — transaction sécurisée et confirmation immédiate. Disponible partout dans le monde.</p>
+                      </div>
+                      <a
+                        href={ONLINE_DONATION_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20 shrink-0"
+                      >
+                        Donner en ligne <ArrowUpRight className="w-4 h-4" />
+                      </a>
+                    </div>
+                  )}
 
                   {/* Quick amounts */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -369,14 +413,28 @@ export default function SoutenirPage() {
                       />
                       <span className="text-sm text-arina-gray">Je souhaite rester anonyme</span>
                     </label>
+
+                    {donorError && (
+                      <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                        {donorError}
+                      </p>
+                    )}
+
+                    {/* Honeypot anti-spam — champ invisible, les humains le laissent vide */}
+                    <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
                     <button
                       type="submit"
-                      className="w-full py-4 bg-arina-accent text-white text-lg font-bold rounded-xl hover:bg-arina-accent-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                      disabled={donorSubmitting}
+                      className="w-full py-4 bg-arina-accent text-white text-lg font-bold rounded-xl hover:bg-arina-accent-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-arina-accent"
                     >
-                      <Heart className="w-5 h-5" fill="currentColor" /> Valider mon don de {donor.amount || '...'}€
+                      {donorSubmitting ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Enregistrement…</>
+                      ) : (
+                        <><Heart className="w-5 h-5" fill="currentColor" /> Valider mon don de {donor.amount || '...'}€</>
+                      )}
                     </button>
                     <p className="text-xs text-arina-gray text-center">
-                      Don via {selectedMethod.name} · Reçu fiscal envoyé par email · Don déductible des impôts à 66%.
+                      Don via {selectedMethod.name} · Un email de confirmation vous sera envoyé dès que notre équipe aura enregistré votre don · Reçu délivré sur demande.
                     </p>
                   </form>
                 </>
@@ -500,6 +558,8 @@ export default function SoutenirPage() {
                         <span>{volError} — vos informations ont été conservées, vous pouvez réessayer.</span>
                       </div>
                     )}
+                    {/* Honeypot anti-spam — champ invisible, les humains le laissent vide */}
+                    <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
                     <button
                       type="submit"
                       disabled={volSubmitting}

@@ -3,10 +3,12 @@ import { ArrowLeft, ClipboardList, Heart, Search } from 'lucide-react';
 import AppIcon from '../components/icons';
 import { pillars } from '../data/actions';
 import ContentBlock from '../components/ContentBlock';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function PillarPage() {
   const { pillar } = useParams();
   const data = pillars.find((p) => p.slug === pillar);
+  usePageMeta(data ? data.title : 'Nos actions', data?.shortDesc);
 
   if (!data) {
     return (

@@ -7,12 +7,14 @@ import UpdatedBadge from '../components/UpdatedBadge';
 import EditNewsButton from '../components/EditNewsButton';
 import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
+import usePageMeta from '../hooks/usePageMeta';
 
 export default function ArticlePage() {
   const { slug } = useParams();
   const location = useLocation();
   const { news } = useNews();
   const article = news.find((n) => n.slug === slug);
+  usePageMeta(article ? article.title : 'Actualités', article?.excerpt);
 
   // Compte la consultation (alimente le tri « Plus populaires » côté public)
   useEffect(() => {

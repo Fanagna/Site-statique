@@ -111,6 +111,7 @@ export default function Footer() {
                 { label: 'Nos actions', to: '/actions' },
                 { label: 'Actualités', to: '/actualites' },
                 { label: 'Témoignages', to: '/temoignages' },
+                { label: 'Transparence', to: '/transparence' },
                 { label: 'Devenir bénévole', to: '/soutenir' },
                 { label: 'Faire un don', to: '/soutenir' },
               ].map((link) => (
@@ -130,14 +131,14 @@ export default function Footer() {
             © 2024 ARINA. Tous droits réservés.
             <a href="/admin" className="ml-4 text-gray-600 hover:text-gray-400 transition-colors text-xs"><Lock className="w-3 h-3 inline-block mr-0.5" />Admin</a>
           </p>
-          <div className="flex flex-wrap justify-center gap-4 text-gray-500 text-sm">
-            <a href="#" className="hover:text-white transition-colors">Mentions légales</a>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-gray-500 text-sm">
+            <Link to="/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link>
             <span className="hidden sm:inline">|</span>
-            <a href="#" className="hover:text-white transition-colors">Politique de confidentialité</a>
+            <Link to="/confidentialite" className="hover:text-white transition-colors">Politique de confidentialité</Link>
             <span className="hidden sm:inline">|</span>
-            <a href="#" className="hover:text-white transition-colors">Plan du site</a>
+            <Link to="/transparence" className="hover:text-white transition-colors">Transparence</Link>
             <span className="hidden sm:inline">|</span>
-            <a href="#" className="hover:text-white transition-colors">Contact</a>
+            <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
           </div>
         </div>
       </div>

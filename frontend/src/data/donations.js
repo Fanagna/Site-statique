@@ -5,6 +5,13 @@
    - Virement : remplacez les valeurs vides par votre IBAN, BIC, banque…
    Un champ vide s'affiche « Coordonnées à venir » sur le site. */
 
+/* ── Paiement en ligne (carte bancaire internationale) ──
+   Créez un « Payment Link » dans votre tableau de bord Stripe (montant libre ou
+   montants fixes) puis collez son URL ci-dessous — ou définissez la variable
+   d'environnement VITE_DONATION_STRIPE_LINK (recommandé). Tant que cette URL est
+   vide, les visiteurs utilisent uniquement les moyens manuels (Orange Money…). */
+export const ONLINE_DONATION_URL = import.meta.env.VITE_DONATION_STRIPE_LINK || '';
+
 export const paymentMethods = [
   {
     id: 'orange',
