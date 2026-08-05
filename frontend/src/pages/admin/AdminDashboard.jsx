@@ -391,8 +391,6 @@ export default function AdminDashboard() {
     }));
   }, [donors, finances]);
 
-  /* Donateurs en dépassement de budget (alertes tableau de bord) */
-  const budgetAlerts = donorStats.filter((d) => d.depasse);
 
   const removeContact = async (id) => {
     if (!confirm('Supprimer ce message ?')) return;
