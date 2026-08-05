@@ -578,18 +578,18 @@ export default function AdminDashboard() {
   }, [selectedMonth]);
 
   /* Export Excel (.xlsx) du rapport — filtres année / mois / donateur */
-  const exportEvaluationXlsxHandler = useCallback(() => {
+  const exportEvaluationXlsxHandler = useCallback(async () => {
     const monthName = evalMonth ? MONTH_NAMES[Number(evalMonth) - 1] : '';
     const donorSlug = evalDonor ? '-' + evalDonor.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+$/g, '') : '';
     const fname = `rapport-ARINA-${evalYear}${monthName ? '-' + monthName.toLowerCase() : ''}${donorSlug}.xlsx`;
-    exportEvaluationXlsx({ year: evalYear, month: evalMonth, donor: evalDonor, finances, donors, fileName: fname });
+    await exportEvaluationXlsx({ year: evalYear, month: evalMonth, donor: evalDonor, finances, donors, fileName: fname });
     showToast(`📥 ${fname} téléchargé${evalDonor ? ` — ${evalDonor}` : ''}`);
   }, [evalYear, evalMonth, evalDonor, finances, donors, showToast]);
 
   /* Export du rapport complet d'UN donateur (toute la période) — depuis l'onglet Donateurs */
-  const exportDonorReport = (d) => {
+  const exportDonorReport = async (d) => {
     const slug = String(d.name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+$/g, '');
-    exportEvaluationXlsx({ year: '', month: '', donor: d.name, finances, donors, fileName: `rapport-${slug}-ARINA.xlsx` });
+    await exportEvaluationXlsx({ year: '', month: '', donor: d.name, finances, donors, fileName: `rapport-${slug}-ARINA.xlsx` });
     showToast(`📥 Rapport complet de « ${d.name} » téléchargé (dépenses + revenus)`);
   };
 
