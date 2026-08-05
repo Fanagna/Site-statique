@@ -24,7 +24,7 @@ import {
   formatMGA, today, fmtDate, timeAgo, initials, inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
 import {
-  downloadTemplate, parseWorkbook, exportEvaluationXlsx,
+  downloadTemplate, parseWorkbook, exportEvaluationXlsx, exportDonorsXlsx,
 } from '../../components/admin/ExcelTools';
 import {
   DonorDonut, DonorExpenseBars, DonorMonthlyStacked, donorColor,
@@ -830,6 +830,22 @@ export default function AdminDashboard() {
     showToast(`📥 ${fname} téléchargé${evalDonor ? ` — ${evalDonor}` : ''}`);
   }, [evalYear, evalMonth, evalDonor, finances, donors, showToast]);
 
+  /* Export Excel « par donateur » : un seul fichier avec un onglet par donateur
+     (détails des dépenses ET revenus de chacun pour le mois/année sélectionné) */
+  const exportDonorsXlsxHandler = useCallback(() => {
+    const monthName = evalMonth ? MONTH_NAMES[Number(evalMonth) - 1] : '';
+    const fname = `rapports-donateurs-ARINA-${evalYear}${monthName ? '-' + monthName.toLowerCase() : ''}.xlsx`;
+    exportDonorsXlsx({ year: evalYear, month: evalMonth, finances, donors, fileName: fname });
+    showToast(`📥 ${fname} téléchargé — un onglet Excel par donateur`);
+  }, [evalYear, evalMonth, finances, donors, showToast]);
+
+  /* Export du rapport complet d'UN donateur (toute la période) — depuis l'onglet Donateurs */
+  const exportDonorReport = (d) => {
+    const slug = String(d.name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+$/g, '');
+    exportEvaluationXlsx({ year: '', month: '', donor: d.name, finances, donors, fileName: `rapport-${slug}-ARINA.xlsx` });
+    showToast(`📥 Rapport complet de « ${d.name} » téléchargé (dépenses + revenus)`);
+  };
+
   /* Import Excel : lecture du classeur → aperçu (modal) → enregistrement en base */
   const onImportFile = async (e) => {
     const f = e.target.files?.[0];
@@ -1440,8 +1456,8 @@ export default function AdminDashboard() {
               <button onClick={exportEvaluationXlsxHandler} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-blue text-white text-sm font-semibold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all" title="Exporter le rapport en Excel (.xlsx)">
                 <Download className="w-4 h-4" /> Exporter Excel
               </button>
-              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all" title="Imprimer / enregistrer en PDF">
-                <Printer className="w-4 h-4" /> Imprimer / PDF
+              <button onClick={exportDonorsXlsxHandler} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-warm text-arina-blue text-sm font-semibold hover:bg-[#FDE7E1] dark:hover:bg-white/10 transition-all" title="Exporter un fichier Excel avec un onglet par donateur — détails des dépenses et revenus de chacun pour la période">
+                <Download className="w-4 h-4" /> Exporter par donateur
               </button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onImportFile} />
             </div>
@@ -1763,6 +1779,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-right tabular text-ios-text2">{d.count}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1.5">
+                            <button onClick={() => exportDonorReport(d)} className="p-2 rounded-lg text-ios-text3 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors" title="Exporter le rapport Excel complet (dépenses + revenus)"><Icon name="file" className="w-4 h-4" /></button>
                             <button onClick={() => openDonorForm(d)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
                             <button onClick={() => removeDonor(d)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
@@ -1778,7 +1795,7 @@ export default function AdminDashboard() {
           <div className="card-apple p-5">
             <h3 className="font-bold text-sm">Comment ça marche ?</h3>
             <p className="text-sm text-ios-text2 mt-2 leading-relaxed">
-              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez un donateur pour voir en détail ses dons et dépenses du mois, exporter son rapport Excel (.xlsx) et l'imprimer — parfait pour faire le point avec chaque partenaire (Ravinala, Horizon, Grandir Dignement…).
+              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez un mois puis <span className="font-semibold">« Exporter par donateur »</span> : un fichier Excel avec un onglet par partenaire (détail des dépenses et revenus). Vous pouvez aussi cliquer sur l'icône <Icon name="file" className="w-3.5 h-3.5 inline-block" /> d'une ligne pour télécharger le rapport complet d'un donateur.
             </p>
           </div>
         </div>

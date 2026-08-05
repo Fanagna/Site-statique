@@ -136,13 +136,14 @@ const escNum = (v) => (v == null || v === '' ? '' : Number(v));
 const fmtDate = (d) => (d ? String(d) : '');
 
 /* ── Export .xlsx du rapport (filtres : année, mois, donateur) ──
-   Feuilles : Transactions (détail), Récapitulatif mensuel, Récapitulatif par donateur. */
+   Feuilles : Transactions (détail), Récapitulatif mensuel, Récapitulatif par donateur.
+   year peut être '' pour exporter toute la période (rapport complet d'un donateur). */
 export function exportEvaluationXlsx({ year, month, donor, finances, donors, fileName }) {
   const mk = (d) => { if (!d) return ''; const [y, m] = String(d).split('-'); return y && m ? `${y}-${String(m).padStart(2, '0')}` : ''; };
 
   const filtered = (finances || []).filter((f) => {
     const k = mk(f.date);
-    if (!k.startsWith(String(year))) return false;
+    if (year && !k.startsWith(String(year))) return false;
     if (month && !k.endsWith(`-${month}`)) return false;
     if (donor && (f.donor || 'Sans donateur') !== donor) return false;
     return true;
@@ -204,4 +205,90 @@ export function exportEvaluationXlsx({ year, month, donor, finances, donors, fil
   XLSX.utils.book_append_sheet(wb, s2, 'Récapitulatif mensuel');
   XLSX.utils.book_append_sheet(wb, s3, 'Par donateur');
   XLSX.writeFile(wb, fileName || `rapport-ARINA-${year}.xlsx`);
+}
+
+/* Nom d'onglet Excel sûr (≤ 31 caractères, sans caractères interdits) */
+function safeSheetName(name) {
+  const s = String(name || '').replace(/[\\/\?\*\[\]:]/g, ' ').trim().slice(0, 31);
+  return s || 'Donateur';
+}
+
+/* ── Export .xlsx « par donateur » ──
+   Un seul fichier pour la période (mois + année) avec :
+   - Feuille « Synthèse » : récap par donateur (dons / dépenses / solde)
+   - Une feuille par donateur : détail complet des dépenses ET revenus + totaux.
+   Chaque donateur peut ainsi recevoir sa propre feuille / son propre fichier. */
+export function exportDonorsXlsx({ year, month, finances, donors, fileName }) {
+  const mk = (d) => { if (!d) return ''; const [y, m] = String(d).split('-'); return y && m ? `${y}-${String(m).padStart(2, '0')}` : ''; };
+  const periodLabel = `${month ? MONTH_NAMES[Number(month) - 1] + ' ' : ''}${year}`;
+
+  const filtered = (finances || []).filter((f) => {
+    const k = mk(f.date);
+    if (!k.startsWith(String(year))) return false;
+    if (month && !k.endsWith(`-${month}`)) return false;
+    return true;
+  });
+
+  const needBy = {};
+  (donors || []).forEach((d) => { needBy[String(d.name).toLowerCase()] = d.need || ''; });
+  const byDonor = {};
+  filtered.forEach((f) => { const d = f.donor || 'Sans donateur'; (byDonor[d] = byDonor[d] || []).push(f); });
+  const donorNames = Object.keys(byDonor).sort((a, b) => a.localeCompare(b, 'fr'));
+
+  const wb = XLSX.utils.book_new();
+  const usedSheets = new Set(['Synthèse']);
+  /* Nom d'onglet unique : évite les collisions après nettoyage/raccourcissement */
+  const uniqueSheet = (base) => {
+    const clean = safeSheetName(base);
+    let n = clean;
+    let i = 2;
+    while (usedSheets.has(n)) { n = `${clean.slice(0, 29)}-${i}`; i++; }
+    usedSheets.add(n);
+    return n;
+  };
+
+  // Feuille 1 — synthèse par donateur
+  const syn = [
+    ['RAPPORT MENSUEL PAR DONATEUR — ARINA'],
+    [`Période : ${periodLabel}`],
+    [],
+    ['Donateur', 'Besoin financé', 'DONS REÇUS (Ar)', 'DÉPENSES (Ar)', 'SOLDE (Ar)', 'Nb transactions'],
+  ];
+  if (donorNames.length === 0) syn.push(['Aucune transaction sur la période sélectionnée', '', '', '', '', '']);
+  let tDons = 0, tDep = 0;
+  donorNames.forEach((d) => {
+    const rows = byDonor[d];
+    const dons = rows.filter((r) => r.type === 'Revenu').reduce((s, r) => s + (Number(r.montant) || 0), 0);
+    const dep = rows.filter((r) => r.type === 'Dépense').reduce((s, r) => s + (Number(r.montant) || 0), 0);
+    tDons += dons; tDep += dep;
+    syn.push([d, needBy[d.toLowerCase()] || '', dons, dep, dons - dep, rows.length]);
+  });
+  syn.push(['TOTAL', '', tDons, tDep, tDons - tDep, filtered.length]);
+  const sSyn = XLSX.utils.aoa_to_sheet(syn);
+  sSyn['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, sSyn, 'Synthèse');
+
+  // Feuilles suivantes — une par donateur (détail dépenses + revenus)
+  donorNames.forEach((d) => {
+    const rows = [...byDonor[d]].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const dons = rows.filter((r) => r.type === 'Revenu').reduce((s, r) => s + (Number(r.montant) || 0), 0);
+    const dep = rows.filter((r) => r.type === 'Dépense').reduce((s, r) => s + (Number(r.montant) || 0), 0);
+    const aoa = [
+      [`Rapport ARINA — Donateur : ${d}`],
+      [`Besoin financé : ${needBy[d.toLowerCase()] || '—'}`],
+      [`Période : ${periodLabel}`],
+      [],
+      ['Date', 'Type', 'Désignation', 'Description', 'QT', 'PU (Ar)', 'MNT (Ar)'],
+      ...rows.map((f) => [fmtDate(f.date), f.type, f.categorie || 'Autre', f.description || '', escNum(f.quantity), escNum(f.unit_price), Number(f.montant) || 0]),
+      [],
+      ['DONS REÇUS', '', '', '', '', '', dons],
+      ['TOTAL DÉPENSE', '', '', '', '', '', dep],
+      ['SOLDE', '', '', '', '', '', dons - dep],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 16 }, { wch: 40 }, { wch: 6 }, { wch: 10 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, uniqueSheet(d));
+  });
+
+  XLSX.writeFile(wb, fileName || `rapports-donateurs-ARINA-${year}.xlsx`);
 }
