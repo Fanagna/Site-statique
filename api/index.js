@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const { put, del } = require('@vercel/blob');
 const { buildReceiptPdf } = require('./receipt');
 
@@ -140,10 +141,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Notifications email (Resend — API REST, aucune dépendance) ────────────
-// Envoi silencieux : si RESEND_API_KEY / NOTIFY_EMAIL ne sont pas configurés,
-// rien n'est envoyé et le site continue de fonctionner normalement.
+// ── Notifications email (SMTP en priorité — Gmail possible —, Resend en secours) ──
+// Envoi silencieux : si rien n'est configuré, aucun email ne part et le site
+// continue de fonctionner normalement.
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || '';
+
+// SMTP configuré ? (ex. Gmail : SMTP_HOST=smtp.gmail.com, SMTP_PORT=465, SMTP_SECURE=true)
+function smtpConfigured() {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
 
 // Échappe les entités HTML (les champs publics — nom, message — ne doivent
 // jamais être interpolés bruts dans un email HTML : risque d'injection).
@@ -155,24 +161,51 @@ function escapeHtml(str) {
 
 async function sendEmail({ subject, text, html, to, cc, attachments }) {
   try {
-    if (!process.env.RESEND_API_KEY || !NOTIFY_EMAIL) return false;
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>',
-        to: to || [NOTIFY_EMAIL],
-        ...(cc && cc.length ? { cc } : {}),
+    // ── 1) SMTP (Gmail ou autre) : prioritaire ──
+    if (smtpConfigured()) {
+      const smtpPort = Number(process.env.SMTP_PORT || 587);
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: smtpPort,
+        // 465 = SSL direct ; 587 = STARTTLS. SMTP_SECURE force le choix sinon auto.
+        secure: smtpPort === 465 || process.env.SMTP_SECURE === 'true',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || `ARINA <${process.env.SMTP_USER}>`,
+        to: (to && to.length ? to : [NOTIFY_EMAIL]).join(', '),
+        ...(cc && cc.length ? { cc: cc.join(', ') } : {}),
         subject,
         text,
         html: html || `<div style="font-family:Arial,sans-serif"><p>${text}</p></div>`,
-        ...(attachments && attachments.length ? { attachments } : {}),
-      }),
-    });
-    return res.ok;
+        ...(attachments && attachments.length
+          ? { attachments: attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content, 'base64'), contentType: a.content_type })) }
+          : {}),
+      });
+      return true;
+    }
+
+    // ── 2) Resend (API REST — secours si SMTP non configuré) ──
+    if (process.env.RESEND_API_KEY && NOTIFY_EMAIL) {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>',
+          to: to || [NOTIFY_EMAIL],
+          ...(cc && cc.length ? { cc } : {}),
+          subject,
+          text,
+          html: html || `<div style="font-family:Arial,sans-serif"><p>${text}</p></div>`,
+          ...(attachments && attachments.length ? { attachments } : {}),
+        }),
+      });
+      return res.ok;
+    }
+    return false;
   } catch (err) {
     console.error('⚠️ Email non envoyé :', err.message);
     return false;
@@ -1181,13 +1214,11 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
         if (upd.rows.length) r = upd.rows[0];
         // Diagnostic : si l'email n'est pas parti, expliquer pourquoi (visible dans l'admin)
         if (!receiptEmailSent) {
-          receiptEmailReason = !process.env.RESEND_API_KEY || !NOTIFY_EMAIL
-            ? (!process.env.RESEND_API_KEY && !NOTIFY_EMAIL
-                ? 'Emails non configurés : RESEND_API_KEY et NOTIFY_EMAIL manquantes dans Vercel (Settings → Environment Variables)'
-                : !process.env.RESEND_API_KEY
-                  ? 'Emails non configurés : RESEND_API_KEY manquante dans Vercel'
-                  : 'Emails non configurés : NOTIFY_EMAIL manquante dans Vercel')
-            : "Envoi refusé par Resend (clé invalide, domaine non vérifié, ou expéditeur onboarding@resend.dev limité à l'adresse du compte)";
+          receiptEmailReason = !smtpConfigured() && !process.env.RESEND_API_KEY
+            ? 'Emails non configurés : définissez SMTP_HOST, SMTP_USER, SMTP_PASS (Gmail) ou RESEND_API_KEY dans Vercel (Settings → Environment Variables)'
+            : !NOTIFY_EMAIL
+              ? 'Emails non configurés : NOTIFY_EMAIL manquante dans Vercel'
+              : "Envoi refusé par le serveur (identifiants SMTP invalides, mot de passe d'application Gmail incorrect, ou compte non autorisé)";
         }
       } catch (err) {
         console.error('⚠️ Reçu non envoyé :', err.message);
@@ -1242,16 +1273,18 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
 
 // GET admin — diagnostic de la configuration email (pourquoi les reçus ne partent pas)
 app.get('/api/email-status', requireAuth, async (req, res) => {
+  const smtp = smtpConfigured();
+  const resend = !!(process.env.RESEND_API_KEY && NOTIFY_EMAIL);
   const missing = [];
-  if (!process.env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+  if (!smtp && !resend) missing.push('SMTP_HOST', 'SMTP_USER', 'SMTP_PASS');
   if (!process.env.NOTIFY_EMAIL) missing.push('NOTIFY_EMAIL');
-  const from = process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>';
   res.json({
-    configured: missing.length === 0,
+    configured: (smtp || resend) && !!process.env.NOTIFY_EMAIL,
+    provider: smtp ? 'smtp' : resend ? 'resend' : null,
     missing,
-    from,
-    // onboarding@resend.dev ne peut envoyer qu'à l'adresse du compte Resend
-    limitedToAccountOwner: /onboarding@resend\.dev/.test(from),
+    from: process.env.EMAIL_FROM || (process.env.SMTP_USER ? `ARINA <${process.env.SMTP_USER}>` : null),
+    // Gmail : le mot de passe doit être un « mot de passe d'application » (2FA activé)
+    gmailHint: /smtp\.gmail\.com/i.test(process.env.SMTP_HOST || ''),
   });
 });
 

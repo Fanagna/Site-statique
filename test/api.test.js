@@ -238,11 +238,13 @@ test('PATCH /api/donations/:id → taux invalide → 400', async () => {
 });
 
 /* ═══ DIAGNOSTIC EMAIL ═══ */
-test('GET /api/email-status → non configuré sans RESEND_API_KEY/NOTIFY_EMAIL', async () => {
+test('GET /api/email-status → non configuré sans SMTP ni Resend', async () => {
   const r = await get('/api/email-status', { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.configured, false);
-  assert.ok((r.body.missing || []).includes('RESEND_API_KEY'));
+  assert.ok((r.body.missing || []).includes('SMTP_HOST'));
+  assert.ok((r.body.missing || []).includes('SMTP_USER'));
+  assert.ok((r.body.missing || []).includes('SMTP_PASS'));
   assert.ok((r.body.missing || []).includes('NOTIFY_EMAIL'));
 });
 
@@ -253,7 +255,7 @@ test('PATCH /api/donations/:id → « reçu » sans email configuré : raison ex
   const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.receiptEmailSent, false);
-  assert.match(r.body.receiptEmailReason || '', /RESEND_API_KEY/);
+  assert.match(r.body.receiptEmailReason || '', /SMTP|Resend|SMTP_HOST/);
 });
 
 /* ═══ APERÇU DU REÇU PDF ═══ */

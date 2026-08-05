@@ -2188,11 +2188,13 @@ export default function AdminDashboard() {
                 <p className="text-amber-700 dark:text-amber-300 mt-1 text-[13px] leading-relaxed">
                   Variables manquantes dans Vercel (Settings → Environment Variables → Production) :{' '}
                   <strong>{(emailStatus.missing || []).join(', ')}</strong>.
-                  Ajoutez-les puis redéployez. {emailStatus.limitedToAccountOwner ? (
+                  Ajoutez-les puis redéployez. {emailStatus.gmailHint ? (
                     <>
-                      💡 <strong>{emailStatus.from}</strong> (expéditeur par défaut) ne peut envoyer qu'à votre propre
-                      adresse Resend : vérifiez un domaine dans Resend (resend.com/domains) et définissez{' '}
-                      <strong>EMAIL_FROM</strong> (ex. <code className="text-xs">ARINA &lt;contact@votre-domaine.mg&gt;</code>).
+                      💡 Gmail : créez un <strong>mot de passe d'application</strong> (compte Google → Sécurité →
+                      Vérification en 2 étapes → Mots de passe des applications) et utilisez-le dans{' '}
+                      <strong>SMTP_PASS</strong> — pas votre mot de passe normal. <strong>EMAIL_FROM</strong> doit être
+                      l'adresse Gmail elle-même (ex. <code className="text-xs">ARINA &lt;president.arina@gmail.com&gt;</code>),
+                      port <strong>465</strong> (ou 587).
                     </>
                   ) : null}
                 </p>
