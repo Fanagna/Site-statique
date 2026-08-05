@@ -45,10 +45,11 @@ function makeFakePool(opts = {}) {
       return { rows: [row] };
     }
     if (/UPDATE donations SET status/i.test(s)) {
-      const d = state.donations.find((x) => x.id === Number(params[1]));
+      // Params : [status, received_at, receipt_number, id]
+      const d = state.donations.find((x) => x.id === Number(params[3]));
       if (!d) return { rows: [] };
       d.status = params[0];
-      d.received_at = params[0] === 'received' ? new Date().toISOString() : null;
+      d.received_at = params[1];
       if (params[2]) d.receipt_number = params[2];
       return { rows: [d] };
     }

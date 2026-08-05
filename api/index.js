@@ -1126,12 +1126,13 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
       ? `ARINA-${new Date().getFullYear()}-${String(old.id).padStart(4, '0')}`
       : (old.receipt_number || null);
 
+    // NB: received_at est calculé en JS (et non via CASE WHEN $1 = 'received') pour éviter
+    // l'erreur Postgres « inconsistent types deduced for parameter $1 » (varchar vs text).
+    const receivedAt = status === 'received' ? (old.received_at || new Date().toISOString()) : null;
     const result = await pool.query(
-      `UPDATE donations SET status=$1,
-        received_at = CASE WHEN $1 = 'received' THEN COALESCE(received_at, CURRENT_TIMESTAMP) ELSE NULL END,
-        receipt_number = COALESCE($3, receipt_number)
-       WHERE id=$2 RETURNING *`,
-      [status, req.params.id, firstReceipt ? receiptNumber : null]
+      `UPDATE donations SET status=$1, received_at=$2, receipt_number=COALESCE($3, receipt_number)
+       WHERE id=$4 RETURNING *`,
+      [status, receivedAt, firstReceipt ? receiptNumber : null, req.params.id]
     );
     let r = result.rows[0];
     let receiptEmailSent = false;
