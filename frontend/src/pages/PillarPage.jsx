@@ -17,7 +17,7 @@ export default function PillarPage() {
           <Search className="w-14 h-14 mx-auto text-white/80 mb-4" />
           <h1 className="text-3xl font-serif font-bold mb-2">Pilier introuvable</h1>
           <p className="text-white/85 mb-6">Ce pilier n'existe pas.</p>
-          <Link to="/actions" className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white rounded-xl font-semibold hover:bg-arina-gold-light transition-colors shadow-lg">
+          <Link to="/actions" className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors shadow-lg">
             <ArrowLeft className="w-5 h-5" /> Retour aux actions
           </Link>
         </div>
@@ -108,7 +108,7 @@ export default function PillarPage() {
 
           <Link
             to="/soutenir"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors shadow-lg"
           >
             <Heart className="w-5 h-5" fill="currentColor" /> Soutenir cette action
           </Link>

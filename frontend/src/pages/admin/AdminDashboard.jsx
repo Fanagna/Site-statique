@@ -672,7 +672,7 @@ export default function AdminDashboard() {
 
   const quickActions = [
     ...(allowedTabs.includes('actualites') ? [{ label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') }] : []),
-    ...(allowedTabs.includes('enfants') ? [{ label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#FDE7E1] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } }] : []),
+    ...(allowedTabs.includes('enfants') ? [{ label: 'Nouvel enfant', icon: 'users', color: 'bg-arina-warm text-arina-blue hover:bg-[#F6E9E4] dark:hover:bg-white/10', action: () => { setTab('enfants'); setTimeout(() => openBenefForm(null), 120); } }] : []),
     ...(allowedTabs.includes('finances') ? [
       { label: 'Nouveau revenu', icon: 'trendUp', color: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25', action: () => { setTab('finances'); setEditingFin(null); setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
       { label: 'Nouvelle dépense', icon: 'trendDown', color: 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-500/25', action: () => { setTab('finances'); setEditingFin(null); setFinanceForm({ type: 'Dépense', categorie: 'Alimentation', montant: '', quantity: '', unit_price: '', description: '', date: today() }); setTimeout(() => setShowFinanceForm(true), 120); } },
@@ -795,11 +795,12 @@ export default function AdminDashboard() {
           )}
 
           {/* Hero banner */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-arina-accent via-arina-blue to-arina-blue-dark text-white p-6 lg:p-8 animate-fade-up shadow-2xl shadow-arina-blue/25">
-            <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
-            <div className="absolute -bottom-24 -left-12 w-80 h-80 rounded-full bg-arina-gold/20 blur-3xl" />
-            <div className="absolute top-8 right-10 w-20 h-20 rounded-full border-2 border-white/15 animate-float-slow" />
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-arina-accent via-arina-blue to-arina-blue-dark text-white p-6 lg:p-8 animate-fade-up shadow-2xl shadow-arina-blue/30">
+            <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-arina-gold/25 blur-3xl" />
+            <div className="absolute -bottom-24 -left-12 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute top-8 right-10 w-20 h-20 rounded-full border-2 border-arina-gold-light/30 animate-float-slow" />
             <div className="absolute bottom-6 right-36 w-10 h-10 rounded-full border border-white/20 animate-float-slow" style={{ animationDelay: '1.3s' }} />
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/20 to-transparent" />
             <div className="relative flex flex-wrap items-end justify-between gap-6">
               <div>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white/90 text-xs font-semibold backdrop-blur-sm">

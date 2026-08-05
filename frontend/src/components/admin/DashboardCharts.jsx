@@ -146,7 +146,7 @@ export function TopExpensesChart({ finances, loading }) {
   }, [finances]);
 
   const total = data.reduce((s, [, v]) => s + v, 0);
-  const colors = ['#E0574F', '#F59F00', '#B14A54', '#FFA18E', '#9CA3AF'];
+  const colors = ['#7A2C3E', '#B97E2B', '#A94438', '#C96A63', '#9CA3AF'];
 
   if (loading) return <div className="h-56 skeleton" />;
   if (total === 0) {
@@ -186,7 +186,7 @@ export function CategoryDonut({ finances, loading }) {
     return () => clearTimeout(t);
   }, []);
 
-  const colors = ['#E0574F', '#F59F00', '#B14A54', '#FFA18E', '#FFD0B3', '#9CA3AF'];
+  const colors = ['#7A2C3E', '#B97E2B', '#A94438', '#C96A63', '#E8C9A4', '#9CA3AF'];
   const data = useMemo(() => {
     const map = {};
     (finances || [])

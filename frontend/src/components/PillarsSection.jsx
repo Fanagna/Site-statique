@@ -5,7 +5,7 @@ const pillars = [
     icon: 'home',
     title: 'Hébergement\nsécurisé',
     description: 'Des foyers d\'accueil chaleureux et protecteurs où chaque jeune trouve un environnement stable pour se reconstruire.',
-    color: 'from-rose-400 to-pink-500',
+    color: 'from-arina-accent to-arina-blue',
     bgColor: 'bg-rose-50',
     borderColor: 'border-rose-200',
     accentColor: 'text-rose-600',

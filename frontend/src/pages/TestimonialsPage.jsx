@@ -379,7 +379,7 @@ export default function TestimonialsPage() {
           </p>
           <Link
             to="/soutenir"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-xl"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-colors shadow-xl"
           >
             <Heart className="w-5 h-5" fill="currentColor" /> Soutenir ARINA
           </Link>

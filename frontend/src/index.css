@@ -4,35 +4,34 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Vif — brand & CTA (aube rosée / pêche) */
-  --color-arina-blue: #E0574F;
-  --color-arina-accent: #F2695D;
-  --color-arina-accent-dark: #D64A41;
-  /* Foncé — gradients, footer, hovers */
-  --color-arina-blue-dark: #B14A54;
-  --color-arina-dark: #4A1E2B;
-  --color-arina-gold: #F59F00;
-  /* Doux — fonds & teintes claires */
-  --color-arina-blue-light: #FFA18E;
-  --color-arina-gold-light: #FFD0B3;
-  --color-arina-cream: #FFF6F3;
-  --color-arina-warm: #FDE7E1;
-  --color-arina-gray: #6B7280;
-  /* Apple design system */
-  --color-ios-bg: #F5F5F7;
+  /* Identité ARINA — palette tirée du logo (bordeaux · terracotta · or cuivré)
+     Tons profonds et nobles pour un rendu professionnel, fidèle à la marque. */
+  --color-arina-blue: #7A2C3E;        /* bordeaux profond — actions, titres */
+  --color-arina-accent: #A94438;      /* terracotta — accents, CTA */
+  --color-arina-accent-dark: #8C352D; /* terracotta foncé — hovers */
+  --color-arina-blue-dark: #5C2030;   /* bordeaux sombre — gradients */
+  --color-arina-dark: #381320;        /* prune nuit — footer, fonds foncés */
+  --color-arina-gold: #B97E2B;        /* or cuivré — points forts, solde */
+  --color-arina-gold-light: #E8C9A4;  /* champagne — teintes claires */
+  --color-arina-blue-light: #C96A63;  /* terracotta clair — halos, accents doux */
+  --color-arina-cream: #FAF5F0;       /* crème chaud — fonds */
+  --color-arina-warm: #F6E9E4;        /* pêche poudrée — états actifs */
+  --color-arina-gray: #5F6670;        /* gris ardoise chaud */
+  /* Apple design system — neutres légèrement chauds (cohérence avec le bordeaux) */
+  --color-ios-bg: #F4F2F0;
   --color-ios-card: #FFFFFF;
-  --color-ios-text: #1D1D1F;
-  --color-ios-text2: #6E6E73;
-  --color-ios-text3: #86868B;
-  --color-ios-hairline: rgba(0, 0, 0, 0.07);
-  --color-ios-fill: rgba(0, 0, 0, 0.045);
-  --color-ios-fill-2: rgba(0, 0, 0, 0.08);
-  --color-ios-glass: rgba(255, 255, 255, 0.72);
-  --color-ios-skeleton: #E9E9EE;
+  --color-ios-text: #1F1B1D;
+  --color-ios-text2: #6B6467;
+  --color-ios-text3: #8B8386;
+  --color-ios-hairline: rgba(58, 19, 32, 0.09);
+  --color-ios-fill: rgba(58, 19, 32, 0.05);
+  --color-ios-fill-2: rgba(58, 19, 32, 0.09);
+  --color-ios-glass: rgba(255, 255, 255, 0.74);
+  --color-ios-skeleton: #E7E3E0;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-serif: 'Playfair Display', Georgia, serif;
-  --shadow-apple: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
-  --shadow-apple-lg: 0 2px 4px rgba(0, 0, 0, 0.05), 0 16px 48px rgba(0, 0, 0, 0.09);
+  --shadow-apple: 0 1px 2px rgba(58, 19, 32, 0.05), 0 8px 24px rgba(58, 19, 32, 0.06);
+  --shadow-apple-lg: 0 2px 4px rgba(58, 19, 32, 0.06), 0 16px 48px rgba(58, 19, 32, 0.10);
 }
 
 /* Smooth scroll */
@@ -68,17 +67,17 @@ textarea:focus-visible,
 .btn-primary {
   background-image: linear-gradient(135deg, var(--color-arina-accent) 0%, var(--color-arina-blue) 55%, var(--color-arina-blue-dark) 100%);
   color: #fff;
-  box-shadow: 0 10px 24px -8px rgba(224, 87, 79, 0.55);
+  box-shadow: 0 10px 24px -8px rgba(122, 44, 62, 0.5);
   transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, filter 0.25s ease;
 }
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 32px -10px rgba(224, 87, 79, 0.6);
+  box-shadow: 0 16px 32px -10px rgba(122, 44, 62, 0.55);
   filter: brightness(1.05);
 }
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 6px 16px -6px rgba(224, 87, 79, 0.5);
+  box-shadow: 0 6px 16px -6px rgba(122, 44, 62, 0.45);
 }
 
 /* Lien avec soulignement animé (nav, liens de section) */
@@ -136,7 +135,7 @@ textarea:focus-visible,
 }
 .card-hover:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(224, 87, 79, 0.2);
+  box-shadow: 0 20px 40px rgba(122, 44, 62, 0.18);
 }
 
 /* Slider dots animation */
@@ -153,10 +152,10 @@ textarea:focus-visible,
   animation: countUp 0.6s ease forwards;
 }
 
-/* Pulse for CTA */
+/* Pulse for CTA — or cuivré (couleur du logo) */
 @keyframes pulse-soft {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 159, 0, 0.45); }
-  50% { box-shadow: 0 0 0 15px rgba(245, 159, 0, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 126, 43, 0.45); }
+  50% { box-shadow: 0 0 0 15px rgba(185, 126, 43, 0); }
 }
 .pulse-gold {
   animation: pulse-soft 2.5s ease infinite;
@@ -326,9 +325,9 @@ textarea:focus-visible,
   --color-ios-glass: rgba(28, 28, 30, 0.8);
   --color-ios-skeleton: rgba(255, 255, 255, 0.09);
   /* Brand accents légèrement éclaircis pour le fond sombre */
-  --color-arina-blue: #FF8A80;
-  --color-arina-blue-dark: #C05663;
-  --color-arina-warm: rgba(224, 87, 79, 0.16);
+  --color-arina-blue: #C96A7A;
+  --color-arina-blue-dark: #8A4253;
+  --color-arina-warm: rgba(122, 44, 62, 0.28);
 }
 
 .dark .scroll-slim::-webkit-scrollbar-thumb {
@@ -469,7 +468,7 @@ textarea:focus-visible,
 
   /* Pas de dégradés d'écran dans le PDF, on garde des aplats */
   .print-header [class*="bg-gradient"] {
-    background: #E0574F !important;
+    background: #7A2C3E !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

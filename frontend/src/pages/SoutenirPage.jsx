@@ -179,7 +179,7 @@ export default function SoutenirPage() {
               onClick={() => setTab('benevole')}
               className={`flex-1 py-4 lg:py-5 text-lg font-bold transition-all flex items-center justify-center gap-2 ${
                 tab === 'benevole'
-                  ? 'bg-arina-gold text-white shadow-lg'
+                  ? 'bg-arina-blue text-white shadow-lg'
                   : 'text-arina-dark hover:bg-gray-50'
               }`}
             >
@@ -503,7 +503,7 @@ export default function SoutenirPage() {
                     <button
                       type="submit"
                       disabled={volSubmitting}
-                      className="w-full py-4 bg-arina-gold text-white text-lg font-bold rounded-xl hover:bg-arina-gold-light transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-arina-gold"
+                      className="w-full py-4 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-arina-blue"
                     >
                       {volSubmitting ? (
                         <><Loader2 className="w-5 h-5 animate-spin" /> Envoi en cours…</>

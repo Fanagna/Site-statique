@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatMGA, CountUp, EmptyState } from './ui';
 
-/* Palette stable par donateur (index du donateur dans la liste triée) */
-const PALETTE = ['#E0574F', '#F59F00', '#2E7D32', '#2563EB', '#7C3AED', '#0D9488', '#DB2777', '#9CA3AF'];
+/* Palette stable par donateur (index du donateur dans la liste triée)
+   — tons professionnels harmonisés avec l'identité ARINA */
+const PALETTE = ['#7A2C3E', '#B97E2B', '#2E7D32', '#2563EB', '#7C3AED', '#0D9488', '#A94438', '#9CA3AF'];
 const donorIndex = (donors, name) => {
   const idx = (donors || []).findIndex((d) => String(d.name).toLowerCase() === String(name || '').toLowerCase());
   return idx === -1 ? (donors || []).length : idx;

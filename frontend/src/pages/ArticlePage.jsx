@@ -44,7 +44,7 @@ export default function ArticlePage() {
           <p className="text-white/85 mb-6">L'article que vous recherchez n'existe pas ou a été déplacé.</p>
           <Link
             to="/actualites"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white rounded-xl font-semibold hover:bg-arina-gold-light transition-colors shadow-lg"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white rounded-xl font-semibold hover:bg-arina-blue-dark transition-colors shadow-lg"
           >
             <ArrowLeft className="w-5 h-5" /> Retour aux actualités
           </Link>
@@ -205,7 +205,7 @@ export default function ArticlePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               to="/soutenir"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-semibold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors shadow-lg"
             >
               <Heart className="w-5 h-5" fill="currentColor" /> Faire un don
             </Link>

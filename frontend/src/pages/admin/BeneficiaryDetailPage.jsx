@@ -475,7 +475,7 @@ export default function BeneficiaryDetailPage() {
                 {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 text-white flex items-center justify-center"><Icon name="users" className="w-4 h-4" /></span>
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue text-white flex items-center justify-center"><Icon name="users" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">

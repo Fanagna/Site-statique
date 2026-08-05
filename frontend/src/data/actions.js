@@ -7,7 +7,7 @@ export const pillars = [
     title: 'Hébergement Sécurisé',
     subtitle: 'Un toit pour se reconstruire',
     color: 'rose',
-    gradient: 'from-rose-400 to-pink-500',
+    gradient: 'from-arina-accent to-arina-blue',
     bgGradient: 'from-rose-50 to-white',
     borderColor: 'border-rose-200',
     textColor: 'text-rose-700',

@@ -110,7 +110,7 @@ export default function HeroSlider() {
             onClick={() => setCurrent(i)}
             className={`slider-dot rounded-full transition-all duration-300 ${
               i === current
-                ? 'w-8 h-2.5 bg-arina-gold shadow-[0_0_12px_rgba(245,159,0,0.7)]'
+                ? 'w-8 h-2.5 bg-arina-gold shadow-[0_0_12px_rgba(185,126,43,0.7)]'
                 : 'w-2.5 h-2.5 bg-white/50 hover:bg-white/90 hover:scale-110'
             }`}
             aria-label={`Slide ${i + 1}`}

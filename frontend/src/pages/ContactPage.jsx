@@ -24,7 +24,7 @@ const contactInfo = [
       { text: '032 77 374 89', href: 'tel:+261327737489' },
       { text: '034 31 722 08', href: 'tel:+261347172208' },
     ],
-    color: 'from-rose-400 to-pink-500',
+    color: 'from-arina-accent to-arina-blue',
   },
   {
     icon: 'mail',
@@ -275,7 +275,7 @@ export default function ContactPage() {
                 </p>
                 <a
                   href="tel:+261327737489"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-arina-gold text-white font-bold rounded-xl hover:bg-arina-gold-light transition-colors shadow-lg"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-arina-blue text-white font-bold rounded-xl hover:bg-arina-blue-dark transition-colors shadow-lg"
                 >
                   <Phone className="w-5 h-5" /> 032 77 374 89
                 </a>
