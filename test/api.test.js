@@ -169,6 +169,21 @@ test('PATCH /api/donations/:id → remise en attente (pas de nouveau reçu)', as
   assert.equal(r.body.received_at, null);
 });
 
+/* ═══ APERÇU DU REÇU PDF ═══ */
+test('GET /api/donations/:id/receipt → 401 sans clé', async () => {
+  const r = await get('/api/donations/1/receipt');
+  assert.equal(r.status, 401);
+});
+
+test('GET /api/donations/:id/receipt → 200, PDF valide avec clé admin', async () => {
+  const res = await fetch(`${base}/api/donations/1/receipt`, { headers: { 'x-admin-key': 'test-admin-key' } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.ok(buf.length > 500, 'le PDF doit contenir du contenu');
+});
+
 test('PATCH /api/donations/:id avec statut invalide → 400', async () => {
   const r = await send('PATCH', '/api/donations/1', { status: 'nimporte' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 400);

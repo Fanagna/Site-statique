@@ -229,6 +229,21 @@ export async function deleteDonation(id) {
   return apiCallDetailed(`/donations/${id}`, { method: 'DELETE' });
 }
 
+// Aperçu du reçu PDF (admin) : télécharge le PDF et renvoie une URL Blob, ou null.
+export async function fetchDonationReceipt(id) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/donations/${id}/receipt`, {
+      headers: adminKey ? { 'x-admin-key': adminKey } : {},
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
 /* ── Stats réelles (page d'accueil) ── */
 export async function fetchStats() {
   return await apiCall('/stats');

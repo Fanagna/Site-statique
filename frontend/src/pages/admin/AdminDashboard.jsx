@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Toast from '../../components/admin/Toast';
@@ -7,7 +7,7 @@ import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchDonors, createDonor, updateDonor, deleteDonor,
-  fetchDonations, updateDonation, deleteDonation,
+  fetchDonations, updateDonation, deleteDonation, fetchDonationReceipt,
   fetchNews,
   fetchContacts, deleteContact,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
@@ -79,6 +79,13 @@ export default function AdminDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [expandedMsg, setExpandedMsg] = useState(null);
   const [expandedVol, setExpandedVol] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null); // don dont on prévisualise le reçu
+  const [receiptUrl, setReceiptUrl] = useState(null); // URL Blob du PDF
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const receiptUrlRef = useRef(null); // toujours l'URL Blob courante (libérée au démontage)
+
+  // Libère l'URL Blob du reçu si l'admin quitte la page avec la modale ouverte (pas de fuite mémoire)
+  useEffect(() => () => { if (receiptUrlRef.current) URL.revokeObjectURL(receiptUrlRef.current); }, []);
   const { toast, showToast, closeToast } = useToast();
 
   /* ── Benef CRUD ── */
@@ -466,6 +473,27 @@ export default function AdminDashboard() {
     if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
     setDonations(donations.filter((d) => d.id !== id));
     showToast('✅ Promesse de don supprimée de la base de données');
+  };
+
+  /* Aperçu du reçu PDF avant confirmation (même PDF que celui envoyé par email).
+     La modale s'ouvre immédiatement (état de chargement visible), l'URL arrive ensuite. */
+  const viewReceipt = async (d) => {
+    if (receiptUrlRef.current) URL.revokeObjectURL(receiptUrlRef.current);
+    receiptUrlRef.current = null;
+    setReceiptUrl(null);
+    setReceiptPreview(d);
+    setReceiptLoading(true);
+    const url = await fetchDonationReceipt(d.id);
+    setReceiptLoading(false);
+    if (!url) { showToast('❌ Impossible de générer le reçu — réessayez.', 'error'); return; }
+    receiptUrlRef.current = url;
+    setReceiptUrl(url);
+  };
+  const closeReceipt = () => {
+    if (receiptUrlRef.current) URL.revokeObjectURL(receiptUrlRef.current);
+    receiptUrlRef.current = null;
+    setReceiptUrl(null);
+    setReceiptPreview(null);
   };
 
   /* ── Comptes (admin) ── */
@@ -2150,6 +2178,12 @@ export default function AdminDashboard() {
                         {d.message && <p className="text-sm text-ios-text2 mt-1 leading-relaxed line-clamp-2">« {d.message} »</p>}
                         <div className="mt-3 flex flex-wrap items-center gap-3">
                           <button
+                            onClick={() => viewReceipt(d)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-ios-fill text-ios-text2 hover:bg-ios-fill-2 transition-colors"
+                          >
+                            <Icon name="eye" className="w-3.5 h-3.5" /> Voir le reçu
+                          </button>
+                          <button
                             onClick={() => toggleDonation(d)}
                             className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
                               d.status === 'received'
@@ -2437,6 +2471,55 @@ export default function AdminDashboard() {
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowDonorForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveDonor} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE — Aperçu du reçu PDF ═══════ */}
+      {receiptPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeReceipt} />
+          <div className="relative w-full max-w-3xl bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+            <div className="px-6 pt-5 pb-4 border-b border-ios-hairline flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0"><Icon name="eye" className="w-5 h-5" /></div>
+                <div className="min-w-0">
+                  <h3 className="font-bold truncate">Aperçu du reçu — {receiptPreview.name}</h3>
+                  <p className="text-xs text-ios-text3 truncate">
+                    {receiptPreview.receipt_number || `ARINA-${new Date().getFullYear()}-${String(receiptPreview.id).padStart(4, '0')}`} · {Number(receiptPreview.amount) || 0} {receiptPreview.currency || '€'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeReceipt} className="p-2 hover:bg-ios-fill-2 rounded-lg transition-colors" aria-label="Fermer">
+                <Icon name="x" className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="bg-ios-fill">
+              {receiptLoading ? (
+                <div className="h-[65vh] flex items-center justify-center text-sm text-ios-text3">Génération du reçu…</div>
+              ) : (
+                receiptUrl ? (
+                  <iframe src={receiptUrl} title="Aperçu du reçu" className="w-full h-[65vh] bg-white" />
+                ) : (
+                  <div className="h-[65vh] flex items-center justify-center text-sm text-ios-text3">Aucun aperçu disponible.</div>
+                )
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-ios-hairline flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] text-ios-text3">Le reçu sera envoyé au donateur ({receiptPreview.email}) lors de la confirmation.</p>
+              <div className="flex gap-2.5">
+                <a
+                  href={receiptUrl || '#'}
+                  download={`${receiptPreview.receipt_number || `ARINA-${new Date().getFullYear()}-${String(receiptPreview.id).padStart(4, '0')}`}.pdf`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors"
+                >
+                  <Icon name="download" className="w-4 h-4" /> Télécharger
+                </a>
+                <button onClick={closeReceipt} className="px-4 py-2 rounded-xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark transition-colors">
+                  Fermer
+                </button>
+              </div>
             </div>
           </div>
         </div>

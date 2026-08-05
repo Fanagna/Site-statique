@@ -1172,6 +1172,22 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET admin — APERÇU du reçu PDF (avant confirmation/envoi). Génère le MÊME PDF
+// que celui envoyé par email : l'équipe vérifie le reçu avant de confirmer le don.
+app.get('/api/donations/:id/receipt', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM donations WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const r = result.rows[0];
+    const pdf = await buildReceiptPdf({ donation: { ...r, amount: Number(r.amount) } });
+    const number = r.receipt_number || `ARINA-${new Date().getFullYear()}-${String(r.id).padStart(4, '0')}`;
+    res.set('Cache-Control', 'no-store'); // jamais d'aperçu périmé après un changement de statut
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${number}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // DELETE admin
 app.delete('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
   try {
