@@ -8,7 +8,6 @@ import {
   fetchDonors, createDonor, updateDonor, deleteDonor,
   fetchNews,
   fetchContacts, deleteContact,
-  fetchNewsletterSubscribers, deleteNewsletterSubscriber,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
   fetchActivity,
   fetchUsers, createUser, deleteUser, resetUserPassword,
@@ -275,7 +274,6 @@ export default function AdminDashboard() {
   const [finances, setFinances] = useState([]);
   const [news, setNews] = useState(allNews);
   const [contacts, setContacts] = useState([]);
-  const [subs, setSubs] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
   const [activity, setActivity] = useState([]);
   const [users, setUsers] = useState([]);
@@ -374,12 +372,6 @@ export default function AdminDashboard() {
       else { anyFail = true; const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
     }
 
-    if (can('newsletter')) {
-      const subFromApi = await fetchNewsletterSubscribers();
-      if (subFromApi !== null) { anyOk = true; if (subFromApi.length) setSubs(subFromApi); else setSubs([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_subs'); setSubs(s ? JSON.parse(s) : []); }
-    }
-
     if (can('volunteers')) {
       const vFromApi = await fetchVolunteers();
       if (vFromApi !== null) { anyOk = true; if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
@@ -410,7 +402,6 @@ export default function AdminDashboard() {
   useEffect(() => { if (donors.length) localStorage.setItem('arina_donors', JSON.stringify(donors)); }, [donors]);
   useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
   useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
-  useEffect(() => { if (subs.length) localStorage.setItem('arina_subs', JSON.stringify(subs)); }, [subs]);
 
   /* ── CRUD handlers ── */
   /* Met à jour un champ du dossier (section.module) */
@@ -602,13 +593,6 @@ export default function AdminDashboard() {
     setContacts(contacts.filter((c) => c.id !== id));
     showToast('✅ Message supprimé de la base de données');
   };
-  const removeSub = async (id) => {
-    if (!confirm('Supprimer cet abonné ?')) return;
-    const r = await deleteNewsletterSubscriber(id);
-    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
-    setSubs(subs.filter((s) => s.id !== id));
-    showToast('✅ Abonné supprimé de la base de données');
-  };
   const removeVolunteer = async (id) => {
     if (!confirm('Supprimer cette candidature ?')) return;
     const r = await deleteVolunteer(id);
@@ -738,10 +722,6 @@ export default function AdminDashboard() {
     if (!q) return contacts;
     return contacts.filter((c) => `${c.name} ${c.email} ${c.message}`.toLowerCase().includes(q));
   }, [contacts, q]);
-  const filteredSubs = useMemo(() => {
-    if (!q) return subs;
-    return subs.filter((s) => s.email.toLowerCase().includes(q));
-  }, [subs, q]);
   const filteredVolunteers = useMemo(() => {
     if (!q) return volunteers;
     return volunteers.filter((v) => `${v.name} ${v.email} ${v.skills} ${v.motivation}`.toLowerCase().includes(q));
@@ -917,7 +897,6 @@ export default function AdminDashboard() {
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
-  if (allowedTabs.includes('newsletter')) communicationItems.push({ key: 'newsletter', label: 'Newsletter', icon: 'send', badge: () => subs.length });
   if (allowedTabs.includes('comptes')) principalItems.push({ key: 'comptes', label: 'Comptes', icon: 'shield' });
   const groups = [
     { group: 'Principal', items: [{ key: 'dashboard', label: 'Tableau de bord', icon: 'grid' }, ...principalItems] },
@@ -931,7 +910,6 @@ export default function AdminDashboard() {
     donateurs: { title: 'Donateurs', subtitle: 'Partenaires financiers et besoins financés' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
-    newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
     comptes: { title: 'Comptes', subtitle: "Utilisateurs et rôles de l'espace admin" },
   };
   const currentMeta = meta[tab] || meta.dashboard;
@@ -943,7 +921,6 @@ export default function AdminDashboard() {
     donateurs: 'Rechercher un donateur…',
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
-    newsletter: 'Rechercher un e-mail…',
     comptes: 'Rechercher un compte…',
   }[tab] || 'Rechercher…';
 
@@ -965,7 +942,6 @@ export default function AdminDashboard() {
     ] : []),
     ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
     ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
-    ...(allowedTabs.includes('newsletter') ? [{ label: 'Newsletter', icon: 'send', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('newsletter') }] : []),
   ];
 
   const activityMeta = {
@@ -1298,7 +1274,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-xs text-ios-text3 whitespace-nowrap">{fmtDate(b.dateEntree)}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1.5">
-                            <Link to={`/admin/beneficiaire/${b.id}`} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Fiche détaillée"><Icon name="eye" className="w-4 h-4" /></Link>
+                            <Link to={`/admin/beneficiaire/${b.id}`} state={{ benef: b }} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Fiche détaillée"><Icon name="eye" className="w-4 h-4" /></Link>
                             <button onClick={() => openBenefForm(b)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
                             <button onClick={() => removeBenef(b.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
@@ -1844,42 +1820,6 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════ NEWSLETTER ═══════════ */}
-      {tab === 'newsletter' && (
-        <div className="space-y-4 animate-fade-up">
-          <div className="grid grid-cols-2 gap-3 max-w-xl">
-            <div className="card-apple p-5">
-              <div className="text-2xl font-extrabold tabular">{subs.length}</div>
-              <div className="text-xs text-ios-text3 mt-0.5">Abonnés inscrits</div>
-            </div>
-            <div className="card-apple p-5">
-              <div className="text-2xl font-extrabold tabular">{subs.filter((s) => s.subscribed_at && Date.now() - new Date(s.subscribed_at) < 7 * 864e5).length}</div>
-              <div className="text-xs text-ios-text3 mt-0.5">Cette semaine</div>
-            </div>
-          </div>
-          <div className="card-apple overflow-hidden">
-            {filteredSubs.length === 0 ? (
-              <EmptyState icon="send" text={subs.length === 0 ? 'Aucun abonné pour le moment — les inscriptions à la newsletter apparaîtront ici.' : 'Aucun abonné ne correspond à votre recherche.'} />
-            ) : (
-              <div className="divide-y divide-ios-hairline">
-                {filteredSubs.map((s) => (
-                  <div key={s.id} className="flex items-center gap-4 px-5 py-4 hover:bg-ios-fill transition-colors">
-                    <div className="w-9 h-9 rounded-full bg-arina-warm text-arina-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
-                      {initials(s.email)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{s.email}</div>
-                      <div className="text-[11px] text-ios-text3">Inscrit {timeAgo(s.subscribed_at)}</div>
-                    </div>
-                    <button onClick={() => removeSub(s.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>

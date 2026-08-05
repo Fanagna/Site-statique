@@ -10,8 +10,8 @@ export const ROLE_LABELS = {
 // Onglets autorisés par rôle — utilisés pour filtrer le menu latéral et charger
 // les données. Rôle inconnu → onglets restreints (fail-closed : jamais l'accès admin complet).
 export const ROLE_TABS = {
-  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'evaluation', 'donateurs', 'messages', 'volunteers', 'newsletter', 'comptes'],
-  president: ['dashboard', 'actualites', 'messages', 'volunteers', 'newsletter'],
+  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'evaluation', 'donateurs', 'messages', 'volunteers', 'comptes'],
+  president: ['dashboard', 'actualites', 'messages', 'volunteers'],
   accountant: ['dashboard', 'finances', 'evaluation', 'donateurs'],
   educator: ['dashboard', 'enfants'],
   unknown: ['dashboard'],

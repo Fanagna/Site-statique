@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Phone, Mail, Clock, Lock, Send } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, Lock } from 'lucide-react';
 
 /* Icônes réseaux sociaux (SVG inline — marques non fournies par lucide-react) */
 const socialIcons = {
@@ -26,42 +25,13 @@ const socialIcons = {
     </>
   ),
 };
-import { subscribeNewsletter } from '../services/api';
 
 export default function Footer() {
-  const [nlEmail, setNlEmail] = useState('');
-  const [nlStatus, setNlStatus] = useState('idle'); // idle | loading | success | duplicate | error
-  const [nlError, setNlError] = useState('');
-
-  const handleSubscribe = async (e) => {
-    e.preventDefault();
-    const email = nlEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setNlStatus('error');
-      setNlError('Veuillez saisir une adresse email valide.');
-      return;
-    }
-    setNlStatus('loading');
-    setNlError('');
-    const res = await subscribeNewsletter(email);
-    if (!res.ok) {
-      setNlStatus('error');
-      setNlError(res.error || 'Une erreur est survenue, réessayez.');
-      return;
-    }
-    if (res.data && res.data.message === 'Already subscribed') {
-      setNlStatus('duplicate');
-      return;
-    }
-    setNlStatus('success');
-    setNlEmail('');
-  };
-
   return (
     <footer id="footer" className="bg-arina-dark text-white">
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-16">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
           {/* About */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
@@ -149,44 +119,6 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h4 className="text-white font-bold mb-4">Newsletter</h4>
-            <p className="text-gray-400 text-sm mb-4">
-              Recevez nos actualités et histoires inspirantes.
-            </p>
-            <form className="flex gap-2" onSubmit={handleSubscribe}>
-              <input
-                type="email"
-                value={nlEmail}
-                onChange={(e) => { setNlEmail(e.target.value); if (nlStatus !== 'loading') setNlStatus('idle'); }}
-                placeholder="Votre email"
-                disabled={nlStatus === 'loading'}
-                className="flex-1 min-w-0 px-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-arina-gold transition-colors disabled:opacity-60"
-              />
-              <button
-                type="submit"
-                disabled={nlStatus === 'loading'}
-                className="px-4 py-2.5 bg-arina-gold text-white rounded-lg text-sm font-semibold hover:bg-arina-gold-light transition-all hover:shadow-lg hover:shadow-arina-gold/20 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-              >
-                {nlStatus === 'loading' ? (
-                  <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <><Send className="w-3.5 h-3.5" /> S'abonner</>
-                )}
-              </button>
-            </form>
-            {nlStatus === 'success' && (
-              <p role="status" className="text-emerald-400 text-xs mt-2.5">Merci ! Vous êtes bien inscrit(e) à la newsletter.</p>
-            )}
-            {nlStatus === 'duplicate' && (
-              <p role="status" className="text-amber-300 text-xs mt-2.5">Cet email est déjà inscrit à la newsletter.</p>
-            )}
-            {nlStatus === 'error' && (
-              <p role="status" className="text-red-400 text-xs mt-2.5">{nlError}</p>
-            )}
           </div>
         </div>
       </div>

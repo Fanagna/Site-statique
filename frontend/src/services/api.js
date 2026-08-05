@@ -248,31 +248,6 @@ export async function getVolunteerAttachment(id, kind = 'file') {
   return await apiCall(`/volunteers/${id}/attachment?kind=${kind}`);
 }
 
-/* ── Newsletter (public subscribe + admin) ── */
-// Inscription publique : renvoie { ok: true, data } ou { ok: false, error }.
-export async function subscribeNewsletter(email) {
-  try {
-    const res = await fetch(`${API_BASE}/newsletter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: body.error || 'Une erreur est survenue, réessayez.' };
-    return { ok: true, data: body };
-  } catch {
-    return { ok: false, error: 'Impossible de joindre le serveur. Vérifiez votre connexion.' };
-  }
-}
-
-export async function fetchNewsletterSubscribers() {
-  return await apiCall('/newsletter/subscribers');
-}
-
-export async function deleteNewsletterSubscriber(id) {
-  return apiCallDetailed(`/newsletter/${id}`, { method: 'DELETE' });
-}
-
 /* ── Activity feed (admin) ── */
 export async function fetchActivity() {
   return await apiCall('/activity');

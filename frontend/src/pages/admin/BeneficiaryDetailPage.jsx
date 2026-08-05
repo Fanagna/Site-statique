@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Circle, Lock, Printer, Search, Trash2, User } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Camera, Circle, Lock, Printer, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../context/AuthContext';
 import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
@@ -33,31 +33,40 @@ const benefDetails = {
   },
 };
 
+/* Met en forme une ligne bénéficiaire (dossier JSON) en fiche détaillée exploitable. */
+function shapeDetail(b) {
+  const dossier = b.dossier || {};
+  return {
+    ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
+    situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
+    assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
+    formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
+    dossier,
+  };
+}
+
 export default function BeneficiaryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
+  /* Fiche déjà chargée dans la liste (clic sur l'œil) : on l'affiche IMMÉDIATEMENT,
+     sans écran de chargement ni message « Bénéficiaire introuvable ». */
+  const initial = location.state?.benef ? shapeDetail(location.state.benef) : null;
+  /* Réf. stable lue dans l'effet (l'objet est recréé à chaque rendu : l'ajouter aux
+     deps ferait boucler le rechargement — la réf. évite aussi l'avertissement du linter). */
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
   const [tab, setTab] = useState('detail');
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(initial);
+  const [loading, setLoading] = useState(!initial);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({});
-  const [suivis, setSuivis] = useState([]);
+  const [form, setForm] = useState(initial ? { ...initial } : {});
+  const [suivis, setSuivis] = useState(initial ? initial.suivis || [] : []);
   const [newSuivi, setNewSuivi] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
   const { toast, showToast, closeToast } = useToast();
-
-  /* Met en forme la ligne API (dossier JSON) en fiche détaillée exploitable. */
-  const shapeDetail = (b) => {
-    const dossier = b.dossier || {};
-    return {
-      ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
-      situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
-      assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
-      formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
-      dossier,
-    };
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -69,34 +78,102 @@ export default function BeneficiaryDetailPage() {
     };
 
     (async () => {
-      // Priorité : API (dossier complet) — puis localStorage — puis mock
-      const fromApi = await fetchBeneficiaries();
-      if (cancelled) return;
-      if (Array.isArray(fromApi) && fromApi.length) {
-        const b = fromApi.find((x) => String(x.id) === String(id));
-        if (b) { hydrate(b); return; }
+      // Clic sur l'œil : la fiche transmise est déjà affichée (on la re-hydrate aussi
+      // si l'id change dans la même session, pour ne jamais montrer un autre enfant).
+      // Accès direct par URL : on repart d'une fiche vierge avec squelette de chargement.
+      if (initialRef.current) {
+        hydrate(initialRef.current);
+      } else {
+        setData(null);
+        setForm({});
+        setSuivis([]);
+        setLoading(true);
       }
-      let detail = benefDetails[id];
-      if (!detail) {
-        const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-        const b = stored.find((x) => x.id === Number(id));
-        if (b) { hydrate(b); return; }
-      }
-      if (detail) {
-        setData(detail);
-        setForm({ ...detail });
-        setSuivis(detail.suivis || []);
+      try {
+        // Rafraîchissement depuis l'API (dossier le plus à jour) — puis localStorage — puis mock
+        const fromApi = await fetchBeneficiaries();
+        if (cancelled) return;
+        if (Array.isArray(fromApi) && fromApi.length) {
+          const b = fromApi.find((x) => String(x.id) === String(id));
+          if (b) { hydrate(b); return; }
+        }
+        // Base injoignable ou enfant absent : on garde la fiche déjà affichée.
+        if (initialRef.current) return;
+        let detail = benefDetails[id];
+        if (!detail) {
+          const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+          const b = stored.find((x) => x.id === Number(id));
+          if (b) { hydrate(b); return; }
+        }
+        if (detail) {
+          setData(detail);
+          setForm({ ...detail });
+          setSuivis(detail.suivis || []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [id]);
 
+  /* La fiche n'a pas pu être chargée (enfant inexistant) : retour automatique au
+     tableau de bord avec une notification — plus aucun écran « Bénéficiaire introuvable ». */
+  useEffect(() => {
+    if (loading || data) return;
+    showToast('⚠️ Impossible d\'afficher la fiche — retour au tableau de bord', 'error');
+    const t = setTimeout(() => navigate('/admin'), 1200);
+    return () => clearTimeout(t);
+  }, [loading, data, navigate, showToast]);
+
+  /* Chargement : squelette élégant — plus jamais « Bénéficiaire introuvable »
+     pendant que la fiche se charge. */
+  if (loading) return (
+    <div className="min-h-screen bg-ios-bg px-4 py-6">
+      <div className="max-w-5xl mx-auto animate-fade-up">
+        <div className="flex items-center gap-2.5 mb-6">
+          <div className="w-5 h-5 animate-spin border-2 border-arina-blue border-t-transparent rounded-full" />
+          <span className="text-sm font-medium text-ios-text3">Chargement du dossier…</span>
+        </div>
+        <div className="space-y-6">
+          {/* En-tête squelette */}
+          <div className="rounded-[18px] overflow-hidden border border-ios-hairline">
+            <div className="bg-gradient-to-b from-arina-accent via-arina-blue to-arina-blue-dark px-6 py-10">
+              <div className="w-32 h-32 mx-auto skeleton" style={{ borderRadius: 18 }} />
+              <div className="mt-5 mx-auto w-48 h-6 skeleton" style={{ borderRadius: 8 }} />
+              <div className="mt-2.5 mx-auto w-64 h-3.5 skeleton" style={{ borderRadius: 8 }} />
+              <div className="flex justify-center gap-2 mt-4">
+                <div className="w-16 h-6 skeleton" style={{ borderRadius: 999 }} />
+                <div className="w-16 h-6 skeleton" style={{ borderRadius: 999 }} />
+                <div className="w-20 h-6 skeleton" style={{ borderRadius: 999 }} />
+              </div>
+            </div>
+          </div>
+          {/* Cartes squelette */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="card-apple p-6">
+              <div className="w-24 h-24 mx-auto skeleton" style={{ borderRadius: 999 }} />
+              <div className="mt-4 mx-auto w-28 h-3 skeleton" style={{ borderRadius: 8 }} />
+            </div>
+            <div className="lg:col-span-2 card-apple p-6 space-y-3">
+              <div className="w-40 h-4 skeleton" style={{ borderRadius: 8 }} />
+              <div className="grid sm:grid-cols-2 gap-3 pt-1">
+                {[...Array(6)].map((_, i) => <div key={i} className="h-4 skeleton" style={{ borderRadius: 8 }} />)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* Enfant non trouvé : plus de message d'erreur — simple écran de redirection
+     (le useEffect ci-dessus ramène automatiquement au tableau de bord). */
   if (!data) return (
     <div className="min-h-screen bg-ios-bg flex items-center justify-center px-4">
-      <div className="text-center">
-        <Search className="w-12 h-12 mx-auto text-ios-text3 mb-4" />
-        <h2 className="text-xl font-bold text-ios-text mb-2">Bénéficiaire introuvable</h2>
-        <button onClick={() => navigate('/admin')} className="inline-flex items-center gap-2 px-6 py-2.5 bg-arina-blue text-white rounded-xl font-semibold mt-4"><ArrowLeft className="w-4 h-4" /> Retour</button>
+      <div className="text-center animate-fade-up">
+        <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full mx-auto mb-4" />
+        <p className="text-sm font-medium text-ios-text3">Retour au tableau de bord…</p>
       </div>
     </div>
   );

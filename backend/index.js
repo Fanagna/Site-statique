@@ -729,7 +729,7 @@ app.delete('/api/news/:id', requireRole(ROLES.president), async (req, res) => {
 });
 
 // ═══════════════════════════════════════
-// CONTACT & NEWSLETTER
+// CONTACT
 // ═══════════════════════════════════════
 
 app.get('/api/stats', async (req, res) => {
@@ -763,22 +763,6 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-app.post('/api/newsletter', async (req, res) => {
-  try {
-    const { email } = req.body;
-    const normalized = String(email || '').trim().toLowerCase();
-    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      return res.status(400).json({ error: 'Email invalide' });
-    }
-    const result = await pool.query(
-      'INSERT INTO newsletters (email) VALUES ($1) ON CONFLICT (email) DO NOTHING RETURNING *',
-      [normalized]
-    );
-    res.status(201).json(result.rows[0] || { message: 'Already subscribed' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ═══════════════════════════════════════
 // VOLUNTEERS (candidatures + lettre de motivation + CV)
@@ -905,26 +889,6 @@ app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
 app.delete('/api/contacts/:id', requireRole(ROLES.president), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM contacts WHERE id=$1 RETURNING *', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ deleted: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ═══ NEWSLETTER (ADMIN / PRÉSIDENT) ═══
-app.get('/api/newsletter/subscribers', requireRole(ROLES.president), async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM newsletters ORDER BY subscribed_at DESC LIMIT 200');
-    res.json(result.rows);
-  } catch (err) {
-    res.json([]);
-  }
-});
-
-app.delete('/api/newsletter/:id', requireRole(ROLES.president), async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM newsletters WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ deleted: true });
   } catch (err) {
