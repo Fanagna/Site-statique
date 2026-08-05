@@ -88,7 +88,7 @@ export default function AdminDashboard() {
       },
       juridique: { motifInculpation: '', dateEcrou: '', dureeDetention: '', dateLiberation: '', motifLiberation: '' },
       etude: { classeActuelle: '', etablissement: '', carriereEnvisagee: '', diplomeObtenu: '', specialites: '' },
-      arina: { dateEntreeCentre: '', felicitations: '' },
+      arina: { dateEntreeCentre: '', recommandation: '' },
     },
   };
   const [benefForm, setBenefForm] = useState(benefFormInit);
@@ -211,7 +211,7 @@ export default function AdminDashboard() {
           familiale: { ...benefFormInit.dossier.familiale, ...(b.dossier?.familiale || {}) },
           juridique: { ...benefFormInit.dossier.juridique, ...(b.dossier?.juridique || {}) },
           etude: { ...benefFormInit.dossier.etude, ...(b.dossier?.etude || {}) },
-          arina: { ...benefFormInit.dossier.arina, ...(b.dossier?.arina || {}) },
+          arina: { ...benefFormInit.dossier.arina, ...(b.dossier?.arina || {}), recommandation: b.dossier?.arina?.recommandation || b.dossier?.arina?.felicitations || '' },
         },
       });
     } else {
@@ -232,6 +232,14 @@ export default function AdminDashboard() {
       }
     }
     const d = { ...benefForm, age };
+    // Migration douce : la clé obsolète `felicitations` (remplacée par `recommandation`)
+    // est retirée du dossier à l'enregistrement pour éviter qu'un ancien texte ne
+    // ressorte après effacement du nouveau champ.
+    if (d.dossier?.arina && 'felicitations' in d.dossier.arina) {
+      const arina = { ...d.dossier.arina };
+      delete arina.felicitations;
+      d.dossier = { ...d.dossier, arina };
+    }
     // Sauvegarde STRICTE : le dossier ne compte comme enregistré que s'il a
     // réellement atteint la base de données. Sinon, erreur claire + formulaire
     // laissé ouvert (les données ne sont pas perdues) — jamais d'enregistrement fantôme.
@@ -1956,12 +1964,12 @@ export default function AdminDashboard() {
                   <input type="date" placeholder="Date d'entrée au centre" value={benefForm.dossier.arina.dateEntreeCentre} onChange={setDoss('arina', 'dateEntreeCentre')} className={inputClass} />
                   <input placeholder="Formation au centre" value={benefForm.formation} onChange={(e) => setBenefForm({ ...benefForm, formation: e.target.value })} className={inputClass} />
                   <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Félicitations et encouragements</label>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Recommandation du professeur</label>
                     <textarea
                       rows={5}
-                      placeholder="Écrivez ici vos félicitations et encouragements pour cet enfant (plusieurs lignes)..."
-                      value={benefForm.dossier.arina.felicitations}
-                      onChange={setDoss('arina', 'felicitations')}
+                      placeholder="Inscrivez ici la recommandation du professeur pour cet enfant (plusieurs lignes)..."
+                      value={benefForm.dossier.arina.recommandation}
+                      onChange={setDoss('arina', 'recommandation')}
                       className={`${inputClass} resize-y`}
                     />
                   </div>

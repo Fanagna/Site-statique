@@ -532,12 +532,19 @@ export default function BeneficiaryDetailPage() {
                         <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
                       ))}
                     </div>
-                    {data.dossier.arina?.felicitations && (
-                      <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Félicitations et encouragements</div>
-                        <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{data.dossier.arina.felicitations}</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const arina = data.dossier.arina || {};
+                      // La clé `recommandation` prime dès qu'elle existe (même vide = effacée) ;
+                      // `felicitations` n'est qu'un repli de migration pour les anciens dossiers.
+                      const rec = 'recommandation' in arina ? arina.recommandation : (arina.felicitations || '');
+                      if (!rec) return null;
+                      return (
+                        <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Recommandation du professeur</div>
+                          <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{rec}</p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
