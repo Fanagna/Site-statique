@@ -171,6 +171,18 @@ function ensureSchema() {
     )`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS quantity INTEGER`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2)`,
+    `ALTER TABLE finances ADD COLUMN IF NOT EXISTS donor VARCHAR(255)`,
+    `CREATE TABLE IF NOT EXISTS donors (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) UNIQUE NOT NULL,
+      need VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `INSERT INTO donors (name, need) VALUES
+      ('Ravinala', 'Salaire'),
+      ('Horizon', 'Sakafo — Alimentation'),
+      ('Grandir Dignement', 'Formation professionnelle')
+     ON CONFLICT (name) DO NOTHING`,
     `CREATE TABLE IF NOT EXISTS beneficiaries (
       id SERIAL PRIMARY KEY,
       first_name VARCHAR(255) NOT NULL,
@@ -406,6 +418,7 @@ app.get('/api/finances', requireAuth, async (req, res) => {
       quantity: r.quantity != null ? Number(r.quantity) : null,
       unit_price: r.unit_price != null ? Number(r.unit_price) : null,
       description: r.description || '',
+      donor: r.donor || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
     }));
     res.json(rows);
@@ -417,16 +430,16 @@ app.get('/api/finances', requireAuth, async (req, res) => {
 // POST create
 app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
   try {
-    const { type, categorie, montant, description, date, quantity, unit_price } = req.body;
+    const { type, categorie, montant, description, date, quantity, unit_price, donor } = req.body;
     const q = quantity != null && quantity !== '' ? Number(quantity) : null;
     const p = unit_price != null && unit_price !== '' ? Number(unit_price) : null;
     // Montant automatique : MNT = QT × PU quand les deux sont fournis (dépense) ;
     // sinon le montant saisi (ex. un don).
     const computed = q != null && p != null ? Math.round(q * p) : (Number(montant) || 0);
     const result = await pool.query(
-      `INSERT INTO finances (type, category, amount, description, date, quantity, unit_price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p]
+      `INSERT INTO finances (type, category, amount, description, date, quantity, unit_price, donor)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p, donor || null]
     );
     const r = result.rows[0];
     res.status(201).json({
@@ -437,6 +450,7 @@ app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
       quantity: r.quantity != null ? Number(r.quantity) : null,
       unit_price: r.unit_price != null ? Number(r.unit_price) : null,
       description: r.description || '',
+      donor: r.donor || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
     });
   } catch (err) {
@@ -447,15 +461,15 @@ app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
 // PUT update
 app.put('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => {
   try {
-    const { type, categorie, montant, description, date, quantity, unit_price } = req.body;
+    const { type, categorie, montant, description, date, quantity, unit_price, donor } = req.body;
     const q = quantity != null && quantity !== '' ? Number(quantity) : null;
     const p = unit_price != null && unit_price !== '' ? Number(unit_price) : null;
     // Montant automatique : MNT = QT × PU quand les deux sont fournis (dépense) ;
     // sinon le montant saisi (ex. un don).
     const computed = q != null && p != null ? Math.round(q * p) : (Number(montant) || 0);
     const result = await pool.query(
-      `UPDATE finances SET type=$1, category=$2, amount=$3, description=$4, date=$5, quantity=$6, unit_price=$7 WHERE id=$8 RETURNING *`,
-      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p, req.params.id]
+      `UPDATE finances SET type=$1, category=$2, amount=$3, description=$4, date=$5, quantity=$6, unit_price=$7, donor=$8 WHERE id=$9 RETURNING *`,
+      [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p, donor || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const r = result.rows[0];
@@ -467,6 +481,7 @@ app.put('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => 
       quantity: r.quantity != null ? Number(r.quantity) : null,
       unit_price: r.unit_price != null ? Number(r.unit_price) : null,
       description: r.description || '',
+      donor: r.donor || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
     });
   } catch (err) {
@@ -479,6 +494,131 @@ app.delete('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) 
   try {
     const result = await pool.query('DELETE FROM finances WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST bulk import — reçoit un tableau de transactions normalisées (import Excel mensuel).
+// Résout/crée les donateurs, puis insère les lignes valides dans une transaction.
+app.post('/api/finances/import', requireRole(ROLES.accountant), async (req, res) => {
+  try {
+    const { rows, autoCreateDonors } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'Aucune ligne à importer' });
+    if (rows.length > 2000) return res.status(400).json({ error: 'Trop de lignes (maximum 2000 par import)' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1) Résolution des donateurs (par nom, insensible à la casse) + création si demandée
+      const names = [...new Set(rows.map(r => String(r.donor || '').trim()).filter(Boolean))];
+      const idByLower = {};
+      const createdDonors = [];
+      for (const name of names) {
+        const lower = name.toLowerCase();
+        const found = await client.query('SELECT id FROM donors WHERE LOWER(name) = $1', [lower]);
+        if (found.rows.length) { idByLower[lower] = found.rows[0].id; continue; }
+        if (!autoCreateDonors) continue;
+        const ins = await client.query('INSERT INTO donors (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING id', [name]);
+        if (ins.rows.length) { idByLower[lower] = ins.rows[0].id; createdDonors.push(name); }
+        else {
+          const again = await client.query('SELECT id FROM donors WHERE LOWER(name) = $1', [lower]);
+          if (again.rows.length) idByLower[lower] = again.rows[0].id;
+        }
+      }
+
+      // 2) Insertion des lignes valides
+      let created = 0;
+      const errors = [];
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const q = r.quantity != null && r.quantity !== '' ? Number(r.quantity) : null;
+        const p = r.unit_price != null && r.unit_price !== '' ? Number(r.unit_price) : null;
+        const computed = q != null && p != null ? Math.round(q * p) : (Number(r.montant) || 0);
+        const type = r.type === 'Dépense' ? 'expense' : 'income';
+        const date = r.date || null;
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
+          errors.push({ row: i + 2, reason: 'Date manquante ou invalide' }); continue;
+        }
+        if (computed <= 0) { errors.push({ row: i + 2, reason: 'Montant manquant ou invalide' }); continue; }
+        const dName = String(r.donor || '').trim();
+        if (!dName || !idByLower[dName.toLowerCase()]) { errors.push({ row: i + 2, reason: `Donateur inconnu : ${dName || '—'}` }); continue; }
+        await client.query(
+          `INSERT INTO finances (type, category, amount, description, date, quantity, unit_price, donor)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [type, r.categorie || 'Autre', computed, r.description || '', date, q, p, dName]
+        );
+        created++;
+      }
+
+      await client.query('COMMIT');
+      res.status(201).json({ created, errors, createdDonors });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// DONORS (donateurs — partenaires financiers)
+// ═══════════════════════════════════════
+
+// GET all — lecture ouverte à tous les rôles authentifiés (filtres + rapports)
+app.get('/api/donors', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM donors ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create (comptable ou admin)
+app.post('/api/donors', requireRole(ROLES.accountant), async (req, res) => {
+  try {
+    const { name, need } = req.body;
+    const n = String(name || '').trim();
+    if (!n) return res.status(400).json({ error: 'Le nom du donateur est requis' });
+    const result = await pool.query(
+      'INSERT INTO donors (name, need) VALUES ($1, $2) RETURNING *',
+      [n, String(need || '').trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Ce donateur existe déjà' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT update (comptable ou admin)
+app.put('/api/donors/:id', requireRole(ROLES.accountant), async (req, res) => {
+  try {
+    const { name, need } = req.body;
+    const n = String(name || '').trim();
+    if (!n) return res.status(400).json({ error: 'Le nom du donateur est requis' });
+    const result = await pool.query(
+      'UPDATE donors SET name=$1, need=$2 WHERE id=$3 RETURNING *',
+      [n, String(need || '').trim(), req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Donateur introuvable' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE (comptable ou admin) — les transactions existantes conservent le nom
+app.delete('/api/donors/:id', requireRole(ROLES.accountant), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM donors WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Donateur introuvable' });
     res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

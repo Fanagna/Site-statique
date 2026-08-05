@@ -141,6 +141,37 @@ export async function deleteFinance(id) {
   return apiCallDetailed(`/finances/${id}`, { method: 'DELETE' });
 }
 
+/* Import Excel en masse — { rows, autoCreateDonors } → { ok, data:{ created, errors, createdDonors } } */
+export async function importFinances(rows, autoCreateDonors = true) {
+  return apiCallDetailed('/finances/import', {
+    method: 'POST',
+    body: JSON.stringify({ rows, autoCreateDonors }),
+  });
+}
+
+/* ── Donateurs (partenaires financiers) ── */
+export async function fetchDonors() {
+  return await apiCall('/donors');
+}
+
+export async function createDonor(data) {
+  return apiCallDetailed('/donors', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateDonor(id, data) {
+  return apiCallDetailed(`/donors/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDonor(id) {
+  return apiCallDetailed(`/donors/${id}`, { method: 'DELETE' });
+}
+
 /* ── News ── */
 export async function fetchNews() {
   // cache-buster : force le rechargement des dernières actualités modifiées par l'admin

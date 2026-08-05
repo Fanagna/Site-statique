@@ -110,6 +110,27 @@ CREATE TABLE IF NOT EXISTS finances (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Donateurs (partenaires financiers : Ravinala, Horizon, Grandir Dignement…)
+-- Chaque donateur finance un besoin spécifique (salaire, sakafo, formation…).
+CREATE TABLE IF NOT EXISTS donors (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  need VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Migration : chaque transaction est rattachée à un donateur (nom)
+ALTER TABLE finances ADD COLUMN IF NOT EXISTS donor VARCHAR(255);
+
+-- Seed des donateurs connus (idempotent)
+INSERT INTO donors (name, need)
+SELECT * FROM (VALUES
+  ('Ravinala', 'Salaire'),
+  ('Horizon', 'Sakafo — Alimentation'),
+  ('Grandir Dignement', 'Formation professionnelle')
+) AS d(name, need)
+ON CONFLICT (name) DO NOTHING;
+
 -- Volunteer applications (motivation letter + CV attachments)
 CREATE TABLE IF NOT EXISTS volunteers (
   id SERIAL PRIMARY KEY,

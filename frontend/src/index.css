@@ -441,6 +441,8 @@ textarea:focus-visible,
    À l'impression : les mois s'empilent verticalement, un mois par bloc,
    pleine largeur — plus de colonnes coupées par le bord de page. */
 @media print {
+  /* Les zones défilantes des rapports (Évaluation, donateur) s'étalent sur la page */
+  .print-area .overflow-x-auto,
   .eval-scroll {
     overflow: visible !important;
   }

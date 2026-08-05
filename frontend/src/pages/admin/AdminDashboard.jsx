@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Toast, { useToast } from '../../components/admin/Toast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
-  fetchFinances, createFinance, updateFinance, deleteFinance,
+  fetchFinances, createFinance, updateFinance, deleteFinance, importFinances,
+  fetchDonors, createDonor, updateDonor, deleteDonor,
   fetchNews,
   fetchContacts, deleteContact,
   fetchNewsletterSubscribers, deleteNewsletterSubscriber,
@@ -22,6 +23,12 @@ import { Icon } from '../../components/admin/icons';
 import {
   formatMGA, today, fmtDate, timeAgo, initials, inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
+import {
+  downloadTemplate, parseWorkbook, exportEvaluationXlsx,
+} from '../../components/admin/ExcelTools';
+import {
+  DonorDonut, DonorExpenseBars, DonorMonthlyStacked, donorColor,
+} from '../../components/admin/DonorCharts';
 
 /* ═══════════════════════════════════════
    Helpers
@@ -307,12 +314,29 @@ export default function AdminDashboard() {
   /* ── Finance CRUD ── */
   const [showFinanceForm, setShowFinanceForm] = useState(false);
   const [editingFin, setEditingFin] = useState(null);
-  const [financeForm, setFinanceForm] = useState({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
+  const [financeForm, setFinanceForm] = useState({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today(), donor: '' });
   const [finType, setFinType] = useState('');
   const [finCat, setFinCat] = useState('');
   const [finSort, setFinSort] = useState({ key: '', dir: 1 });
   const [evalYear, setEvalYear] = useState(new Date().getFullYear());
   const [evalMonth, setEvalMonth] = useState(''); // '' = vue des 12 mois ; '01'…'12' = rapport mensuel détaillé
+  const [evalDonor, setEvalDonor] = useState(''); // '' = tous ; 'Sans donateur' ; nom d'un donateur
+
+  /* ── Donateurs (partenaires financiers) ── */
+  const [donors, setDonors] = useState([]);
+  const [showDonorForm, setShowDonorForm] = useState(false);
+  const [editingDonor, setEditingDonor] = useState(null);
+  const [donorForm, setDonorForm] = useState({ name: '', need: '' });
+
+  /* ── Import Excel (évaluation) ── */
+  const fileInputRef = useRef(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importUnknown, setImportUnknown] = useState([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importAutoCreate, setImportAutoCreate] = useState(true);
+  const [importBusy, setImportBusy] = useState(false);
 
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
@@ -332,6 +356,11 @@ export default function AdminDashboard() {
     if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
     else { anyFail = true; const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
     setFinancesLoading(false);
+
+    // Donateurs : nécessaires pour l'évaluation (filtre + rapports) et l'onglet dédié
+    const dFromApi = await fetchDonors();
+    if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonors(dFromApi); }
+    else { anyFail = true; const s = localStorage.getItem('arina_donors'); setDonors(s ? JSON.parse(s) : []); }
 
     if (can('actualites')) {
       const nFromApi = await fetchNews();
@@ -378,6 +407,7 @@ export default function AdminDashboard() {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { if (benefs.length) localStorage.setItem('arina_benefs', JSON.stringify(benefs)); }, [benefs]);
   useEffect(() => { if (finances.length) localStorage.setItem('arina_finances', JSON.stringify(finances)); }, [finances]);
+  useEffect(() => { if (donors.length) localStorage.setItem('arina_donors', JSON.stringify(donors)); }, [donors]);
   useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
   useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
   useEffect(() => { if (subs.length) localStorage.setItem('arina_subs', JSON.stringify(subs)); }, [subs]);
@@ -476,14 +506,20 @@ export default function AdminDashboard() {
         unit_price: f.unit_price != null ? String(f.unit_price) : '',
         description: f.description || '',
         date: f.date || today(),
+        donor: f.donor || '',
       });
     } else {
       setEditingFin(null);
-      setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
+      setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today(), donor: '' });
     }
     setShowFinanceForm(true);
   };
   const saveFinance = async () => {
+    // Donateur obligatoire : chaque don / dépense est rattaché au partenaire qui le finance
+    if (!financeForm.donor) {
+      showToast('❌ Le donateur est obligatoire — sélectionnez le partenaire qui finance cette transaction.', 'error');
+      return;
+    }
     const q = financeForm.quantity !== '' ? Number(financeForm.quantity) || 0 : 0;
     const p = financeForm.unit_price !== '' ? Number(financeForm.unit_price) || 0 : 0;
     // MNT = QT × PU (calcul automatique) pour une dépense ; sinon montant saisi (ex. un don).
@@ -491,6 +527,7 @@ export default function AdminDashboard() {
     const auto = q > 0 && p > 0 ? Math.round(q * p) : 0;
     const d = {
       ...financeForm,
+      donor: financeForm.donor,
       quantity: q || null,
       unit_price: p || null,
       montant: auto || Number(financeForm.montant) || 0,
@@ -509,7 +546,7 @@ export default function AdminDashboard() {
     }
     setEditingFin(null);
     setShowFinanceForm(false);
-    setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today() });
+    setFinanceForm({ type: 'Revenu', categorie: 'Don', montant: '', quantity: '', unit_price: '', description: '', date: today(), donor: '' });
   };
   const removeFinance = async (id) => {
     if (!confirm('Supprimer cette transaction ?')) return;
@@ -518,6 +555,45 @@ export default function AdminDashboard() {
     setFinances(finances.filter((f) => f.id !== id));
     showToast('✅ Transaction supprimée de la base de données');
   };
+
+  /* ── Donateurs CRUD ── */
+  const openDonorForm = (d) => {
+    if (d) { setEditingDonor(d); setDonorForm({ name: d.name || '', need: d.need || '' }); }
+    else { setEditingDonor(null); setDonorForm({ name: '', need: '' }); }
+    setShowDonorForm(true);
+  };
+  const saveDonor = async () => {
+    if (!donorForm.name.trim()) { showToast('❌ Le nom du donateur est requis', 'error'); return; }
+    const r = editingDonor ? await updateDonor(editingDonor.id, donorForm) : await createDonor(donorForm);
+    if (!r.ok) { showToast(`❌ Donateur NON enregistré dans la base : ${r.error}`, 'error'); return; }
+    if (editingDonor) setDonors(donors.map((d) => (d.id === editingDonor.id ? r.data : d)));
+    else setDonors([...donors, r.data]);
+    showToast(`✅ Donateur « ${r.data.name} » ${editingDonor ? 'modifié' : 'ajouté'} dans la base`);
+    setShowDonorForm(false);
+    setDonorForm({ name: '', need: '' });
+    setEditingDonor(null);
+  };
+  const removeDonor = async (d) => {
+    if (!confirm(`Supprimer le donateur « ${d.name} » ? Les transactions existantes conserveront son nom.`)) return;
+    const r = await deleteDonor(d.id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setDonors(donors.filter((x) => x.id !== d.id));
+    showToast(`✅ Donateur « ${d.name} » retiré de la liste`);
+  };
+
+  /* Stats agrégées par donateur (pour l'onglet Donateurs) */
+  const donorStats = useMemo(() => {
+    const map = {};
+    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, depenses: 0, count: 0 }; });
+    finances.forEach((f) => {
+      const k = f.donor;
+      if (!k || !map[k]) return;
+      const v = Number(f.montant) || 0;
+      map[k].count++;
+      if (f.type === 'Revenu') map[k].dons += v; else map[k].depenses += v;
+    });
+    return Object.values(map);
+  }, [donors, finances]);
 
   const removeContact = async (id) => {
     if (!confirm('Supprimer ce message ?')) return;
@@ -646,7 +722,7 @@ export default function AdminDashboard() {
 
   const filteredFinances = useMemo(() => {
     let arr = finances.filter((f) => (finType ? f.type === finType : true) && (finCat ? f.categorie === finCat : true));
-    if (q) arr = arr.filter((f) => `${f.categorie} ${f.description}`.toLowerCase().includes(q));
+    if (q) arr = arr.filter((f) => `${f.categorie} ${f.description} ${f.donor || ''}`.toLowerCase().includes(q));
     return arr;
   }, [finances, finType, finCat, q]);
   const sortedFinances = useMemo(() => {
@@ -682,10 +758,43 @@ export default function AdminDashboard() {
     finances.forEach((f) => { const k = monthKey(f.date); if (k) set.add(Number(k.split('-')[0])); });
     return [...set].sort((a, b) => b - a);
   }, [finances]);
+  // Filtre donateur : appliqué aux mois, au rapport et à l'export Excel
+  const evalFinances = useMemo(() => {
+    if (!evalDonor) return finances;
+    return finances.filter((f) => (f.donor || 'Sans donateur') === evalDonor);
+  }, [finances, evalDonor]);
+  // Périmètre analytics : année (+ mois si sélectionné), tous donateurs
+  const evalScope = useMemo(() => finances.filter((f) => {
+    const k = monthKey(f.date);
+    if (!k.startsWith(String(evalYear))) return false;
+    if (evalMonth && !k.endsWith(`-${evalMonth}`)) return false;
+    return true;
+  }), [finances, evalYear, evalMonth]);
+  const yearFinances = useMemo(() => finances.filter((f) => monthKey(f.date).startsWith(String(evalYear))), [finances, evalYear]);
+  const scopeDons = evalScope.filter((f) => f.type === 'Revenu').reduce((s, f) => s + (Number(f.montant) || 0), 0);
+  const scopeDep = evalScope.filter((f) => f.type === 'Dépense').reduce((s, f) => s + (Number(f.montant) || 0), 0);
+  const scopeSolde = scopeDons - scopeDep;
+  // Transactions détaillées du filtre courant (rapport donateur / export)
+  const evalDetail = useMemo(() => [...evalFinances]
+    .filter((f) => {
+      const k = monthKey(f.date);
+      return k.startsWith(String(evalYear)) && (!evalMonth || k.endsWith(`-${evalMonth}`));
+    })
+    .sort((a, b) => String(a.date).localeCompare(String(b.date))),
+  [evalFinances, evalYear, evalMonth]);
+  const donorInfo = evalDonor ? donors.find((d) => d.name === evalDonor) : null;
+  // Totaux du rapport donateur (périmètre : donateur + année + mois)
+  const detailDons = evalDetail.filter((f) => f.type === 'Revenu').reduce((s, f) => s + (Number(f.montant) || 0), 0);
+  const detailDep = evalDetail.filter((f) => f.type === 'Dépense').reduce((s, f) => s + (Number(f.montant) || 0), 0);
+  const detailSolde = detailDons - detailDep;
+  // KPI du haut : ciblés sur le donateur sélectionné (sinon toutes les données de la période)
+  const kpiDons = evalDonor ? detailDons : scopeDons;
+  const kpiDep = evalDonor ? detailDep : scopeDep;
+  const kpiSolde = evalDonor ? detailSolde : scopeSolde;
   // 12 colonnes-mois avec dons détaillés et dépenses (QT / PU / MNT) + totaux
   const evalMonths = useMemo(() => MONTH_NAMES.map((name, i) => {
     const key = `${evalYear}-${String(i + 1).padStart(2, '0')}`;
-    const rows = finances.filter((f) => monthKey(f.date) === key);
+    const rows = evalFinances.filter((f) => monthKey(f.date) === key);
     const dons = rows.filter((f) => f.type === 'Revenu');
     const depenses = rows.filter((f) => f.type === 'Dépense');
     return {
@@ -696,7 +805,7 @@ export default function AdminDashboard() {
       depTotal: depenses.reduce((s, f) => s + (Number(f.montant) || 0), 0),
       solde: dons.reduce((s, f) => s + (Number(f.montant) || 0), 0) - depenses.reduce((s, f) => s + (Number(f.montant) || 0), 0),
     };
-  }), [finances, evalYear]);
+  }), [evalFinances, evalYear]);
 
   // Mois sélectionné pour le rapport mensuel détaillé (synthèse + détail par catégorie)
   const selectedMonth = evalMonth ? evalMonths.find((m) => m.key.endsWith(`-${evalMonth}`)) || null : null;
@@ -712,47 +821,44 @@ export default function AdminDashboard() {
     };
   }, [selectedMonth]);
 
-  /* Export CSV de l'évaluation mensuelle (séparateur « ; » compatible Excel FR) */
-  const exportEvaluationCsv = useCallback(() => {
-    const esc = (v) => {
-      const s = v == null ? '' : String(v);
-      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const line = (...cells) => cells.map(esc).join(';');
-    const rows = [];
-    rows.push('Association ARINA — Évaluation mensuelle des transactions');
-    rows.push(`Année ${evalYear} — éditée le ${new Date().toLocaleDateString('fr-FR')}`);
-    rows.push('');
-    // Détail des transactions par mois (dons puis dépenses avec QT / PU / MNT)
-    rows.push(line('Mois', 'Date', 'Type', 'Désignation', 'QT', 'PU', 'MNT'));
-    evalMonths.forEach((m) => {
-      if (m.dons.length === 0 && m.depenses.length === 0) return;
-      m.dons.forEach((d) => rows.push(line(m.name, fmtDate(d.date), 'DON', d.categorie, '', '', Number(d.montant) || 0)));
-      m.depenses.forEach((d) => {
-        // Désignation sur plusieurs lignes : catégorie, puis description complète (si présente)
-        const designation = d.categorie + (d.description ? `\n${d.description}` : '');
-        rows.push(line(m.name, fmtDate(d.date), 'DÉPENSE', designation, d.quantity ?? '', d.unit_price ?? '', Number(d.montant) || 0));
-      });
-    });
-    rows.push('');
-    // Récapitulatif mensuel
-    rows.push(line('Mois', 'DON REÇUS', 'TOTAL DÉPENSE', 'SOLDE'));
-    evalMonths.forEach((m) => {
-      if (m.dons.length === 0 && m.depenses.length === 0) return;
-      rows.push(line(m.name, m.donTotal, m.depTotal, m.solde));
-    });
-    const csv = '\uFEFF' + rows.join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `evaluation-ARINA-${evalYear}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`📥 Fichier evaluation-ARINA-${evalYear}.csv téléchargé`);
-  }, [evalMonths, evalYear, showToast]);
+  /* Export Excel (.xlsx) du rapport — filtres année / mois / donateur */
+  const exportEvaluationXlsxHandler = useCallback(() => {
+    const monthName = evalMonth ? MONTH_NAMES[Number(evalMonth) - 1] : '';
+    const donorSlug = evalDonor ? '-' + evalDonor.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+$/g, '') : '';
+    const fname = `rapport-ARINA-${evalYear}${monthName ? '-' + monthName.toLowerCase() : ''}${donorSlug}.xlsx`;
+    exportEvaluationXlsx({ year: evalYear, month: evalMonth, donor: evalDonor, finances, donors, fileName: fname });
+    showToast(`📥 ${fname} téléchargé${evalDonor ? ` — ${evalDonor}` : ''}`);
+  }, [evalYear, evalMonth, evalDonor, finances, donors, showToast]);
+
+  /* Import Excel : lecture du classeur → aperçu (modal) → enregistrement en base */
+  const onImportFile = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const res = await parseWorkbook(f, donors);
+      setImportRows(res.rows || []);
+      setImportErrors(res.errors || []);
+      setImportUnknown(res.unknownDonors || []);
+      setImportFileName(f.name);
+      setImportOpen(true);
+    } catch {
+      showToast('❌ Impossible de lire ce fichier — utilisez le modèle Excel téléchargeable.', 'error');
+    }
+  };
+  const runImport = async () => {
+    if (!importRows.length) return;
+    setImportBusy(true);
+    const r = await importFinances(importRows, importAutoCreate);
+    setImportBusy(false);
+    if (!r.ok) { showToast(`❌ Import échoué : ${r.error}`, 'error'); return; }
+    const { created, errors: serverErrors, createdDonors } = r.data || {};
+    const nbErr = serverErrors?.length || 0;
+    showToast(`✅ ${created} transaction${created > 1 ? 's' : ''} importée${created > 1 ? 's' : ''} dans la base${createdDonors?.length ? ` — donateurs créés : ${createdDonors.join(', ')}` : ''}${nbErr ? ` — ${nbErr} ligne(s) ignorée(s)` : ''}`);
+    setImportOpen(false);
+    setImportRows([]); setImportErrors([]); setImportUnknown([]);
+    await loadData();
+  };
 
   /* Activity feed (real from API, else derived from loaded data) */
   /* Fil d'activité local : l'aperçu (finances + enfants) est visible par tous ;
@@ -791,6 +897,7 @@ export default function AdminDashboard() {
   if (allowedTabs.includes('enfants')) principalItems.push({ key: 'enfants', label: 'Enfants', icon: 'users' });
   if (allowedTabs.includes('finances')) principalItems.push({ key: 'finances', label: 'Finances', icon: 'wallet' });
   if (allowedTabs.includes('evaluation')) principalItems.push({ key: 'evaluation', label: 'Évaluation', icon: 'calendar' });
+  if (allowedTabs.includes('donateurs')) principalItems.push({ key: 'donateurs', label: 'Donateurs', icon: 'handshake' });
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
@@ -804,7 +911,8 @@ export default function AdminDashboard() {
     dashboard: { title: 'Tableau de bord', subtitle: "Vue d'ensemble de votre structure" },
     enfants: { title: 'Enfants', subtitle: 'Bénéficiaires accompagnés par ARINA' },
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
-    evaluation: { title: 'Évaluation mensuelle', subtitle: 'Transactions par mois — calcul automatique QT × PU' },
+    evaluation: { title: 'Évaluation mensuelle', subtitle: 'Transactions par mois et par donateur — import & export Excel' },
+    donateurs: { title: 'Donateurs', subtitle: 'Partenaires financiers et besoins financés' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
     newsletter: { title: 'Newsletter', subtitle: "Abonnés à votre lettre d'information" },
@@ -816,6 +924,7 @@ export default function AdminDashboard() {
     enfants: 'Rechercher un enfant…',
     finances: 'Rechercher une transaction…',
     evaluation: 'Rechercher une transaction…',
+    donateurs: 'Rechercher un donateur…',
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
     newsletter: 'Rechercher un e-mail…',
@@ -1259,6 +1368,7 @@ export default function AdminDashboard() {
                     <tr>
                       <Th label="Type" k="type" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Catégorie" k="categorie" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
+                      <Th label="Donateur" k="donor" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Détail (QT × PU)" />
                       <Th label="Montant" k="montant" sort={finSort} onSort={(k) => setFinSort({ key: k, dir: finSort.key === k ? -finSort.dir : 1 })} />
                       <Th label="Description" />
@@ -1273,6 +1383,12 @@ export default function AdminDashboard() {
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${f.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{f.type}</span>
                         </td>
                         <td className="px-4 py-3 text-ios-text">{f.categorie || 'Autre'}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1.5 text-xs">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: donorColor(donors, f.donor) }} />
+                            <span className={f.donor ? 'text-ios-text' : 'text-amber-600 dark:text-amber-400 font-medium'}>{f.donor || 'Sans donateur'}</span>
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-xs text-ios-text3 tabular whitespace-nowrap">
                           {f.quantity != null && f.unit_price != null ? `${f.quantity} × ${formatMGA(f.unit_price)}` : '—'}
                         </td>
@@ -1300,7 +1416,7 @@ export default function AdminDashboard() {
       {/* ═══════════ ÉVALUATION MENSUELLE (admin + comptable) ═══════════ */}
       {tab === 'evaluation' && (
         <div className="space-y-4 animate-fade-up">
-          <div className="no-print flex flex-wrap items-center gap-3">
+          <div className="no-print flex flex-wrap items-center gap-2.5">
             <select value={evalYear} onChange={(e) => setEvalYear(Number(e.target.value))} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30">
               {evalYears.map((y) => <option key={y} value={y}>Année {y}</option>)}
             </select>
@@ -1308,14 +1424,122 @@ export default function AdminDashboard() {
               <option value="">Tous les mois</option>
               {MONTH_NAMES.map((name, i) => <option key={name} value={String(i + 1).padStart(2, '0')}>{name}</option>)}
             </select>
-            <span className="text-xs text-ios-text3">MNT calculé automatiquement (QT × PU) — défilement horizontal pour voir les 12 mois</span>
-            <button onClick={exportEvaluationCsv} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
-              <Download className="w-4 h-4" /> Exporter CSV
-            </button>
-            <button onClick={() => window.print()} className="ml-auto inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all no-print">
-              <Printer className="w-4 h-4" /> Imprimer / PDF
-            </button>
+            <select value={evalDonor} onChange={(e) => setEvalDonor(e.target.value)} className="px-3.5 py-2.5 bg-ios-card border border-ios-hairline rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/30 max-w-[230px]" title="Filtrer par donateur">
+              <option value="">Tous les donateurs</option>
+              {donors.map((d) => <option key={d.id} value={d.name}>{d.name}{d.need ? ` — ${d.need}` : ''}</option>)}
+              <option value="Sans donateur">Sans donateur (à compléter)</option>
+            </select>
+            <span className="text-xs text-ios-text3">MNT automatique (QT × PU) — défilement horizontal pour les 12 mois</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <button onClick={downloadTemplate} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all" title="Télécharger le modèle Excel d'import">
+                <Icon name="file" className="w-4 h-4" /> Modèle
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-warm text-arina-blue text-sm font-semibold hover:bg-[#FDE7E1] dark:hover:bg-white/10 transition-all" title="Importer les dépenses et dons du mois depuis un fichier Excel">
+                <Icon name="upload" className="w-4 h-4" /> Importer Excel
+              </button>
+              <button onClick={exportEvaluationXlsxHandler} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-blue text-white text-sm font-semibold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all" title="Exporter le rapport en Excel (.xlsx)">
+                <Download className="w-4 h-4" /> Exporter Excel
+              </button>
+              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all" title="Imprimer / enregistrer en PDF">
+                <Printer className="w-4 h-4" /> Imprimer / PDF
+              </button>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onImportFile} />
+            </div>
           </div>
+
+          {/* ── Tableau de bord analytique (temps réel) ── */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Dons reçus', value: kpiDons, c: 'text-emerald-600 dark:text-emerald-400' },
+              { label: 'Dépenses', value: kpiDep, c: 'text-red-500 dark:text-red-400' },
+              { label: 'Solde', value: kpiSolde, c: kpiSolde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400' },
+            ].map((s, i) => (
+              <div key={i} className="card-apple p-5">
+                <div className={`text-xl lg:text-2xl font-extrabold tabular ${s.c}`}>{financesLoading ? '—' : formatMGA(s.value)}</div>
+                <div className="text-xs text-ios-text3 mt-0.5">{s.label}{evalDonor ? ` · ${evalDonor}` : ''}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            <div className="card-apple p-5">
+              <h3 className="font-bold text-sm">Dons par donateur</h3>
+              <p className="text-[11px] text-ios-text3 mt-0.5">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+              <DonorDonut finances={evalScope} donors={donors} loading={financesLoading} />
+            </div>
+            <div className="card-apple p-5">
+              <h3 className="font-bold text-sm">Dépenses par donateur</h3>
+              <p className="text-[11px] text-ios-text3 mt-0.5">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+              <DonorExpenseBars finances={evalScope} donors={donors} loading={financesLoading} />
+            </div>
+            <div className="card-apple p-5 lg:col-span-2">
+              <h3 className="font-bold text-sm">Évolution mensuelle des dépenses par donateur</h3>
+              <p className="text-[11px] text-ios-text3 mt-0.5">{evalYear}</p>
+              <DonorMonthlyStacked finances={yearFinances} donors={donors} year={evalYear} loading={financesLoading} />
+            </div>
+          </div>
+
+          {/* Rapport détaillé par donateur (filtre donateur) — imprimable */}
+          {evalDonor && (
+            <div className="card-apple p-6 animate-fade-up print-area">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold">Rapport {evalDonor}</h3>
+                  <p className="text-xs text-ios-text3 mt-0.5">
+                    {donorInfo?.need ? `Besoin financé : ${donorInfo.need} · ` : ''}
+                    {evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ${evalYear}` : `Année ${evalYear}`} — {evalDetail.length} mouvement{evalDetail.length > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Icon name="trendUp" className="w-3.5 h-3.5" /> Dons : {formatMGA(detailDons)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400">
+                    <Icon name="trendDown" className="w-3.5 h-3.5" /> Dépenses : {formatMGA(detailDep)}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-ios-fill">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Date</th>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Type</th>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Désignation</th>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Description</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">QT</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">PU</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">MNT</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ios-hairline">
+                    {evalDetail.length === 0 && (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-ios-text3">Aucune transaction pour ce donateur sur la période sélectionnée.</td></tr>
+                    )}
+                    {evalDetail.map((f) => (
+                      <tr key={f.id} className="hover:bg-ios-fill transition-colors">
+                        <td className="px-4 py-2.5 text-xs text-ios-text3 whitespace-nowrap tabular">{fmtDate(f.date)}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${f.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{f.type}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-ios-text font-medium">{f.categorie || 'Autre'}</td>
+                        <td className="px-4 py-2.5 text-ios-text2 text-xs max-w-[260px] truncate">{f.description || '—'}</td>
+                        <td className="px-4 py-2.5 text-right tabular text-ios-text2">{f.quantity ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-right tabular text-ios-text2">{f.unit_price != null ? formatMGA(f.unit_price) : '—'}</td>
+                        <td className={`px-4 py-2.5 text-right font-semibold tabular ${f.type === 'Revenu' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>{formatMGA(f.montant)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-ios-fill font-semibold">
+                      <td colSpan={6} className="px-4 py-3 text-right text-xs uppercase tracking-wide text-ios-text3">Solde {evalDonor}</td>
+                      <td className={`px-4 py-3 text-right font-extrabold tabular ${detailSolde >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(detailSolde)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Rapport mensuel détaillé (sélecteur de mois) */}
           {selectedMonth && monthCat && (
@@ -1385,7 +1609,7 @@ export default function AdminDashboard() {
                 <img src="/logo-arina.jpg" alt="ARINA" className="w-12 h-12 rounded-xl object-contain" />
                 <div>
                   <div className="text-lg font-extrabold tracking-tight">Association ARINA — Évaluation mensuelle des transactions</div>
-                  <div className="text-xs text-ios-text3">Année {evalYear} — éditée le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                  <div className="text-xs text-ios-text3">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}{evalDonor ? ` — Donateur : ${evalDonor}` : ' — Tous les donateurs'} — éditée le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
                 </div>
               </div>
             </div>
@@ -1411,10 +1635,16 @@ export default function AdminDashboard() {
                       ) : (
                         <div className="mt-1 space-y-1">
                           {m.dons.map((d) => (
-                            <div key={d.id} className="flex items-center justify-between gap-2 text-[11px]">
-                              <span className="text-ios-text3 whitespace-nowrap">{fmtDate(d.date)}</span>
-                              <span className="text-ios-text2 font-medium truncate">{d.categorie}</span>
-                              <span className="font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.montant)}</span>
+                            <div key={d.id} className="text-[11px] py-0.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-ios-text3 whitespace-nowrap">{fmtDate(d.date)}</span>
+                                <span className="text-ios-text2 font-medium truncate">{d.categorie}</span>
+                                <span className="font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.montant)}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] text-ios-text3 truncate">
+                                <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: donorColor(donors, d.donor) }} />
+                                {d.donor || 'Sans donateur'}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1445,7 +1675,13 @@ export default function AdminDashboard() {
                             {m.depenses.map((d) => (
                               <tr key={d.id}>
                                 <td className="py-1 text-ios-text3 whitespace-nowrap">{fmtDate(d.date)}</td>
-                                <td className="py-1 text-ios-text2 truncate max-w-[72px]">{d.categorie}{d.description ? ` · ${d.description}` : ''}</td>
+                                <td className="py-1 text-ios-text2 truncate max-w-[96px]">
+                                  {d.categorie}{d.description ? ` · ${d.description}` : ''}
+                                  <span className="block text-[10px] text-ios-text3 flex items-center gap-1 truncate">
+                                    <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: donorColor(donors, d.donor) }} />
+                                    {d.donor || 'Sans donateur'}
+                                  </span>
+                                </td>
                                 <td className="py-1 text-right tabular">{d.quantity ?? '—'}</td>
                                 <td className="py-1 text-right tabular">{d.unit_price != null ? formatMGA(d.unit_price) : '—'}</td>
                                 <td className="py-1 text-right font-semibold tabular">{formatMGA(d.montant)}</td>
@@ -1470,6 +1706,81 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══════════ DONATEURS (partenaires financiers) ═══════════ */}
+      {tab === 'donateurs' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="flex flex-wrap items-center gap-3">
+            {[
+              { label: 'Donateurs', value: donors.length, c: 'text-arina-blue' },
+              { label: 'Dons reçus', value: donorStats.reduce((s, d) => s + d.dons, 0), c: 'text-emerald-600 dark:text-emerald-400', fmt: formatMGA },
+              { label: 'Dépenses', value: donorStats.reduce((s, d) => s + d.depenses, 0), c: 'text-red-500 dark:text-red-400', fmt: formatMGA },
+            ].map((s, i) => (
+              <div key={i} className="card-apple p-5 flex-1 min-w-[140px]">
+                <div className={`text-xl lg:text-2xl font-extrabold tabular ${s.c}`}>{s.fmt ? s.fmt(s.value) : s.value}</div>
+                <div className="text-xs text-ios-text3 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+            <button onClick={() => openDonorForm(null)} className={`${primaryBtn} ml-auto inline-flex items-center gap-1.5`}>
+              <Icon name="plus" className="w-4 h-4" /> Ajouter un donateur
+            </button>
+          </div>
+
+          <div className="card-apple overflow-hidden">
+            {donorStats.length === 0 ? (
+              <EmptyState icon="handshake" text="Aucun donateur — ajoutez vos partenaires financiers (Ravinala, Horizon, Grandir Dignement…)." action={<button onClick={() => openDonorForm(null)} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /> Ajouter un donateur</button>} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-ios-fill">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Donateur</th>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Besoin financé</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dons reçus</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dépenses</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Solde</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Transactions</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ios-hairline">
+                    {donorStats.map((d) => (
+                      <tr key={d.id} className="hover:bg-ios-fill transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: donorColor(donors, d.name) }}>
+                              {d.name.slice(0, 1).toUpperCase()}
+                            </span>
+                            <span className="font-semibold">{d.name}</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-ios-text2">{d.need || '—'}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular text-red-500 dark:text-red-400">{formatMGA(d.depenses)}</td>
+                        <td className={`px-4 py-3 text-right font-bold tabular ${d.solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(d.solde)}</td>
+                        <td className="px-4 py-3 text-right tabular text-ios-text2">{d.count}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => openDonorForm(d)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
+                            <button onClick={() => removeDonor(d)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="card-apple p-5">
+            <h3 className="font-bold text-sm">Comment ça marche ?</h3>
+            <p className="text-sm text-ios-text2 mt-2 leading-relaxed">
+              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez un donateur pour voir en détail ses dons et dépenses du mois, exporter son rapport Excel (.xlsx) et l'imprimer — parfait pour faire le point avec chaque partenaire (Ravinala, Horizon, Grandir Dignement…).
+            </p>
+          </div>
         </div>
       )}
 
@@ -1934,6 +2245,17 @@ export default function AdminDashboard() {
                 <option value="Salaire">Salaire</option>
                 <option value="Autre">Autre</option>
               </select>
+              <div>
+                <label className="block text-xs font-semibold text-ios-text2 mb-1">Donateur <span className="text-arina-blue">*</span></label>
+                <select value={financeForm.donor} onChange={(e) => setFinanceForm({ ...financeForm, donor: e.target.value })} className={inputClass}>
+                  <option value="">— Sélectionner le donateur —</option>
+                  {financeForm.donor && !donors.some((d) => d.name === financeForm.donor) && (
+                    <option value={financeForm.donor}>Conserver : {financeForm.donor}</option>
+                  )}
+                  {donors.map((d) => <option key={d.id} value={d.name}>{d.name}{d.need ? ` — ${d.need}` : ''}</option>)}
+                </select>
+                <p className="text-[10px] text-ios-text3 mt-1">Chaque don / dépense est rattaché au partenaire qui le finance (ex. Ravinala → salaire).</p>
+              </div>
               {financeForm.type === 'Dépense' ? (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -1969,6 +2291,105 @@ export default function AdminDashboard() {
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowFinanceForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveFinance} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — formulaire donateur */}
+      {showDonorForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setShowDonorForm(false)}>
+          <div className="card-apple w-full max-w-md animate-pop overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-4 border-b border-ios-hairline">
+              <h3 className="font-bold">{editingDonor ? 'Modifier le donateur' : 'Ajouter un donateur'}</h3>
+              <p className="text-xs text-ios-text3 mt-0.5">Partenaire financier et besoin qu'il finance</p>
+            </div>
+            <div className="p-6 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-ios-text2 mb-1">Nom du donateur <span className="text-arina-blue">*</span></label>
+                <input value={donorForm.name} onChange={(e) => setDonorForm({ ...donorForm, name: e.target.value })} placeholder="Ex. Ravinala" className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ios-text2 mb-1">Besoin financé</label>
+                <input value={donorForm.need} onChange={(e) => setDonorForm({ ...donorForm, need: e.target.value })} placeholder="Ex. Salaire, Sakafo, Formation…" className={inputClass} />
+              </div>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setShowDonorForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
+              <button onClick={saveDonor} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — aperçu import Excel */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setImportOpen(false)}>
+          <div className="card-apple w-full max-w-2xl animate-pop max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-4 border-b border-ios-hairline flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold">Importer {importFileName}</h3>
+                <p className="text-xs text-ios-text3 mt-0.5">{importRows.length} ligne{importRows.length > 1 ? 's' : ''} prête{importRows.length > 1 ? 's' : ''} à importer{importErrors.length ? ` · ${importErrors.length} erreur${importErrors.length > 1 ? 's' : ''}` : ''}</p>
+              </div>
+              <button onClick={() => setImportOpen(false)} className="p-2 rounded-lg text-ios-text3 hover:bg-ios-fill" title="Fermer"><Icon name="x" className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto scroll-slim p-6 space-y-4">
+              {importUnknown.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+                  <span className="font-semibold">Donateurs inconnus :</span> {importUnknown.join(', ')}
+                  <label className="flex items-center gap-2 mt-2 text-[13px]">
+                    <input type="checkbox" checked={importAutoCreate} onChange={(e) => setImportAutoCreate(e.target.checked)} className="accent-arina-blue" />
+                    Créer automatiquement ces donateurs dans la liste
+                  </label>
+                </div>
+              )}
+              {importErrors.length > 0 && (
+                <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                  <span className="font-semibold">Lignes ignorées ({importErrors.length}) :</span>
+                  <ul className="mt-1.5 space-y-0.5 text-[13px]">
+                    {importErrors.slice(0, 20).map((e, i) => <li key={i}>Ligne {e.row} : {e.reason}</li>)}
+                    {importErrors.length > 20 && <li>… et {importErrors.length - 20} autres</li>}
+                  </ul>
+                </div>
+              )}
+              {importRows.length === 0 && importErrors.length === 0 && (
+                <p className="text-sm text-ios-text3">Aucune ligne exploitable dans ce fichier.</p>
+              )}
+              {importRows.length > 0 && (
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-2">Aperçu (premières lignes)</div>
+                  <div className="overflow-x-auto rounded-xl border border-ios-hairline">
+                    <table className="w-full text-xs">
+                      <thead className="bg-ios-fill">
+                        <tr>
+                          {['Date', 'Type', 'Désignation', 'Description', 'QT', 'PU', 'MNT', 'Donateur'].map((h) => <th key={h} className="px-3 py-2 text-left font-semibold text-ios-text3">{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-ios-hairline">
+                        {importRows.slice(0, 8).map((r, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 tabular whitespace-nowrap">{r.date}</td>
+                            <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${r.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{r.type}</span></td>
+                            <td className="px-3 py-2">{r.categorie}</td>
+                            <td className="px-3 py-2 text-ios-text3 max-w-[160px] truncate">{r.description || '—'}</td>
+                            <td className="px-3 py-2 tabular text-right">{r.quantity ?? '—'}</td>
+                            <td className="px-3 py-2 tabular text-right">{r.unit_price ?? '—'}</td>
+                            <td className="px-3 py-2 tabular text-right font-semibold">{Number(r.montant).toLocaleString('fr-FR')}</td>
+                            <td className="px-3 py-2">{r.donor}</td>
+                          </tr>
+                        ))}
+                        {importRows.length > 8 && <tr><td colSpan={8} className="px-3 py-2 text-center text-ios-text3">… et {importRows.length - 8} autres lignes</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-ios-hairline flex gap-3">
+              <button onClick={() => setImportOpen(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
+              <button onClick={runImport} disabled={importBusy || importRows.length === 0} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {importBusy ? 'Importation…' : `Importer ${importRows.length} ligne${importRows.length > 1 ? 's' : ''}`}
+              </button>
             </div>
           </div>
         </div>
