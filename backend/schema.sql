@@ -73,13 +73,6 @@ CREATE TABLE IF NOT EXISTS contacts (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Newsletter subscriptions
-CREATE TABLE IF NOT EXISTS newsletters (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Beneficiaries (for admin)
 CREATE TABLE IF NOT EXISTS beneficiaries (
   id SERIAL PRIMARY KEY,

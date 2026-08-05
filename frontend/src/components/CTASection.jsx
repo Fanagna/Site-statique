@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Heart, Handshake, Mail } from 'lucide-react';
+import { Heart, Handshake } from 'lucide-react';
 
 export default function CTASection() {
   return (
@@ -37,12 +37,6 @@ export default function CTASection() {
             className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur-sm text-white text-lg font-semibold rounded-xl border-2 border-white/30 hover:bg-white/20 hover:border-white/50 transition-all flex items-center justify-center gap-2"
           >
             <Handshake className="w-5 h-5" /> Devenir bénévole
-          </Link>
-          <Link
-            to="/soutenir"
-            className="w-full sm:w-auto px-8 py-4 bg-white/5 backdrop-blur-sm text-white text-lg font-semibold rounded-xl border-2 border-white/20 hover:bg-white/15 hover:border-white/40 transition-all flex items-center justify-center gap-2"
-          >
-            <Mail className="w-5 h-5" /> Newsletter
           </Link>
         </div>
       </div>

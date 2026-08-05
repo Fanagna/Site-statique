@@ -279,7 +279,7 @@ export default function NewsManagementPage() {
   const resetFilters = () => { setPending({ q: '', status: '', category: '', recent: '' }); setApplied({ q: '', status: '', category: '', recent: '' }); };
 
   /* Barre latérale filtrée par rôle (source unique : ./roles) — le président ne
-     voit plus les onglets Enfants/Finances/Newsletter qu'il n'a pas le droit d'ouvrir. */
+     voit plus les onglets Enfants/Finances qu'il n'a pas le droit d'ouvrir. */
   const allowedTabs = ROLE_TABS[user?.role] || ROLE_TABS.unknown;
   const can = (t) => allowedTabs.includes(t);
   const groups = [
@@ -292,7 +292,6 @@ export default function NewsManagementPage() {
     { group: 'Communication', items: [
       ...(can('messages') ? [{ key: 'messages', label: 'Messages', icon: 'mail', to: '/admin?tab=messages' }] : []),
       ...(can('volunteers') ? [{ key: 'volunteers', label: 'Candidatures', icon: 'users', to: '/admin?tab=volunteers' }] : []),
-      ...(can('newsletter') ? [{ key: 'newsletter', label: 'Newsletter', icon: 'send', to: '/admin?tab=newsletter' }] : []),
     ] },
   ];
 
