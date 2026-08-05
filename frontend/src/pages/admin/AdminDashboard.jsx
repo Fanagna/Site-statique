@@ -110,7 +110,7 @@ export default function AdminDashboard() {
   const [donors, setDonors] = useState([]);
   const [showDonorForm, setShowDonorForm] = useState(false);
   const [editingDonor, setEditingDonor] = useState(null);
-  const [donorForm, setDonorForm] = useState({ name: '', need: '' });
+  const [donorForm, setDonorForm] = useState({ name: '', need: '', budget: '' });
 
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
@@ -333,19 +333,24 @@ export default function AdminDashboard() {
 
   /* ── Donateurs CRUD ── */
   const openDonorForm = (d) => {
-    if (d) { setEditingDonor(d); setDonorForm({ name: d.name || '', need: d.need || '' }); }
-    else { setEditingDonor(null); setDonorForm({ name: '', need: '' }); }
+    if (d) { setEditingDonor(d); setDonorForm({ name: d.name || '', need: d.need || '', budget: d.budget != null && Number(d.budget) > 0 ? String(Number(d.budget)) : '' }); }
+    else { setEditingDonor(null); setDonorForm({ name: '', need: '', budget: '' }); }
     setShowDonorForm(true);
   };
   const saveDonor = async () => {
     if (!donorForm.name.trim()) { showToast('❌ Le nom du donateur est requis', 'error'); return; }
-    const r = editingDonor ? await updateDonor(editingDonor.id, donorForm) : await createDonor(donorForm);
+    const payload = {
+      name: donorForm.name.trim(),
+      need: donorForm.need.trim(),
+      budget: donorForm.budget !== '' && Number(donorForm.budget) > 0 ? Number(donorForm.budget) : 0,
+    };
+    const r = editingDonor ? await updateDonor(editingDonor.id, payload) : await createDonor(payload);
     if (!r.ok) { showToast(`❌ Donateur NON enregistré dans la base : ${r.error}`, 'error'); return; }
     if (editingDonor) setDonors(donors.map((d) => (d.id === editingDonor.id ? r.data : d)));
     else setDonors([...donors, r.data]);
     showToast(`✅ Donateur « ${r.data.name} » ${editingDonor ? 'modifié' : 'ajouté'} dans la base`);
     setShowDonorForm(false);
-    setDonorForm({ name: '', need: '' });
+    setDonorForm({ name: '', need: '', budget: '' });
     setEditingDonor(null);
   };
   const removeDonor = async (d) => {
@@ -356,19 +361,34 @@ export default function AdminDashboard() {
     showToast(`✅ Donateur « ${d.name} » retiré de la liste`);
   };
 
-  /* Stats agrégées par donateur (pour l'onglet Donateurs) */
+  /* Stats agrégées par donateur (pour l'onglet Donateurs) + suivi budgétaire.
+     Le budget est ANNUEL : la comparaison (pct/restant/dépassement) se fait sur les
+     dépenses de l'ANNÉE EN COURS uniquement (cohérent avec l'alerte email backend).
+     Les totaux globaux (dons/depenses) restent calculés sur tout l'historique. */
   const donorStats = useMemo(() => {
+    const nowYear = String(new Date().getFullYear());
     const map = {};
-    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, depenses: 0, count: 0 }; });
+    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, depenses: 0, depensesAn: 0, budget: Number(d.budget) || 0 }; });
     finances.forEach((f) => {
       const k = f.donor;
       if (!k || !map[k]) return;
       const v = Number(f.montant) || 0;
-      map[k].count++;
-      if (f.type === 'Revenu') map[k].dons += v; else map[k].depenses += v;
+      if (f.type === 'Revenu') map[k].dons += v;
+      else {
+        map[k].depenses += v;
+        if (monthKey(f.date).startsWith(nowYear)) map[k].depensesAn += v;
+      }
     });
-    return Object.values(map);
+    return Object.values(map).map((d) => ({
+      ...d,
+      restant: Math.max(0, d.budget - d.depensesAn),
+      pct: d.budget > 0 ? Math.min(150, Math.round((d.depensesAn / d.budget) * 100)) : 0,
+      depasse: d.budget > 0 && d.depensesAn > d.budget,
+    }));
   }, [donors, finances]);
+
+  /* Donateurs en dépassement de budget (alertes tableau de bord) */
+  const budgetAlerts = donorStats.filter((d) => d.depasse);
 
   const removeContact = async (id) => {
     if (!confirm('Supprimer ce message ?')) return;
@@ -626,8 +646,16 @@ export default function AdminDashboard() {
     if (allowedTabs.includes('messages') && contacts.length > 0) a.push({ level: 'info', icon: 'mail', text: `${contacts.length} message${contacts.length > 1 ? 's' : ''} reçu${contacts.length > 1 ? 's' : ''} via le formulaire`, tab: 'messages' });
     if (allowedTabs.includes('volunteers') && volunteers.length > 0) a.push({ level: 'info', icon: 'users', text: `${volunteers.length} candidature${volunteers.length > 1 ? 's' : ''} bénévole${volunteers.length > 1 ? 's' : ''} avec lettre de motivation`, tab: 'volunteers' });
     if (allowedTabs.includes('actualites') && news.length === 0) a.push({ level: 'info', icon: 'file', text: 'Aucune actualité publiée', to: '/admin/actualites' });
+    // Alertes budget : un donateur dépasse son budget annuel accordé
+    donorStats.filter((d) => d.depasse).forEach((d) => {
+      a.push({
+        level: 'error', icon: 'trendDown',
+        text: `⚠️ Budget dépassé — ${d.name} : ${formatMGA(d.depensesAn - d.budget)} au-delà de son budget ${new Date().getFullYear()}`,
+        tab: 'donateurs',
+      });
+    });
     return a;
-  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length]);
+  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length, donorStats]);
 
   /* Base connectée mais vide — selon les données que le rôle a le droit de voir */
   const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && (!allowedTabs.includes('actualites') || news.length === 0);
@@ -1271,7 +1299,61 @@ export default function AdminDashboard() {
               </div>
               <DonorExpenseBars finances={evalScope} donors={donors} loading={financesLoading} />
             </div>
-            <div className="group relative card-apple p-5 lg:col-span-2 animate-fade-up overflow-hidden" style={{ animationDelay: '180ms' }}>
+            <div className="group relative card-apple p-5 lg:col-span-2 animate-fade-up overflow-hidden" style={{ animationDelay: '150ms' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-gold to-arina-blue-dark text-white flex items-center justify-center shadow-md shadow-arina-blue/20">
+                  <Icon name="wallet" className="w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Suivi budgétaire {evalYear} — budget accordé vs dépensé</h3>
+                  <p className="text-[11px] text-ios-text3">Restant, taux d'utilisation et alertes de dépassement par partenaire</p>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
+                {donorStats.map((d) => (
+                  <div key={d.id} className={`rounded-xl border p-4 transition-colors ${d.depasse ? 'border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/10' : d.pct >= 80 ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10' : 'border-ios-hairline bg-ios-fill/40'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-sm truncate flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: donorColor(donors, d.name) }} />
+                        {d.name}
+                      </span>
+                      {d.depasse && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 flex-shrink-0">
+                          <Icon name="trendDown" className="w-3 h-3" /> Dépassé
+                        </span>
+                      )}
+                      {!d.depasse && d.pct >= 80 && (
+                        <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex-shrink-0">
+                          Attention
+                        </span>
+                      )}
+                    </div>
+                    {d.budget > 0 ? (
+                      <>
+                        <div className="flex items-baseline justify-between mt-2.5 text-xs text-ios-text2">
+                          <span>Dépensé {evalYear} <b className="tabular text-red-500 dark:text-red-400">{formatMGA(d.depensesAn)}</b> / {formatMGA(d.budget)}</span>
+                          <b className={`tabular ${d.depasse ? 'text-red-600 dark:text-red-400' : 'text-ios-text'}`}>{d.pct}%</b>
+                        </div>
+                        <div className="h-2 rounded-full bg-ios-fill overflow-hidden mt-1.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${d.depasse ? 'bg-gradient-to-r from-red-500 to-rose-500' : d.pct >= 80 ? 'bg-gradient-to-r from-amber-500 to-arina-gold' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
+                            style={{ width: `${Math.min(100, d.pct)}%` }}
+                          />
+                        </div>
+                        <div className={`text-[11px] font-semibold mt-1.5 tabular ${d.depasse ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {d.depasse ? `Dépassement : ${formatMGA(d.depensesAn - d.budget)}` : `Restant : ${formatMGA(d.restant)}`}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-ios-text3 mt-2.5">
+                        Dépensé {evalYear} <b className="tabular text-red-500 dark:text-red-400">{formatMGA(d.depensesAn)}</b> — budget non défini
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="group relative card-apple p-5 lg:col-span-2 animate-fade-up overflow-hidden" style={{ animationDelay: '200ms' }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue-dark text-white flex items-center justify-center shadow-md shadow-arina-blue/20">
                   <Icon name="calendar" className="w-[18px] h-[18px]" />
@@ -1521,6 +1603,7 @@ export default function AdminDashboard() {
           <div className="flex flex-wrap items-center gap-3">
             {[
               { label: 'Donateurs', value: donors.length, c: 'text-arina-blue' },
+              { label: 'Budgets annuels', value: donorStats.reduce((s, d) => s + d.budget, 0), c: 'text-arina-blue', fmt: formatMGA },
               { label: 'Dons reçus', value: donorStats.reduce((s, d) => s + d.dons, 0), c: 'text-emerald-600 dark:text-emerald-400', fmt: formatMGA },
               { label: 'Dépenses', value: donorStats.reduce((s, d) => s + d.depenses, 0), c: 'text-red-500 dark:text-red-400', fmt: formatMGA },
             ].map((s, i) => (
@@ -1544,10 +1627,11 @@ export default function AdminDashboard() {
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Donateur</th>
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Besoin financé</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Budget annuel</th>
+                      <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Utilisation du budget</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dons reçus</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dépenses</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Solde</th>
-                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Transactions</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -1563,10 +1647,32 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-ios-text2">{d.need || '—'}</td>
+                        <td className="px-4 py-3 text-right tabular text-ios-text2">
+                          {d.budget > 0 ? formatMGA(d.budget) : <span className="text-ios-text3">—</span>}
+                        </td>
+                        <td className="px-4 py-3 min-w-[180px]">
+                          {d.budget > 0 ? (
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex-1 h-2 rounded-full bg-ios-fill overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-700 ${d.depasse ? 'bg-gradient-to-r from-red-500 to-rose-500' : d.pct >= 80 ? 'bg-gradient-to-r from-amber-500 to-arina-gold' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
+                                  style={{ width: `${Math.min(100, d.pct)}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs font-bold tabular ${d.depasse ? 'text-red-600 dark:text-red-400' : d.pct >= 80 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{d.pct}%</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ios-text3">Budget non défini</span>
+                          )}
+                          {d.depasse && (
+                            <div className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                              <Icon name="trendDown" className="w-3 h-3" /> Dépassement {new Date().getFullYear()} : {formatMGA(d.depensesAn - d.budget)}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</td>
                         <td className="px-4 py-3 text-right font-semibold tabular text-red-500 dark:text-red-400">{formatMGA(d.depenses)}</td>
                         <td className={`px-4 py-3 text-right font-bold tabular ${d.solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(d.solde)}</td>
-                        <td className="px-4 py-3 text-right tabular text-ios-text2">{d.count}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1.5">
                             <button onClick={() => exportDonorReport(d)} className="p-2 rounded-lg text-ios-text3 hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors" title="Exporter le rapport Excel complet (dépenses + revenus)"><Icon name="file" className="w-4 h-4" /></button>
@@ -1583,9 +1689,9 @@ export default function AdminDashboard() {
           </div>
 
           <div className="card-apple p-5">
-            <h3 className="font-bold text-sm">Comment ça marche ?</h3>
+            <h3 className="font-bold text-sm">Suivi budgétaire & rapports</h3>
             <p className="text-sm text-ios-text2 mt-2 leading-relaxed">
-              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez le mois puis <span className="font-semibold">« Exporter Excel »</span> pour télécharger le rapport détaillé. Pour le rapport complet d'un donateur, cliquez sur l'icône <Icon name="file" className="w-3.5 h-3.5 inline-block" /> de sa ligne — parfait pour faire le point avec chaque partenaire (Ravinala, Horizon, Grandir Dignement…).
+              Renseignez le <span className="font-semibold">budget annuel accordé</span> de chaque partenaire : le tableau affiche le taux d'utilisation, le restant et signale en rouge tout dépassement (une alerte email est aussi envoyée au président). Dans l'onglet <span className="font-semibold">Évaluation</span>, le suivi budgétaire de l'année est visible par partenaire. Pour le rapport complet d'un donateur, cliquez sur l'icône <Icon name="file" className="w-3.5 h-3.5 inline-block" /> de sa ligne — parfait pour faire le point avec chaque partenaire (Ravinala, Horizon, Grandir Dignement…).
             </p>
           </div>
         </div>
@@ -2083,6 +2189,11 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-xs font-semibold text-ios-text2 mb-1">Besoin financé</label>
                 <input value={donorForm.need} onChange={(e) => setDonorForm({ ...donorForm, need: e.target.value })} placeholder="Ex. Salaire, Sakafo, Formation…" className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ios-text2 mb-1">Budget annuel accordé (Ar)</label>
+                <input type="number" min="0" step="1000" value={donorForm.budget} onChange={(e) => setDonorForm({ ...donorForm, budget: e.target.value })} placeholder="Ex. 50000000" className={inputClass} />
+                <p className="text-[11px] text-ios-text3 mt-1">Le suivi alerte quand les dépenses dépassent ce budget.</p>
               </div>
             </div>
             <div className="px-6 pb-6 flex gap-3">

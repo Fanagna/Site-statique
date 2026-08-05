@@ -79,6 +79,70 @@ function requireAdmin(req, res, next) {
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // supporte les pièces jointes en base64
 
+// ── Notifications email (Resend — API REST, aucune dépendance) ────────────
+// Envoi silencieux : si RESEND_API_KEY / NOTIFY_EMAIL ne sont pas configurés,
+// rien n'est envoyé et le site continue de fonctionner normalement.
+const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || '';
+async function sendEmail({ subject, text, html }) {
+  try {
+    if (!process.env.RESEND_API_KEY || !NOTIFY_EMAIL) return false;
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>',
+        to: [NOTIFY_EMAIL],
+        subject,
+        text,
+        html: html || `<div style="font-family:Arial,sans-serif"><p>${text}</p></div>`,
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('⚠️ Email non envoyé :', err.message);
+    return false;
+  }
+}
+
+// Alerte budget : après une dépense, vérifie si le donateur dépasse son budget
+// annuel accordé et prévient par email (une seule fois par dépassement).
+const budgetAlertSent = {}; // { `${donor}-${year}`: true }
+async function checkDonorBudgetAlert(donorName, amount, description) {
+  try {
+    const n = String(donorName || '').trim();
+    if (!n) return;
+    const r = await pool.query('SELECT id, name, need, budget FROM donors WHERE LOWER(name) = LOWER($1)', [n]);
+    const donor = r.rows[0];
+    if (!donor || !donor.budget || Number(donor.budget) <= 0) return;
+    const year = new Date().getFullYear();
+    const dep = await pool.query(
+      "SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE LOWER(donor) = LOWER($1) AND type = 'expense' AND EXTRACT(YEAR FROM date) = $2",
+      [n, year]
+    );
+    const total = Number(dep.rows[0].total);
+    const budget = Number(donor.budget);
+    if (total > budget) {
+      const key = `${n.toLowerCase()}-${year}`;
+      if (!budgetAlertSent[key]) {
+        budgetAlertSent[key] = true;
+        await sendEmail({
+          subject: `⚠️ Alerte budget ${year} — ${donor.name} a dépassé son budget`,
+          text: `${donor.name} (${donor.need || 'besoin non précisé'}) :\n` +
+            `Dépenses ${year} : ${total.toLocaleString('fr-FR')} Ar\n` +
+            `Budget accordé : ${budget.toLocaleString('fr-FR')} Ar\n` +
+            `Dépassement : ${(total - budget).toLocaleString('fr-FR')} Ar\n` +
+            `Dernière dépense : ${description || '-'}`,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('⚠️ Alerte budget :', err.message);
+  }
+}
+
 // Database connection
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -176,8 +240,10 @@ function ensureSchema() {
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) UNIQUE NOT NULL,
       need VARCHAR(255),
+      budget NUMERIC(14,2) DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
+    `ALTER TABLE donors ADD COLUMN IF NOT EXISTS budget NUMERIC(14,2) DEFAULT 0`,
     `INSERT INTO donors (name, need) VALUES
       ('Ravinala', 'Salaire'),
       ('Horizon', 'Sakafo — Alimentation'),
@@ -442,6 +508,8 @@ app.post('/api/finances', requireRole(ROLES.accountant), async (req, res) => {
       [type === 'Revenu' ? 'income' : 'expense', categorie, computed, description, date, q, p, donor || null]
     );
     const r = result.rows[0];
+    // Alerte budget : si cette dépense fait dépasser le budget annuel du donateur
+    if (type === 'Dépense') checkDonorBudgetAlert(donor, computed, description);
     res.status(201).json({
       id: r.id,
       type: r.type === 'income' ? 'Revenu' : 'Dépense',
@@ -473,6 +541,8 @@ app.put('/api/finances/:id', requireRole(ROLES.accountant), async (req, res) => 
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const r = result.rows[0];
+    // Alerte budget : si cette dépense fait dépasser le budget annuel du donateur
+    if (type === 'Dépense') checkDonorBudgetAlert(donor, computed, description);
     res.json({
       id: r.id,
       type: r.type === 'income' ? 'Revenu' : 'Dépense',
@@ -583,12 +653,13 @@ app.get('/api/donors', requireAuth, async (req, res) => {
 // POST create (comptable ou admin)
 app.post('/api/donors', requireRole(ROLES.accountant), async (req, res) => {
   try {
-    const { name, need } = req.body;
+    const { name, need, budget } = req.body;
     const n = String(name || '').trim();
     if (!n) return res.status(400).json({ error: 'Le nom du donateur est requis' });
+    const b = budget != null && budget !== '' ? Math.max(0, Number(budget) || 0) : 0;
     const result = await pool.query(
-      'INSERT INTO donors (name, need) VALUES ($1, $2) RETURNING *',
-      [n, String(need || '').trim()]
+      'INSERT INTO donors (name, need, budget) VALUES ($1, $2, $3) RETURNING *',
+      [n, String(need || '').trim(), b]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -600,12 +671,13 @@ app.post('/api/donors', requireRole(ROLES.accountant), async (req, res) => {
 // PUT update (comptable ou admin)
 app.put('/api/donors/:id', requireRole(ROLES.accountant), async (req, res) => {
   try {
-    const { name, need } = req.body;
+    const { name, need, budget } = req.body;
     const n = String(name || '').trim();
     if (!n) return res.status(400).json({ error: 'Le nom du donateur est requis' });
+    const b = budget != null && budget !== '' ? Math.max(0, Number(budget) || 0) : 0;
     const result = await pool.query(
-      'UPDATE donors SET name=$1, need=$2 WHERE id=$3 RETURNING *',
-      [n, String(need || '').trim(), req.params.id]
+      'UPDATE donors SET name=$1, need=$2, budget=$3 WHERE id=$4 RETURNING *',
+      [n, String(need || '').trim(), b, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Donateur introuvable' });
     res.json(result.rows[0]);
@@ -757,6 +829,11 @@ app.post('/api/contact', async (req, res) => {
       'INSERT INTO contacts (name, email, message) VALUES ($1, $2, $3) RETURNING *',
       [name, email, message]
     );
+    // Notification au président à chaque nouveau message
+    sendEmail({
+      subject: `📩 Nouveau message de ${name} (${email})`,
+      text: `${name} <${email}> a envoyé un message depuis le site :\n\n${message}\n\nConnectez-vous à l'espace admin → Messages pour y répondre.`,
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -816,11 +893,15 @@ app.post('/api/volunteers', async (req, res) => {
     if (errCv) return res.status(400).json({ error: errCv });
     const result = await pool.query(
       `INSERT INTO volunteers (name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_data, file_url, cv_name, cv_type, cv_size, cv_data, cv_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-      [name, email, phone, skills, availability, motivation,
-       file?.name || null, file?.type || null, file?.size || null, file?.data || null, file?.url || null,
-       cv?.name || null, cv?.type || null, cv?.size || null, cv?.data || null, cv?.url || null]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,       [name, email, phone, skills, availability, motivation,
+        file?.name || null, file?.type || null, file?.size || null, file?.data || null, file?.url || null,
+        cv?.name || null, cv?.type || null, cv?.size || null, cv?.data || null, cv?.url || null]
     );
+    // Notification au président à chaque nouvelle candidature
+    sendEmail({
+      subject: `🙋 Nouvelle candidature bénévole : ${name}`,
+      text: `${name} <${email}> a postulé pour devenir bénévole.\nCompétences : ${skills || '—'} · Disponibilité : ${availability || '—'}\n\nConnectez-vous à l'espace admin → Candidatures pour voir la lettre de motivation et le CV.`,
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
