@@ -86,13 +86,6 @@ function makeFakePool(opts = {}) {
     if (/COUNT\(\*\) AS n FROM donors/i.test(s)) return { rows: [{ n: 3 }] };
     if (/SELECT COALESCE\(SUM\(amount\)/i.test(s)) return { rows: [{ total: 12000000 }] };
 
-    // Transparence
-    if (/SELECT d\.name, d\.need/i.test(s)) {
-      return { rows: [{ name: 'Ravinala', need: 'Salaire', dons: 8000000, depenses: 5000000 }] };
-    }
-    if (/to_char\(date/i.test(s)) return { rows: [{ mois: '2026-01', dons: 1000000, depenses: 800000 }] };
-    if (/status='received'/i.test(s)) return { rows: [{ n: 2, total: 300000 }] };
-
     throw new Error('FakePool : requête non simulée : ' + s);
   };
 

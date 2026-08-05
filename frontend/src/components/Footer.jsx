@@ -111,7 +111,6 @@ export default function Footer() {
                 { label: 'Nos actions', to: '/actions' },
                 { label: 'Actualités', to: '/actualites' },
                 { label: 'Témoignages', to: '/temoignages' },
-                { label: 'Transparence', to: '/transparence' },
                 { label: 'Devenir bénévole', to: '/soutenir' },
                 { label: 'Faire un don', to: '/soutenir' },
               ].map((link) => (
@@ -135,8 +134,6 @@ export default function Footer() {
             <Link to="/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link>
             <span className="hidden sm:inline">|</span>
             <Link to="/confidentialite" className="hover:text-white transition-colors">Politique de confidentialité</Link>
-            <span className="hidden sm:inline">|</span>
-            <Link to="/transparence" className="hover:text-white transition-colors">Transparence</Link>
             <span className="hidden sm:inline">|</span>
             <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
           </div>

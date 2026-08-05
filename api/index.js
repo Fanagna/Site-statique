@@ -1121,42 +1121,6 @@ app.delete('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant),
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ═══ TRANSPARENCE (public) ═══
-// Agrégats financiers publics : revenus/dépenses de l'année, répartition par donateur
-// et série mensuelle — alimente la page « Transparence » du site (confiance + reporting).
-app.get('/api/transparency', async (req, res) => {
-  try {
-    const year = Number(req.query.year) || new Date().getFullYear();
-    const [incR, expR, donorR, monthlyR, pledgeR] = await Promise.all([
-      pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE type='income' AND EXTRACT(YEAR FROM date)=$1", [year]),
-      pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM finances WHERE type='expense' AND EXTRACT(YEAR FROM date)=$1", [year]),
-      pool.query(`SELECT d.name, d.need,
-          COALESCE(SUM(CASE WHEN f.type='income' THEN f.amount ELSE 0 END),0) AS dons,
-          COALESCE(SUM(CASE WHEN f.type='expense' THEN f.amount ELSE 0 END),0) AS depenses
-        FROM donors d
-        LEFT JOIN finances f ON LOWER(f.donor) = LOWER(d.name) AND EXTRACT(YEAR FROM f.date) = $1
-        GROUP BY d.id ORDER BY d.name`, [year]),
-      pool.query(`SELECT to_char(date, 'YYYY-MM') AS mois,
-          COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) AS dons,
-          COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) AS depenses
-        FROM finances WHERE EXTRACT(YEAR FROM date)=$1
-        GROUP BY 1 ORDER BY 1`, [year]),
-      pool.query("SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM donations WHERE status='received' AND EXTRACT(YEAR FROM received_at)=$1", [year]),
-    ]);
-    const revenus = Number(incR.rows[0].total) || 0;
-    const depenses = Number(expR.rows[0].total) || 0;
-    res.json({
-      year,
-      revenus,
-      depenses,
-      solde: revenus - depenses,
-      donateurs: donorR.rows.map((r) => ({ name: r.name, need: r.need || '', dons: Number(r.dons) || 0, depenses: Number(r.depenses) || 0 })),
-      mensuel: monthlyR.rows.map((r) => ({ mois: r.mois, dons: Number(r.dons) || 0, depenses: Number(r.depenses) || 0 })),
-      donsRecus: { count: Number(pledgeR.rows[0].n) || 0, total: Number(pledgeR.rows[0].total) || 0 },
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // ═══ CONTACTS (ADMIN) ═══
 app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
   try {

@@ -229,11 +229,6 @@ export async function deleteDonation(id) {
   return apiCallDetailed(`/donations/${id}`, { method: 'DELETE' });
 }
 
-/* ── Transparence (page publique) ── */
-export async function fetchTransparency(year) {
-  return await apiCall(`/transparency${year ? `?year=${year}` : ''}`);
-}
-
 /* ── Stats réelles (page d'accueil) ── */
 export async function fetchStats() {
   return await apiCall('/stats');

@@ -12,7 +12,6 @@ import ContactPage from './pages/ContactPage';
 import ActionsPage from './pages/ActionsPage';
 import PillarPage from './pages/PillarPage';
 import SoutenirPage from './pages/SoutenirPage';
-import TransparencyPage from './pages/TransparencyPage';
 import PrivacyPage from './pages/PrivacyPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -112,7 +111,6 @@ function App() {
                       <Route path="/actions" element={<ActionsPage />} />
                       <Route path="/actions/:pillar" element={<PillarPage />} />
                       <Route path="/soutenir" element={<SoutenirPage />} />
-                      <Route path="/transparence" element={<TransparencyPage />} />
                       <Route path="/confidentialite" element={<PrivacyPage />} />
                       <Route path="/mentions-legales" element={<PrivacyPage />} />
                       <Route path="*" element={<NotFoundPage />} />

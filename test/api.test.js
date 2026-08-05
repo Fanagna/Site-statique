@@ -179,16 +179,6 @@ test('GET /api/stats → chiffres calculés depuis la base (pas codés en dur)',
   assert.equal(r.body.partners, 3);
 });
 
-/* ═══ TRANSPARENCE ═══ */
-test('GET /api/transparency → agrégats de l’année', async () => {
-  const r = await get('/api/transparency?year=2026');
-  assert.equal(r.status, 200);
-  assert.equal(r.body.year, 2026);
-  assert.ok(Array.isArray(r.body.donateurs));
-  assert.ok(r.body.donateurs.length >= 1);
-  assert.equal(r.body.donateurs[0].name, 'Ravinala');
-});
-
 /* ═══ FINANCES : calcul automatique MNT = QT × PU ═══ */
 test('POST /api/finances avec QT × PU → montant calculé automatiquement', async () => {
   const r = await post('/api/finances', {

@@ -7,7 +7,6 @@ const navLinks = [
   { label: 'Nos Actions', href: '/actions' },
   { label: 'Actualités', href: '/actualites' },
   { label: 'Témoignages', href: '/temoignages' },
-  { label: 'Transparence', href: '/transparence' },
   { label: 'Contact', href: '/contact' },
 ];
 
