@@ -10,6 +10,7 @@ import {
   fetchNews,
   fetchContacts, deleteContact,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
+  fetchTestimonials, updateTestimonial, deleteTestimonial,
   fetchActivity,
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
@@ -65,6 +66,7 @@ export default function AdminDashboard() {
   const [news, setNews] = useState(allNews);
   const [contacts, setContacts] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
   const [activity, setActivity] = useState([]);
   const [users, setUsers] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
@@ -158,6 +160,12 @@ export default function AdminDashboard() {
       else { anyFail = true; const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
     }
 
+    if (can('testimonials')) {
+      const tFromApi = await fetchTestimonials();
+      if (tFromApi !== null) { anyOk = true; if (tFromApi.length) setTestimonials(tFromApi); else setTestimonials([]); }
+      else { anyFail = true; const s = localStorage.getItem('arina_testimonials'); setTestimonials(s ? JSON.parse(s) : []); }
+    }
+
     if (can('comptes')) {
       const uFromApi = await fetchUsers();
       if (uFromApi !== null && Array.isArray(uFromApi)) { anyOk = true; setUsers(uFromApi); }
@@ -182,6 +190,7 @@ export default function AdminDashboard() {
   useEffect(() => { if (donors.length) localStorage.setItem('arina_donors', JSON.stringify(donors)); }, [donors]);
   useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
   useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
+  useEffect(() => { if (testimonials.length) localStorage.setItem('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
 
   /* ── CRUD handlers ── */
   /* Met à jour un champ du dossier (section.module) */
@@ -407,6 +416,25 @@ export default function AdminDashboard() {
     showToast('✅ Candidature supprimée de la base de données');
   };
 
+  /* ── Témoignages : publier / dépublier + supprimer ── */
+  const toggleTestimonial = async (t) => {
+    const next = t.status === 'published' ? 'pending' : 'published';
+    const r = await updateTestimonial(t.id, { status: next });
+    if (!r.ok) {
+      showToast(`❌ ${next === 'published' ? 'Publication' : 'Retrait'} NON enregistré dans la base : ${r.error}`, 'error');
+      return;
+    }
+    setTestimonials(testimonials.map((x) => (x.id === t.id ? { ...x, status: next } : x)));
+    showToast(next === 'published' ? `✅ Témoignage de ${t.name} publié sur le site` : `Témoignage de ${t.name} remis en attente`);
+  };
+  const removeTestimonial = async (id) => {
+    if (!confirm('Supprimer ce témoignage ?')) return;
+    const r = await deleteTestimonial(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    setTestimonials(testimonials.filter((t) => t.id !== id));
+    showToast('✅ Témoignage supprimé de la base de données');
+  };
+
   /* ── Comptes (admin) ── */
   const [showUserForm, setShowUserForm] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'educator' });
@@ -532,6 +560,10 @@ export default function AdminDashboard() {
     if (!q) return volunteers;
     return volunteers.filter((v) => `${v.name} ${v.email} ${v.skills} ${v.motivation}`.toLowerCase().includes(q));
   }, [volunteers, q]);
+  const filteredTestimonials = useMemo(() => {
+    if (!q) return testimonials;
+    return testimonials.filter((t) => `${t.name} ${t.quote} ${t.location} ${t.role}`.toLowerCase().includes(q));
+  }, [testimonials, q]);
 
   /* ── Évaluation mensuelle (admin + comptable) ── */
   // Montant automatique affiché dans le formulaire de dépense : MNT = QT × PU
@@ -633,7 +665,8 @@ export default function AdminDashboard() {
     ...benefs.slice(0, 3).map((b) => ({ id: `lb${b.id}`, type: 'beneficiary', text: `Bénéficiaire ajouté : ${b.prenom} ${b.nom}`, date: b.dateEntree })),
     ...(allowedTabs.includes('volunteers') ? volunteers.slice(0, 3).map((v) => ({ id: `lv${v.id}`, type: 'volunteer', text: `Candidature reçue : ${v.name}`, date: v.created_at })) : []),
     ...(allowedTabs.includes('messages') ? contacts.slice(0, 3).map((c) => ({ id: `lc${c.id}`, type: 'message', text: `Message de ${c.name}`, date: c.created_at })) : []),
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [allowedTabs, news, finances, benefs, volunteers, contacts]);
+    ...(allowedTabs.includes('testimonials') ? testimonials.slice(0, 3).map((t) => ({ id: `lt${t.id}`, type: 'testimonial', text: t.status === 'published' ? `Témoignage publié : ${t.name}` : `Témoignage reçu : ${t.name}`, date: t.created_at })) : []),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10), [allowedTabs, news, finances, benefs, volunteers, contacts, testimonials]);
   const activityFeed = activity.length ? activity : localActivity;
 
   /* Real alerts -> notifications bell. L'aperçu finances étant visible par tous,
@@ -656,8 +689,10 @@ export default function AdminDashboard() {
         tab: 'donateurs',
       });
     });
+    const pendingTest = testimonials.filter((t) => t.status === 'pending').length;
+    if (allowedTabs.includes('testimonials') && pendingTest > 0) a.push({ level: 'info', icon: 'star', text: `${pendingTest} témoignage${pendingTest > 1 ? 's' : ''} en attente de validation`, tab: 'testimonials' });
     return a;
-  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length, donorStats]);
+  }, [allowedTabs, solde, finances.length, totalDepenses, totalRevenus, contacts.length, volunteers.length, news.length, donorStats, testimonials]);
 
   /* Base connectée mais vide — selon les données que le rôle a le droit de voir */
   const dbEmpty = apiStatus === 'online' && benefs.length === 0 && finances.length === 0 && (!allowedTabs.includes('actualites') || news.length === 0);
@@ -672,6 +707,7 @@ export default function AdminDashboard() {
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
+  if (allowedTabs.includes('testimonials')) communicationItems.push({ key: 'testimonials', label: 'Témoignages', icon: 'star', badge: () => testimonials.filter((t) => t.status === 'pending').length });
   if (allowedTabs.includes('comptes')) principalItems.push({ key: 'comptes', label: 'Comptes', icon: 'shield' });
   const groups = [
     { group: 'Principal', items: [{ key: 'dashboard', label: 'Tableau de bord', icon: 'grid' }, ...principalItems] },
@@ -685,6 +721,7 @@ export default function AdminDashboard() {
     donateurs: { title: 'Donateurs', subtitle: 'Partenaires financiers et besoins financés' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
+    testimonials: { title: 'Témoignages', subtitle: "Témoignages envoyés par les visiteurs — à valider avant publication" },
     comptes: { title: 'Comptes', subtitle: "Utilisateurs et rôles de l'espace admin" },
   };
   const currentMeta = meta[tab] || meta.dashboard;
@@ -696,6 +733,7 @@ export default function AdminDashboard() {
     donateurs: 'Rechercher un donateur…',
     messages: 'Rechercher un message…',
     volunteers: 'Rechercher un bénévole…',
+    testimonials: 'Rechercher un témoignage…',
     comptes: 'Rechercher un compte…',
   }[tab] || 'Rechercher…';
 
@@ -717,6 +755,7 @@ export default function AdminDashboard() {
     ] : []),
     ...(allowedTabs.includes('messages') ? [{ label: 'Messages', icon: 'mail', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('messages') }] : []),
     ...(allowedTabs.includes('volunteers') ? [{ label: 'Candidatures', icon: 'users', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('volunteers') }] : []),
+    ...(allowedTabs.includes('testimonials') ? [{ label: 'Témoignages', icon: 'star', color: 'bg-ios-fill text-ios-text hover:bg-ios-fill-2', action: () => setTab('testimonials') }] : []),
   ];
 
   const activityMeta = {
@@ -726,6 +765,7 @@ export default function AdminDashboard() {
     beneficiary: { icon: 'users', cls: 'bg-arina-warm text-arina-blue' },
     volunteer: { icon: 'users', cls: 'bg-sky-100 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400' },
     message: { icon: 'mail', cls: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400' },
+    testimonial: { icon: 'star', cls: 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400' },
   };
 
   const actionBtn = 'px-4 py-2 rounded-xl text-sm font-semibold transition-all';
@@ -1930,6 +1970,75 @@ export default function AdminDashboard() {
                             </button>
                           )}
                           <button onClick={() => removeVolunteer(v.id)} className="text-xs font-semibold text-red-500 hover:underline">Supprimer</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ TESTIMONIALS ═══════════ */}
+      {tab === 'testimonials' && (
+        <div className="space-y-4 animate-fade-up">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { label: 'Témoignages reçus', value: testimonials.length },
+              { label: 'En attente de validation', value: testimonials.filter((t) => t.status === 'pending').length },
+              { label: 'Publiés sur le site', value: testimonials.filter((t) => t.status === 'published').length },
+            ].map((s, i) => (
+              <div key={i} className="card-apple p-5">
+                <div className="text-2xl font-extrabold tabular">{s.value}</div>
+                <div className="text-xs text-ios-text3 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="card-apple overflow-hidden">
+            {filteredTestimonials.length === 0 ? (
+              <EmptyState icon="star" text={testimonials.length === 0 ? 'Aucun témoignage pour le moment — les témoignages envoyés depuis la page Témoignages du site apparaîtront ici.' : 'Aucun témoignage ne correspond à votre recherche.'} />
+            ) : (
+              <div className="divide-y divide-ios-hairline">
+                {filteredTestimonials.map((t) => (
+                  <div key={t.id} className="p-5 hover:bg-ios-fill transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-arina-gold/80 to-arina-accent text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {initials(t.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-semibold text-sm truncate">{t.name}</span>
+                            <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${t.status === 'published' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                              {t.status === 'published' ? 'Publié' : 'En attente'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-ios-text3 whitespace-nowrap">{timeAgo(t.created_at)}</span>
+                        </div>
+                        {(t.age || t.location || t.role) && (
+                          <div className="text-[11px] text-ios-text3 mt-0.5">{[t.age ? `${t.age} ans` : '', t.location, t.role].filter(Boolean).join(' · ')}</div>
+                        )}
+                        <blockquote className="text-sm text-ios-text2 italic mt-2 leading-relaxed">&laquo; {t.quote} &raquo;</blockquote>
+                        {t.story && (
+                          <p className="text-sm text-ios-text2 mt-2 leading-relaxed line-clamp-2">{t.story}</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button
+                            onClick={() => toggleTestimonial(t)}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                              t.status === 'published'
+                                ? 'bg-ios-fill text-ios-text2 hover:bg-ios-fill-2'
+                                : 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/25'
+                            }`}
+                          >
+                            <Icon name="check" className="w-3.5 h-3.5" />
+                            {t.status === 'published' ? 'Retirer de la publication' : 'Publier sur le site'}
+                          </button>
+                          <button onClick={() => removeTestimonial(t.id)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:underline">
+                            <Icon name="trash" className="w-3.5 h-3.5" /> Supprimer
+                          </button>
                         </div>
                       </div>
                     </div>

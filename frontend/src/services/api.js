@@ -248,6 +248,48 @@ export async function getVolunteerAttachment(id, kind = 'file') {
   return await apiCall(`/volunteers/${id}/attachment?kind=${kind}`);
 }
 
+/* ── Testimonials (soumission publique + modération admin) ── */
+
+// Soumet un témoignage depuis la page publique. Renvoie { ok: true, data } ou
+// { ok: false, error } pour que le formulaire n'affiche le succès QUE si l'envoi
+// a réellement abouti (même règle que les candidatures bénévoles).
+export async function submitTestimonial(data) {
+  try {
+    const res = await fetch(`${API_BASE}/testimonials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: body.error || 'Une erreur est survenue, veuillez réessayer.' };
+    return { ok: true, data: body };
+  } catch {
+    return { ok: false, error: 'Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.' };
+  }
+}
+
+// Témoignages PUBLIÉS (page publique) — lecture seule, sans clé admin.
+// Cache-buster : les témoignages fraîchement publiés par l'admin apparaissent au refresh.
+export async function fetchPublishedTestimonials() {
+  return await apiCall(`/testimonials/published?_t=${Date.now()}`);
+}
+
+// Tous les témoignages (admin — en attente + publiés)
+export async function fetchTestimonials() {
+  return await apiCall('/testimonials');
+}
+
+export async function updateTestimonial(id, data) {
+  return apiCallDetailed(`/testimonials/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTestimonial(id) {
+  return apiCallDetailed(`/testimonials/${id}`, { method: 'DELETE' });
+}
+
 /* ── Activity feed (admin) ── */
 export async function fetchActivity() {
   return await apiCall('/activity');

@@ -151,3 +151,17 @@ ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_size INTEGER;
 ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_data TEXT;
 ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS file_url VARCHAR(500);
 ALTER TABLE volunteers ADD COLUMN IF NOT EXISTS cv_url VARCHAR(500);
+
+-- Visitor testimonials (modération : pending → published)
+CREATE TABLE IF NOT EXISTS testimonials (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  age INTEGER,
+  location VARCHAR(120),
+  role VARCHAR(120),
+  quote TEXT NOT NULL,
+  story TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';

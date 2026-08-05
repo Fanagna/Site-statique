@@ -1,21 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Calendar, Heart, Mail, MapPin, MessageCircle,
   PartyPopper, PenLine, Star,
 } from 'lucide-react';
 import { testimonials } from '../data/testimonials';
+import { submitTestimonial, fetchPublishedTestimonials } from '../services/api';
 
 const initialForm = { name: '', age: '', location: '', role: '', quote: '', story: '' };
+
+/* Formatte la date d'un témoignage publié (enregistré en base) */
+const fmtPubDate = (d) => {
+  if (!d) return '';
+  try {
+    return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch { return ''; }
+};
 
 export default function TestimonialsPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
+  const [sending, setSending] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [liveTestimonials, setLiveTestimonials] = useState([]);
 
-  const featured = testimonials.filter((t) => t.featured);
-  const others = testimonials.filter((t) => !t.featured);
+  /* Témoignages PUBLIÉS par l'admin (modération) — affichés avec ceux du site */
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublishedTestimonials().then((rows) => {
+      if (cancelled || !Array.isArray(rows)) return;
+      setLiveTestimonials(rows.map((t) => ({
+        id: `pub-${t.id}`,
+        name: t.name,
+        role: t.role || '',
+        location: t.location || '',
+        quote: t.quote,
+        fullStory: t.story || t.quote,
+        date: fmtPubDate(t.created_at),
+        featured: false,
+        tags: [],
+        image: null,
+      })));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const all = [...liveTestimonials, ...testimonials];
+  const featured = all.filter((t) => t.featured);
+  const others = all.filter((t) => !t.featured);
 
   const validate = () => {
     const errs = {};
@@ -27,11 +61,20 @@ export default function TestimonialsPage() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-    setSubmitted(true);
-    setForm(initialForm);
+    setSending(true);
+    setSubmitError('');
+    const r = await submitTestimonial({ ...form, age: Number(form.age) || null });
+    setSending(false);
+    if (r && r.ok) {
+      setSubmitted(true);
+      setForm(initialForm);
+    } else {
+      // Échec : on garde le formulaire rempli pour que le visiteur puisse réessayer
+      setSubmitError(r?.error || 'Une erreur est survenue, veuillez réessayer.');
+    }
   };
 
   return (
@@ -175,18 +218,28 @@ export default function TestimonialsPage() {
                   >
                     <div className={`flex flex-col ${expanded ? 'lg:flex-row' : ''}`}>
                       <div className={`relative ${expanded ? 'lg:w-1/3' : ''}`}>
-                        <img
-                          src={t.image}
-                          alt={t.name}
-                          className={`w-full object-cover ${expanded ? 'h-64 lg:h-full' : 'h-48'}`}
-                          loading="lazy"
-                        />
+                        {t.image ? (
+                          <img
+                            src={t.image}
+                            alt={t.name}
+                            className={`w-full object-cover ${expanded ? 'h-64 lg:h-full' : 'h-48'}`}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className={`w-full flex items-center justify-center bg-gradient-to-br from-arina-blue to-arina-accent text-white font-bold ${expanded ? 'h-64 lg:h-full' : 'h-48'}`}>
+                            <span className="text-4xl">{t.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}</span>
+                          </div>
+                        )}
                       </div>
                       <div className={`p-6 ${expanded ? 'lg:w-2/3' : ''}`}>
                         <div className="flex items-center gap-4 mb-3">
                           <div>
                             <div className="font-bold text-arina-dark">{t.name}</div>
-                            <div className="text-sm text-arina-gray flex items-center gap-1">{t.role} · <MapPin className="w-3.5 h-3.5" /> {t.location}</div>
+                            <div className="text-sm text-arina-gray flex items-center gap-1">
+                              {t.role}
+                              {t.role && t.location && ' · '}
+                              {t.location && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {t.location}</span>}
+                            </div>
                           </div>
                         </div>
                         <blockquote className="text-base font-serif italic text-arina-dark leading-relaxed mb-3">
@@ -344,6 +397,7 @@ export default function TestimonialsPage() {
                 </label>
                 <textarea
                   rows={5}
+                  maxLength={2000}
                   placeholder="Racontez votre parcours en détail : d'où vous venez, comment ARINA vous a aidé, où vous en êtes aujourd'hui..."
                   value={form.story}
                   onChange={(e) => setForm({ ...form, story: e.target.value })}
@@ -351,12 +405,19 @@ export default function TestimonialsPage() {
                 />
               </div>
 
+              {submitError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                  {submitError}
+                </p>
+              )}
+
               {/* Submit */}
               <button
                 type="submit"
-                className="w-full py-3.5 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                disabled={sending}
+                className="w-full py-3.5 bg-arina-blue text-white text-lg font-bold rounded-xl hover:bg-arina-blue-dark transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Mail className="w-5 h-5" /> Envoyer mon témoignage
+                <Mail className="w-5 h-5" /> {sending ? 'Envoi en cours…' : 'Envoyer mon témoignage'}
               </button>
 
               <p className="text-xs text-arina-gray text-center">

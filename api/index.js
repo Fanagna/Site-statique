@@ -221,6 +221,18 @@ function ensureSchema() {
     )`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published'`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`,
+    `CREATE TABLE IF NOT EXISTS testimonials (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(120) NOT NULL,
+      age INTEGER,
+      location VARCHAR(120),
+      role VARCHAR(120),
+      quote TEXT NOT NULL,
+      story TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'`,
     `CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username VARCHAR(100) UNIQUE NOT NULL,
@@ -879,6 +891,65 @@ app.delete('/api/volunteers/:id', requireRole(ROLES.president), async (req, res)
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══ TESTIMONIALS (témoignages visiteurs + modération) ═══
+
+// POST public — reçoit un témoignage soumis depuis la page Témoignages du site.
+// Statut initial : pending (l'admin le publie après validation).
+app.post('/api/testimonials', async (req, res) => {
+  try {
+    const { name, age, location, role, quote, story } = req.body || {};
+    const cleanName = String(name || '').trim();
+    const cleanQuote = String(quote || '').trim();
+    if (!cleanName) return res.status(400).json({ error: 'Le nom est requis' });
+    if (cleanQuote.length < 20) return res.status(400).json({ error: 'Le témoignage doit contenir au moins 20 caractères.' });
+    if (cleanQuote.length > 500) return res.status(400).json({ error: 'Le témoignage est trop long (500 caractères max).' });
+    const result = await pool.query(
+      `INSERT INTO testimonials (name, age, location, role, quote, story, status)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending') RETURNING id, name, status, created_at`,
+      [cleanName, Number(age) || null, String(location || '').trim() || null, String(role || '').trim() || null, cleanQuote, String(story || '').trim().slice(0, 5000) || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET public — témoignages PUBLIÉS seulement (affichés sur la page Témoignages)
+app.get('/api/testimonials/published', async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, age, location, role, quote, story, created_at FROM testimonials WHERE status='published' ORDER BY created_at DESC LIMIT 50"
+    );
+    res.json(result.rows);
+  } catch (err) { res.json([]); }
+});
+
+// GET admin — tous les témoignages (en attente + publiés), du plus récent au plus ancien
+app.get('/api/testimonials', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, age, location, role, quote, story, status, created_at FROM testimonials ORDER BY created_at DESC LIMIT 200');
+    res.json(result.rows);
+  } catch (err) { res.json([]); }
+});
+
+// PATCH admin — publier / remettre en attente (modération)
+app.patch('/api/testimonials/:id', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!['pending', 'published'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+    const result = await pool.query('UPDATE testimonials SET status=$1 WHERE id=$2 RETURNING id, status', [status, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE admin
+app.delete('/api/testimonials/:id', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM testimonials WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ═══ CONTACTS (ADMIN) ═══
 app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
   try {
@@ -898,12 +969,13 @@ app.delete('/api/contacts/:id', requireRole(ROLES.president), async (req, res) =
 // ═══ ACTIVITY FEED (ADMIN) ═══
 app.get('/api/activity', requireRole(), async (req, res) => {
   try {
-    const [newsR, finR, benefR, volR, msgR] = await Promise.all([
+    const [newsR, finR, benefR, volR, msgR, testimR] = await Promise.all([
       pool.query("SELECT id, title, created_at FROM news ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, type, amount, description, date FROM finances ORDER BY date DESC, id DESC LIMIT 5"),
       pool.query("SELECT id, first_name, last_name, entry_date FROM beneficiaries ORDER BY id DESC LIMIT 5"),
       pool.query("SELECT id, name, created_at FROM volunteers ORDER BY created_at DESC LIMIT 5"),
       pool.query("SELECT id, name, created_at FROM contacts ORDER BY created_at DESC LIMIT 5"),
+      pool.query("SELECT id, name, status, created_at FROM testimonials ORDER BY created_at DESC LIMIT 5"),
     ]);
     const items = [];
     newsR.rows.forEach(r => items.push({ id: `n${r.id}`, type: 'news', text: `Actualité publiée : « ${r.title} »`, date: r.created_at }));
@@ -915,6 +987,7 @@ app.get('/api/activity', requireRole(), async (req, res) => {
     benefR.rows.forEach(r => items.push({ id: `b${r.id}`, type: 'beneficiary', text: `Bénéficiaire ajouté : ${r.first_name} ${r.last_name}`, date: r.entry_date }));
     volR.rows.forEach(r => items.push({ id: `v${r.id}`, type: 'volunteer', text: `Candidature reçue : ${r.name}`, date: r.created_at }));
     msgR.rows.forEach(r => items.push({ id: `m${r.id}`, type: 'message', text: `Message de ${r.name}`, date: r.created_at }));
+    testimR.rows.forEach(r => items.push({ id: `t${r.id}`, type: 'testimonial', text: r.status === 'published' ? `Témoignage publié : ${r.name}` : `Témoignage reçu : ${r.name}`, date: r.created_at }));
     items.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json(items.slice(0, 12));
   } catch (err) { res.json([]); }
