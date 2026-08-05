@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Camera, Circle, Lock, Printer, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
-import Toast, { useToast } from '../../components/admin/Toast';
+import Toast from '../../components/admin/Toast';
+import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
 

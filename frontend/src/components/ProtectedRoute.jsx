@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 // Rôles autorisés à accéder à la route (optionnel). Par défaut : tout utilisateur connecté.
 export default function ProtectedRoute({ children, roles = null }) {

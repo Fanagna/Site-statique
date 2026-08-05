@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import Toast, { useToast } from '../../components/admin/Toast';
+import { useAuth } from '../../hooks/useAuth';
+import Toast from '../../components/admin/Toast';
+import { useToast } from '../../hooks/useToast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, updateFinance, deleteFinance,
@@ -20,11 +21,14 @@ import { CheckCircle2, Download, Hand, Printer } from 'lucide-react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { Icon } from '../../components/admin/icons';
 import {
-  formatMGA, today, fmtDate, timeAgo, initials, inputClass, CountUp, EmptyState, Th,
+  inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
+import {
+  formatMGA, today, fmtDate, timeAgo, initials, donorColor,
+} from '../../components/admin/utils';
 import { exportEvaluationXlsx } from '../../components/admin/ExcelTools';
 import {
-  DonorDonut, DonorExpenseBars, DonorMonthlyStacked, donorColor,
+  DonorDonut, DonorExpenseBars, DonorMonthlyStacked,
 } from '../../components/admin/DonorCharts';
 import {
   EvolutionChart, TopExpensesChart, CategoryDonut,

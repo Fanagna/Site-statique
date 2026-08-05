@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { formatMGA, CountUp, EmptyState } from './ui';
+import { CountUp, EmptyState } from './ui';
+import { formatMGA } from './utils';
 
 const monthKey = (d) => {
   if (!d) return '';

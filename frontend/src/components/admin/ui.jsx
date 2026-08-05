@@ -2,30 +2,11 @@ import { useState, useEffect } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Icon } from './icons';
 
-/* ── Formatting helpers ── */
-export const formatMGA = (n) => (n || 0).toLocaleString('fr-FR') + ' Ar';
-export const today = () => new Date().toISOString().split('T')[0];
-export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
-export const initials = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
-
-export const timeAgo = (dateStr) => {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  if (Number.isNaN(diff)) return '';
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "à l'instant";
-  if (min < 60) return `il y a ${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `il y a ${h} h`;
-  const days = Math.floor(h / 24);
-  if (days < 7) return `il y a ${days} j`;
-  return new Date(dateStr).toLocaleDateString('fr-FR');
-};
-
+/* ── Formatting helpers (voir ./utils) ── */
 export const inputClass = 'w-full px-3.5 py-2.5 bg-ios-fill border border-ios-hairline rounded-xl text-sm placeholder:text-ios-text3 focus:outline-none focus:ring-2 focus:ring-arina-blue/30 focus:bg-ios-card focus:border-arina-blue/30 transition-all';
 
 /* ── Count-up animation (Apple-style numbers) ── */
-export function useCountUp(target, duration = 900) {
+function useCountUp(target, duration = 900) {
   const [value, setValue] = useState(0);
   useEffect(() => {
     if (!target) { setValue(0); return; }

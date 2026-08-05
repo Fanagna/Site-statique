@@ -18,7 +18,7 @@ import {
   Play,
 } from 'lucide-react';
 
-export const iconMap = {
+const iconMap = {
   home: Home,
   brain: Brain,
   wrench: Wrench,
