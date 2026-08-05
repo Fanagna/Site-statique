@@ -22,9 +22,9 @@ function makeFakePool(opts = {}) {
     if (/^SELECT 1/.test(s)) return { rows: [{ '?column?': 1 }] };
     if (/SELECT COUNT\(\*\) AS n FROM users/i.test(s)) return { rows: [{ n: state.users.length }] };
 
-    // Comptes
+    // Comptes (password_hash stocké comme en Postgres réel)
     if (/INSERT INTO users/i.test(s)) {
-      const row = { id: state.users.length + 1, username: params[0], role: params[2], api_key: params[3] };
+      const row = { id: state.users.length + 1, username: params[0], password_hash: params[1], role: params[2], api_key: params[3] };
       state.users.push(row);
       return { rows: [row] };
     }

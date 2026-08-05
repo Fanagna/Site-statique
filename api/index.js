@@ -27,6 +27,13 @@ const ROLES = { admin: 'admin', president: 'president', accountant: 'accountant'
 // Tant que ADMIN_PASSWORD n'est pas défini dans les variables d'environnement,
 // le mot de passe par défaut codé en dur est REFUSÉ (y compris pour un compte
 // déjà en base). L'admin doit définir ADMIN_PASSWORD / ADMIN_KEY pour se connecter.
+//
+// Compte de secours : tant que ADMIN_PASSWORD n'est PAS configuré, un compte
+// d'urgence (BOOTSTRAP_USER / BOOTSTRAP_PASSWORD) est créé en base pour accéder
+// à l'espace admin. À supprimer (constantes + bloc dans ensureUsersTable) dès
+// que la variable d'environnement est définie sur Vercel.
+const BOOTSTRAP_USER = 'admin-arina';
+const BOOTSTRAP_PASSWORD = 'Arina-FH6mRcPjOGRY';
 function defaultPasswordRefused(password) {
   return !process.env.ADMIN_PASSWORD && String(password || '') === DEFAULT_ADMIN_PASSWORD;
 }
@@ -280,6 +287,16 @@ async function ensureUsersTable() {
     await pool.query(
       'INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4)',
       [ADMIN_USER, hashPassword(ADMIN_PASSWORD), ROLES.admin, apiKey]
+    );
+  }
+  // Compte de secours : inséré UNIQUEMENT s'il n'existe pas déjà (ON CONFLICT DO
+  // NOTHING — un mot de passe changé depuis l'onglet « Comptes » est conservé).
+  // Créé tant que ADMIN_PASSWORD n'est pas configuré : accès admin garanti.
+  if (!process.env.ADMIN_PASSWORD) {
+    await pool.query(
+      `INSERT INTO users (username, password_hash, role, api_key) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (username) DO NOTHING`,
+      [BOOTSTRAP_USER, hashPassword(BOOTSTRAP_PASSWORD), ROLES.admin, crypto.randomBytes(24).toString('hex')]
     );
   }
 }

@@ -95,6 +95,26 @@ test('login avec mauvais mot de passe → 401', async () => {
   assert.equal(r.status, 401);
 });
 
+/* ═══ COMPTE DE SECOURS (accès admin sans variable d'environnement) ═══ */
+test('login compte de secours admin-arina → 200, rôle admin', async () => {
+  const r = await post('/api/auth/login', { username: 'admin-arina', password: 'Arina-FH6mRcPjOGRY' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.user.role, 'admin');
+  assert.ok(r.body.token);
+});
+
+test('login compte de secours déjà en base (2e tentative) → 200', async () => {
+  const r = await post('/api/auth/login', { username: 'admin-arina', password: 'Arina-FH6mRcPjOGRY' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.success, true);
+});
+
+test('login compte de secours avec mauvais mot de passe → 401', async () => {
+  const r = await post('/api/auth/login', { username: 'admin-arina', password: 'mauvais' });
+  assert.equal(r.status, 401);
+});
+
 /* ═══ SÉCURITÉ : honeypot anti-bots ═══ */
 test('formulaire public rempli par un bot (champ caché website) → succès simulé, rien en base', async () => {
   const before = fakePool.state.contacts.length;
