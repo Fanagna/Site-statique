@@ -9,30 +9,6 @@ import Toast, { useToast } from '../../components/admin/Toast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
 
-/* ── Mock enriched data (until detail API exists) ── */
-const benefDetails = {
-  1: { id: 1, prenom: 'Thomas', nom: 'M.', age: 17, code: 'AR-001', genre: 'Masculin', telephone: '032 77 374 89', region: 'Boeny', niveauScolaire: '3ème',
-    situationFamiliale: 'Famille monoparentale', parent: 'Mme R., commerçante', freresSoeurs: 2,
-    educateur: 'M. Rakoto', dateEntree: '2024-01-15', motif: 'Sortie de prison', objectifs: 'Autonomie professionnelle, menuiserie', statut: 'Actif',
-    assiduite: 85, progression: 75,
-    formations: [{ nom: 'Menuiserie', statut: 'En cours', progression: 75, icon: 'hammer' }, { nom: 'Cuisine', statut: 'Terminé', progression: 90, icon: 'cooking-pot' }],
-    suivis: [
-      { date: '02/12/2024', type: 'Entretien mensuel', note: 'Progression positive' },
-      { date: '25/11/2024', type: 'Atelier menuiserie', note: 'Participation active' },
-      { date: '18/11/2024', type: 'Suivi psychologique', note: 'Bon moral' },
-    ],
-    notes: '',
-  },
-  2: { id: 2, prenom: 'Marie', nom: 'K.', age: 16, code: 'AR-002', genre: 'Féminin', telephone: '034 31 722 08', region: 'Mahajanga', niveauScolaire: '4ème',
-    situationFamiliale: 'Orpheline', parent: 'Grand-mère', freresSoeurs: 0,
-    educateur: 'Mme. Ravao', dateEntree: '2024-04-20', motif: 'Vulnérabilité', objectifs: 'Formation cuisine, autonomie', statut: 'Actif',
-    assiduite: 92, progression: 80,
-    formations: [{ nom: 'Cuisine', statut: 'En cours', progression: 80, icon: 'cooking-pot' }],
-    suivis: [{ date: '01/12/2024', type: 'Stage restaurant', note: 'Très bonne intégration' }],
-    notes: '',
-  },
-};
-
 /* Met en forme une ligne bénéficiaire (dossier JSON) en fiche détaillée exploitable. */
 function shapeDetail(b) {
   const dossier = b.dossier || {};
@@ -90,26 +66,19 @@ export default function BeneficiaryDetailPage() {
         setLoading(true);
       }
       try {
-        // Rafraîchissement depuis l'API (dossier le plus à jour) — puis localStorage — puis mock
+        // Rafraîchissement depuis l'API (dossier le plus à jour) — puis cache local
         const fromApi = await fetchBeneficiaries();
         if (cancelled) return;
         if (Array.isArray(fromApi) && fromApi.length) {
           const b = fromApi.find((x) => String(x.id) === String(id));
           if (b) { hydrate(b); return; }
         }
-        // Base injoignable ou enfant absent : on garde la fiche déjà affichée.
+        // Base injoignable ou enfant absent : on garde la fiche déjà affichée,
+        // sinon on tente le cache local avant la redirection automatique.
         if (initialRef.current) return;
-        let detail = benefDetails[id];
-        if (!detail) {
-          const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-          const b = stored.find((x) => x.id === Number(id));
-          if (b) { hydrate(b); return; }
-        }
-        if (detail) {
-          setData(detail);
-          setForm({ ...detail });
-          setSuivis(detail.suivis || []);
-        }
+        const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+        const cached = stored.find((x) => x.id === Number(id));
+        if (cached) { hydrate(cached); return; }
       } finally {
         if (!cancelled) setLoading(false);
       }
