@@ -321,6 +321,11 @@ function ensureSchema() {
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS quantity INTEGER`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2)`,
     `ALTER TABLE finances ADD COLUMN IF NOT EXISTS donor VARCHAR(255)`,
+    `ALTER TABLE finances ADD COLUMN IF NOT EXISTS donation_id INTEGER`,
+    // Un don confirmé ne peut créer qu'UNE seule ligne de revenu (garde anti-doublon
+    // même si deux confirmations arrivent en même temps — les lignes saisies
+    // manuellement (donation_id NULL) ne sont pas concernées)
+    `CREATE UNIQUE INDEX IF NOT EXISTS finances_donation_id_unique ON finances (donation_id) WHERE donation_id IS NOT NULL`,
     `CREATE TABLE IF NOT EXISTS contacts (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -600,6 +605,7 @@ app.get('/api/finances', requireAuth, async (req, res) => {
       description: r.description || '',
       donor: r.donor || '',
       date: r.date ? new Date(r.date).toISOString().split('T')[0] : '',
+      donation_id: r.donation_id != null ? r.donation_id : null,
     })));
   } catch (err) { res.json([]); }
 });
@@ -1115,8 +1121,12 @@ app.get('/api/donations', requireRole(ROLES.president, ROLES.accountant), async 
 // PATCH admin — marquer « reçu » / remettre en attente
 app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
   try {
-    const { status } = req.body || {};
+    const { status, rate } = req.body || {};
     if (!['pledge', 'received'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+    // Taux de conversion EUR → Ar (optionnel, pour le revenu automatique)
+    if (rate != null && rate !== '' && (!Number.isFinite(Number(rate)) || Number(rate) <= 0)) {
+      return res.status(400).json({ error: 'Le taux de conversion doit être un nombre positif' });
+    }
     const before = await pool.query('SELECT * FROM donations WHERE id = $1', [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = before.rows[0];
@@ -1173,7 +1183,48 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
       }
     }
 
-    res.json({ ...r, amount: Number(r.amount), receiptEmailSent });
+    // 💰 Revenus automatiques : un don confirmé « reçu » crée automatiquement une
+    // ligne de revenu (type income, catégorie Don) liée au don (donation_id). Le
+    // tableau de bord, l'Évaluation et les exports Excel se mettent à jour aussitôt.
+    // Retour en « à confirmer » : la ligne est retirée → les revenus ne reflètent
+    // que les dons réellement reçus. La liaison donation_id empêche tout doublon.
+    let incomeCreated = false;
+    let incomeRemoved = false;
+    let incomeAmount = null;
+    let rateUsed = null;
+    try {
+      if (status === 'received') {
+        const linked = await pool.query('SELECT 1 FROM finances WHERE donation_id = $1', [r.id]);
+        if (linked.rows.length === 0) {
+          // Taux de conversion : celui saisi à la confirmation, sinon EUR_TO_MGA_RATE,
+          // sinon montant enregistré tel quel (devise d'origine visible en description).
+          const convRate = rate != null && rate !== '' ? Number(rate) : (Number(process.env.EUR_TO_MGA_RATE) || null);
+          const base = Number(r.amount);
+          const amountAr = convRate && convRate > 0 ? Math.round(base * convRate) : null;
+          incomeAmount = amountAr || base;
+          rateUsed = convRate && convRate > 0 ? convRate : null;
+          const who = r.anonymous ? 'anonyme' : (r.name || 'anonyme');
+          const desc = amountAr
+            ? `Don de ${who} (${base} ${r.currency || 'EUR'} ≈ ${amountAr} Ar) — réf ${r.receipt_number || receiptNumber || '—'}`
+            : `Don de ${who} (${base} ${r.currency || 'EUR'}) — réf ${r.receipt_number || receiptNumber || '—'}`;
+          await pool.query(
+            `INSERT INTO finances (type, category, amount, description, date, donor, donation_id)
+             VALUES ('income', 'Don', $1, $2, CURRENT_DATE, $3, $4)`,
+            [incomeAmount, desc, r.anonymous ? 'Anonyme' : (r.name || 'Anonyme'), r.id]
+          );
+          incomeCreated = true;
+        }
+      } else if (old.status === 'received') {
+        // Retour en « à confirmer » : on retire le revenu enregistré pour ce don
+        const del = await pool.query('DELETE FROM finances WHERE donation_id = $1', [r.id]);
+        incomeRemoved = (del.rowCount || 0) > 0;
+      }
+    } catch (err) {
+      // La confirmation du don reste valide même si la mise à jour des revenus échoue
+      console.error('⚠️ Revenus non mis à jour :', err.message);
+    }
+
+    res.json({ ...r, amount: Number(r.amount), receiptEmailSent, incomeCreated, incomeRemoved, incomeAmount, rateUsed });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

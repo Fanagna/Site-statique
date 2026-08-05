@@ -80,6 +80,9 @@ export default function AdminDashboard() {
   const [expandedMsg, setExpandedMsg] = useState(null);
   const [expandedVol, setExpandedVol] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null); // don dont on prévisualise le reçu
+  const [confirmDonation, setConfirmDonation] = useState(null); // don en attente de confirmation (modale taux)
+  const [confirmRate, setConfirmRate] = useState(''); // taux de conversion EUR → Ar saisi à la confirmation
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false); // anti double-clic
   const [receiptUrl, setReceiptUrl] = useState(null); // URL Blob du PDF
   const [receiptLoading, setReceiptLoading] = useState(false);
   const receiptUrlRef = useRef(null); // toujours l'URL Blob courante (libérée au démontage)
@@ -198,6 +201,13 @@ export default function AdminDashboard() {
     if (anyOk || !anyFail) setApiStatus('online');
     else setApiStatus('offline');
   }, [allowedTabs]);
+
+  // Rafraîchit uniquement les finances (revenus/dépenses) — appelé après la
+  // confirmation d'un don pour refléter immédiatement le nouveau revenu.
+  const refreshFinances = async () => {
+    const f = await fetchFinances();
+    if (f !== null) { if (f.length) setFinances(f); else setFinances([]); }
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { if (benefs.length) localStorage.setItem('arina_benefs', JSON.stringify(benefs)); }, [benefs]);
@@ -452,20 +462,55 @@ export default function AdminDashboard() {
   };
 
   /* ── Dons : confirmer la réception d'une promesse / remettre en attente ── */
-  const toggleDonation = async (d) => {
-    const next = d.status === 'received' ? 'pledge' : 'received';
-    const r = await updateDonation(d.id, { status: next });
+  // Confirmer un don « reçu » ouvre une modale pour saisir le taux EUR → Ar
+  // (le revenu est enregistré en Ariary). Remettre en attente reste direct.
+  const toggleDonation = (d) => {
+    if (d.status !== 'received') {
+      setConfirmRate(localStorage.getItem('arina_eur_rate') || '');
+      setConfirmDonation(d);
+      return;
+    }
+    // Retour en « à confirmer » : aucun taux requis
+    updateDonation(d.id, { status: 'pledge' }).then((r) => {
+      if (!r.ok) { showToast(`❌ Statut NON enregistré dans la base : ${r.error}`, 'error'); return; }
+      setDonations(donations.map((x) => (x.id === d.id ? { ...x, ...(r.data || {}) } : x)));
+      refreshFinances();
+      showToast(r.data?.incomeRemoved ? `Promesse de ${d.name} remise en attente — revenu retiré des finances` : `Promesse de ${d.name} remise en attente`);
+    });
+  };
+
+  const doConfirmDonation = async () => {
+    const d = confirmDonation;
+    if (!d || confirmSubmitting) return; // anti double-clic
+    const rate = confirmRate.trim();
+    if (rate !== '' && (!Number.isFinite(Number(rate)) || Number(rate) <= 0)) {
+      showToast('❌ Le taux de conversion doit être un nombre positif', 'error');
+      return;
+    }
+    const body = { status: 'received' };
+    if (rate !== '') {
+      body.rate = Number(rate);
+      localStorage.setItem('arina_eur_rate', rate); // taux mémorisé pour la prochaine fois
+    }
+    setConfirmSubmitting(true);
+    const r = await updateDonation(d.id, body);
+    setConfirmSubmitting(false);
     if (!r.ok) { showToast(`❌ Statut NON enregistré dans la base : ${r.error}`, 'error'); return; }
     setDonations(donations.map((x) => (x.id === d.id ? { ...x, ...(r.data || {}) } : x)));
-    if (next === 'received') {
-      showToast(
-        r.data?.receiptEmailSent
-          ? `✅ Don de ${d.name} confirmé — reçu PDF envoyé à ${d.email}`
-          : `✅ Don de ${d.name} confirmé comme reçu`,
-      );
-    } else {
-      showToast(`Promesse de ${d.name} remise en attente`);
-    }
+    // Le revenu est déjà en base : on rafraîchit les finances pour que KPI,
+    // graphiques, Évaluation et exports reflètent immédiatement le changement.
+    refreshFinances();
+    // Devise réelle du revenu : « Ar » si converti (taux saisi), sinon la devise d'origine
+    const converted = !!r.data?.rateUsed && r.data.rateUsed > 0;
+    const income = r.data?.incomeCreated
+      ? ` · revenu de ${Number(r.data.incomeAmount || 0).toLocaleString('fr-FR')}${converted ? ' Ar' : ` ${d.currency || '€'}${r.data?.incomeCreated ? '' : ''}`} ajouté${converted ? '' : ' (non converti)'}`
+      : '';
+    showToast(
+      r.data?.receiptEmailSent
+        ? `✅ Don de ${d.name} confirmé — reçu PDF envoyé à ${d.email}${income}`
+        : `✅ Don de ${d.name} confirmé comme reçu${income}`,
+    );
+    setConfirmDonation(null);
   };
   const removeDonation = async (id) => {
     if (!confirm('Supprimer cette promesse de don ?')) return;
@@ -2206,7 +2251,7 @@ export default function AdminDashboard() {
             )}
           </div>
           <p className="text-[11px] text-ios-text3 px-1">
-            💡 Une promesse de don ne correspond pas à un paiement prélevé : confirmez la réception après vérification (Orange Money, virement, crypto…). Le montant confirmé peut ensuite être saisi dans Finances → Revenu.
+            💡 Une promesse de don ne correspond pas à un paiement prélevé : confirmez la réception après vérification (Orange Money, virement, crypto…). Le don confirmé crée automatiquement le revenu dans Finances (taux EUR → Ar saisi à la confirmation) et envoie le reçu PDF au donateur.
           </p>
         </div>
       )}
@@ -2471,6 +2516,57 @@ export default function AdminDashboard() {
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowDonorForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveDonor} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE — Confirmer le don reçu (taux EUR → Ar) ═══════ */}
+      {confirmDonation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDonation(null)} />
+          <div className="relative w-full max-w-md bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+            <div className="px-6 pt-5 pb-4 border-b border-ios-hairline flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 flex items-center justify-center flex-shrink-0"><Icon name="check" className="w-5 h-5" /></div>
+              <div className="min-w-0">
+                <h3 className="font-bold truncate">Confirmer le don de {confirmDonation.name}</h3>
+                <p className="text-xs text-ios-text3 truncate">
+                  {Number(confirmDonation.amount) || 0} {confirmDonation.currency || '€'} · {confirmDonation.email}
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ios-text2 mb-1.5">
+                  Taux de conversion {confirmDonation.currency || 'EUR'} → Ariary
+                  <span className="text-ios-text3 font-normal"> (le revenu sera enregistré en Ar)</span>
+                </label>
+                <input
+                  type="number" min="1" step="any" value={confirmRate}
+                  onChange={(e) => setConfirmRate(e.target.value)}
+                  placeholder="ex. 5500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-ios-fill border border-ios-hairline text-sm focus:outline-none focus:ring-2 focus:ring-arina-blue/40"
+                />
+                <p className="text-[11px] text-ios-text3 mt-1.5">
+                  {confirmRate && Number.isFinite(Number(confirmRate)) && Number(confirmRate) > 0 ? (
+                    <>Revenu estimé : <strong className="text-arina-blue">{(Number(confirmDonation.amount) * Number(confirmRate)).toLocaleString('fr-FR')} Ar</strong></>
+                  ) : (
+                    <>Laissez vide pour enregistrer le montant tel quel ({Number(confirmDonation.amount) || 0} {confirmDonation.currency || '€'})</>
+                  )}
+                </p>
+              </div>
+              <p className="text-[11px] text-ios-text2 bg-ios-fill rounded-xl px-3.5 py-2.5">
+                Le reçu PDF sera envoyé automatiquement à <strong>{confirmDonation.email}</strong> et le revenu sera ajouté aux Finances.
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-ios-hairline flex justify-end gap-2.5">
+              <button onClick={() => setConfirmDonation(null)} className="px-4 py-2 rounded-xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>                <button
+                  onClick={doConfirmDonation}
+                  disabled={confirmSubmitting}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${confirmSubmitting ? 'bg-ios-fill-2 text-ios-text3 cursor-wait' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                >
+                  <Icon name="check" className="w-4 h-4" /> {confirmSubmitting ? 'Confirmation…' : 'Confirmer le don reçu'}
+                </button>
             </div>
           </div>
         </div>

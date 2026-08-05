@@ -183,6 +183,60 @@ test('PATCH /api/donations/:id → re-confirmation après reçu déjà envoyé :
   assert.equal(r.body.receipt_number, 'ARINA-2026-0002'); // numéro conservé
 });
 
+/* ═══ REVENUS AUTOMATIQUES (don confirmé → ligne de revenu) ═══ */
+test('PATCH /api/donations/:id → « reçu » : revenu créé automatiquement dans les finances', async () => {
+  // Le don 1 est en « pledge » (remis en attente par un test précédent)
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.incomeCreated, true);
+  const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
+  const revenu = (fin.body || []).find((f) => f.type === 'Revenu' && Number(f.montant) === 50);
+  assert.ok(revenu, 'une ligne de revenu de 50 doit exister dans les finances');
+  assert.equal(revenu.categorie, 'Don');
+  assert.equal(revenu.donor, 'Marie');
+});
+
+test('PATCH /api/donations/:id → « à confirmer » : le revenu est retiré des finances', async () => {
+  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.incomeRemoved, true);
+  const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
+  assert.ok(!(fin.body || []).some((f) => f.type === 'Revenu' && Number(f.montant) === 50), 'le revenu doit avoir disparu des finances');
+});
+
+test('PATCH /api/donations/:id → re-confirmation « reçu » : aucun doublon de revenu', async () => {
+  // Confirmer une 2e fois un don déjà « reçu » ne doit pas créer une 2e ligne
+  const r1 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r1.body.incomeCreated, true);
+  const r2 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r2.status, 200);
+  assert.equal(r2.body.incomeCreated, false); // déjà enregistré
+  const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
+  const revenus = (fin.body || []).filter((f) => f.type === 'Revenu' && Number(f.montant) === 50);
+  assert.equal(revenus.length, 1, 'une seule ligne de revenu pour ce don');
+});
+
+test('PATCH /api/donations/:id → « reçu » avec taux : revenu converti en Ariary', async () => {
+  // Remise en attente puis confirmation avec taux 5000 → 50 EUR = 250 000 Ar
+  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: 5000 }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.incomeCreated, true);
+  assert.equal(r.body.incomeAmount, 250000); // 50 EUR × 5000
+  const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
+  const revenu = (fin.body || []).find((f) => f.donation_id === 1);
+  assert.ok(revenu, 'le revenu lié au don 1 doit exister');
+  assert.equal(Number(revenu.montant), 250000);
+  assert.match(revenu.description || '', /≈ 250000 Ar/); // devise d'origine visible
+  assert.equal(revenu.donor, 'Marie');
+});
+
+test('PATCH /api/donations/:id → taux invalide → 400', async () => {
+  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: -5 }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 400);
+  assert.match(r.body.error || '', /taux/i);
+});
+
 /* ═══ APERÇU DU REÇU PDF ═══ */
 test('GET /api/donations/:id/receipt → 401 sans clé', async () => {
   const r = await get('/api/donations/1/receipt');

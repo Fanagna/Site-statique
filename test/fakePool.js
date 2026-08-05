@@ -14,6 +14,11 @@ function makeFakePool(opts = {}) {
     const s = String(sql).replace(/\s+/g, ' ').trim();
 
     if (/^(CREATE|ALTER) TABLE/i.test(s)) return { rows: [] };
+    // AVANT le générique `SELECT 1` (santé) : vérifier l'existence d'un revenu lié à un don
+    if (/SELECT 1 FROM finances WHERE donation_id/i.test(s)) {
+      const found = state.financeRows.some((f) => f.donation_id === Number(params[0]));
+      return { rows: found ? [{ '?column?': 1 }] : [] };
+    }
     if (/^SELECT 1/.test(s)) return { rows: [{ '?column?': 1 }] };
     if (/SELECT COUNT\(\*\) AS n FROM users/i.test(s)) return { rows: [{ n: state.users.length }] };
 
@@ -60,8 +65,11 @@ function makeFakePool(opts = {}) {
       return { rows: [d] };
     }
     if (/SELECT \* FROM donations WHERE id/i.test(s)) {
+      // Copie (snapshot) : comme en PostgreSQL réel, la ligne lue avant un UPDATE
+      // ne doit pas être mutée par la suite (sinon old.status refléterait déjà le
+      // nouveau statut et le retrait de revenu ne se déclencherait jamais).
       const d = state.donations.find((x) => x.id === Number(params[0]));
-      return { rows: d ? [d] : [] };
+      return { rows: d ? [{ ...d }] : [] };
     }
     if (/DELETE FROM donations/i.test(s)) {
       const idx = state.donations.findIndex((x) => x.id === Number(params[0]));
@@ -77,6 +85,26 @@ function makeFakePool(opts = {}) {
       state.contacts.push(row);
       return { rows: [row] };
     }
+
+    // Finances — revenu automatique lié à un don confirmé (donation_id)
+    if (/INSERT INTO finances .*donation_id/i.test(s)) {
+      const row = {
+        id: state.financeRows.length + 1,
+        type: 'income', category: 'Don', amount: params[0],
+        description: params[1], date: new Date().toISOString().split('T')[0],
+        donor: params[2], donation_id: params[3],
+        created_at: new Date().toISOString(),
+      };
+      state.financeRows.push(row);
+      state.inserts.push({ table: 'finances', row });
+      return { rows: [row] };
+    }
+    if (/DELETE FROM finances WHERE donation_id/i.test(s)) {
+      const before = state.financeRows.length;
+      state.financeRows = state.financeRows.filter((f) => f.donation_id !== Number(params[0]));
+      return { rows: [], rowCount: before - state.financeRows.length };
+    }
+    if (/SELECT \* FROM finances/i.test(s)) return { rows: [...state.financeRows] };
 
     // Finances (test du calcul automatique MNT = QT × PU)
     if (/INSERT INTO finances/i.test(s)) {

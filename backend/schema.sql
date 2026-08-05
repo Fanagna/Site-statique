@@ -102,8 +102,19 @@ CREATE TABLE IF NOT EXISTS finances (
   description TEXT,
   category VARCHAR(100),
   date DATE DEFAULT CURRENT_DATE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  quantity INTEGER,
+  unit_price NUMERIC(12,2),
+  donor VARCHAR(255),
+  -- Lien vers la promesse de don (donations.id) : une ligne de revenu créée
+  -- automatiquement à la confirmation d'un don. NULL pour les saisies manuelles.
+  donation_id INTEGER
 );
+
+-- Un don confirmé ne peut créer qu'UNE seule ligne de revenu (garde anti-doublon
+-- même en cas de double confirmation simultanée).
+CREATE UNIQUE INDEX IF NOT EXISTS finances_donation_id_unique
+  ON finances (donation_id) WHERE donation_id IS NOT NULL;
 
 -- Donateurs (partenaires financiers : Ravinala, Horizon, Grandir Dignement…)
 -- Chaque donateur finance un besoin spécifique (salaire, sakafo, formation…).
