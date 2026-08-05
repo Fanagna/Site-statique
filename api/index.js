@@ -1150,6 +1150,7 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
     );
     let r = result.rows[0];
     let receiptEmailSent = false;
+    let receiptEmailReason = null;
 
     if (firstReceipt) {
       // Génération du reçu + envoi par email (Resend) : au donateur, copie à l'association
@@ -1178,8 +1179,19 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
         // L'horodatage d'envoi n'est enregistré QUE si l'email est réellement parti
         const upd = await pool.query('UPDATE donations SET receipt_sent_at = $1 WHERE id = $2 RETURNING *', [receiptEmailSent ? new Date().toISOString() : null, r.id]);
         if (upd.rows.length) r = upd.rows[0];
+        // Diagnostic : si l'email n'est pas parti, expliquer pourquoi (visible dans l'admin)
+        if (!receiptEmailSent) {
+          receiptEmailReason = !process.env.RESEND_API_KEY || !NOTIFY_EMAIL
+            ? (!process.env.RESEND_API_KEY && !NOTIFY_EMAIL
+                ? 'Emails non configurés : RESEND_API_KEY et NOTIFY_EMAIL manquantes dans Vercel (Settings → Environment Variables)'
+                : !process.env.RESEND_API_KEY
+                  ? 'Emails non configurés : RESEND_API_KEY manquante dans Vercel'
+                  : 'Emails non configurés : NOTIFY_EMAIL manquante dans Vercel')
+            : "Envoi refusé par Resend (clé invalide, domaine non vérifié, ou expéditeur onboarding@resend.dev limité à l'adresse du compte)";
+        }
       } catch (err) {
         console.error('⚠️ Reçu non envoyé :', err.message);
+        receiptEmailReason = 'Erreur lors de la génération/envoi : ' + err.message;
       }
     }
 
@@ -1224,8 +1236,23 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
       console.error('⚠️ Revenus non mis à jour :', err.message);
     }
 
-    res.json({ ...r, amount: Number(r.amount), receiptEmailSent, incomeCreated, incomeRemoved, incomeAmount, rateUsed });
+    res.json({ ...r, amount: Number(r.amount), receiptEmailSent, receiptEmailReason, incomeCreated, incomeRemoved, incomeAmount, rateUsed });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET admin — diagnostic de la configuration email (pourquoi les reçus ne partent pas)
+app.get('/api/email-status', requireAuth, async (req, res) => {
+  const missing = [];
+  if (!process.env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+  if (!process.env.NOTIFY_EMAIL) missing.push('NOTIFY_EMAIL');
+  const from = process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>';
+  res.json({
+    configured: missing.length === 0,
+    missing,
+    from,
+    // onboarding@resend.dev ne peut envoyer qu'à l'adresse du compte Resend
+    limitedToAccountOwner: /onboarding@resend\.dev/.test(from),
+  });
 });
 
 // GET admin — APERÇU du reçu PDF (avant confirmation/envoi). Génère le MÊME PDF

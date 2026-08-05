@@ -237,6 +237,25 @@ test('PATCH /api/donations/:id → taux invalide → 400', async () => {
   assert.match(r.body.error || '', /taux/i);
 });
 
+/* ═══ DIAGNOSTIC EMAIL ═══ */
+test('GET /api/email-status → non configuré sans RESEND_API_KEY/NOTIFY_EMAIL', async () => {
+  const r = await get('/api/email-status', { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.configured, false);
+  assert.ok((r.body.missing || []).includes('RESEND_API_KEY'));
+  assert.ok((r.body.missing || []).includes('NOTIFY_EMAIL'));
+});
+
+test('PATCH /api/donations/:id → « reçu » sans email configuré : raison explicite', async () => {
+  // Le don 1 est « reçu » avec un revenu existant ; on le repasse en attente puis on
+  // re-confirme : l'email ne part pas (pas de clé) et la réponse doit l'expliquer.
+  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.receiptEmailSent, false);
+  assert.match(r.body.receiptEmailReason || '', /RESEND_API_KEY/);
+});
+
 /* ═══ APERÇU DU REÇU PDF ═══ */
 test('GET /api/donations/:id/receipt → 401 sans clé', async () => {
   const r = await get('/api/donations/1/receipt');

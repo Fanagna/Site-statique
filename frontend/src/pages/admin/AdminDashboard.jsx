@@ -7,7 +7,7 @@ import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
   fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchDonors, createDonor, updateDonor, deleteDonor,
-  fetchDonations, updateDonation, deleteDonation, fetchDonationReceipt,
+  fetchDonations, updateDonation, deleteDonation, fetchDonationReceipt, fetchEmailStatus,
   fetchNews,
   fetchContacts, deleteContact,
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
@@ -73,6 +73,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [benefsLoading, setBenefsLoading] = useState(true);
   const [financesLoading, setFinancesLoading] = useState(true);
+  const [emailStatus, setEmailStatus] = useState(null); // diagnostic envoi des reçus (Resend)
 
   /* ── UI state ── */
   const [query, setQuery] = useState('');
@@ -148,6 +149,10 @@ export default function AdminDashboard() {
     if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
     else { anyFail = true; const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
     setFinancesLoading(false);
+
+    // Diagnostic email (Resend) : affiché en bannière dans l'onglet Dons si non configuré
+    const eFromApi = await fetchEmailStatus();
+    if (eFromApi?.configured != null) setEmailStatus(eFromApi);
 
     // Donateurs : nécessaires pour l'évaluation (filtre + rapports) et l'onglet dédié
     const dFromApi = await fetchDonors();
@@ -503,12 +508,16 @@ export default function AdminDashboard() {
     // Devise réelle du revenu : « Ar » si converti (taux saisi), sinon la devise d'origine
     const converted = !!r.data?.rateUsed && r.data.rateUsed > 0;
     const income = r.data?.incomeCreated
-      ? ` · revenu de ${Number(r.data.incomeAmount || 0).toLocaleString('fr-FR')}${converted ? ' Ar' : ` ${d.currency || '€'}${r.data?.incomeCreated ? '' : ''}`} ajouté${converted ? '' : ' (non converti)'}`
+      ? ` · revenu de ${Number(r.data.incomeAmount || 0).toLocaleString('fr-FR')}${converted ? ' Ar' : ` ${d.currency || '€'}`} ajouté${converted ? '' : ' (non converti)'}`
+      : '';
+    const emailNote = !r.data?.receiptEmailSent && r.data?.receiptEmailReason
+      ? ` — reçu NON envoyé : ${r.data.receiptEmailReason}`
       : '';
     showToast(
       r.data?.receiptEmailSent
         ? `✅ Don de ${d.name} confirmé — reçu PDF envoyé à ${d.email}${income}`
-        : `✅ Don de ${d.name} confirmé comme reçu${income}`,
+        : `✅ Don de ${d.name} confirmé comme reçu${income}${emailNote}`,
+      r.data?.receiptEmailSent ? 'success' : 'warning',
     );
     setConfirmDonation(null);
   };
@@ -2171,6 +2180,25 @@ export default function AdminDashboard() {
       {/* ═══════════ DONS (promesses de don) ═══════════ */}
       {tab === 'dons' && (
         <div className="space-y-4 animate-fade-up">
+          {emailStatus && !emailStatus.configured && (
+            <div className="rounded-2xl border border-amber-300/60 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 flex items-start gap-3">
+              <span className="text-amber-500 mt-0.5 flex-shrink-0">⚠️</span>
+              <div className="text-sm">
+                <p className="font-semibold text-amber-800 dark:text-amber-200">Les reçus PDF ne seront PAS envoyés par email</p>
+                <p className="text-amber-700 dark:text-amber-300 mt-1 text-[13px] leading-relaxed">
+                  Variables manquantes dans Vercel (Settings → Environment Variables → Production) :{' '}
+                  <strong>{(emailStatus.missing || []).join(', ')}</strong>.
+                  Ajoutez-les puis redéployez. {emailStatus.limitedToAccountOwner ? (
+                    <>
+                      💡 <strong>{emailStatus.from}</strong> (expéditeur par défaut) ne peut envoyer qu'à votre propre
+                      adresse Resend : vérifiez un domaine dans Resend (resend.com/domains) et définissez{' '}
+                      <strong>EMAIL_FROM</strong> (ex. <code className="text-xs">ARINA &lt;contact@votre-domaine.mg&gt;</code>).
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               { label: 'Promesses de don', value: donations.length },

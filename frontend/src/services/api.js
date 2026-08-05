@@ -245,6 +245,11 @@ export async function fetchDonationReceipt(id) {
 }
 
 /* ── Stats réelles (page d'accueil) ── */
+/* ── Diagnostic email (pourquoi les reçus ne partent pas) ── */
+export async function fetchEmailStatus() {
+  return apiCallDetailed('/email-status', { method: 'GET' });
+}
+
 export async function fetchStats() {
   return await apiCall('/stats');
 }
