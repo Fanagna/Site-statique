@@ -449,8 +449,16 @@ export default function AdminDashboard() {
     const next = d.status === 'received' ? 'pledge' : 'received';
     const r = await updateDonation(d.id, { status: next });
     if (!r.ok) { showToast(`❌ Statut NON enregistré dans la base : ${r.error}`, 'error'); return; }
-    setDonations(donations.map((x) => (x.id === d.id ? { ...x, status: next } : x)));
-    showToast(next === 'received' ? `✅ Don de ${d.name} confirmé comme reçu` : `Promesse de ${d.name} remise en attente`);
+    setDonations(donations.map((x) => (x.id === d.id ? { ...x, ...(r.data || {}) } : x)));
+    if (next === 'received') {
+      showToast(
+        r.data?.receiptEmailSent
+          ? `✅ Don de ${d.name} confirmé — reçu PDF envoyé à ${d.email}`
+          : `✅ Don de ${d.name} confirmé comme reçu`,
+      );
+    } else {
+      showToast(`Promesse de ${d.name} remise en attente`);
+    }
   };
   const removeDonation = async (id) => {
     if (!confirm('Supprimer cette promesse de don ?')) return;
@@ -2122,6 +2130,11 @@ export default function AdminDashboard() {
                             <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${d.status === 'received' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
                               {d.status === 'received' ? 'Don reçu ✓' : 'À confirmer'}
                             </span>
+                            {d.receipt_sent_at && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" title={`Reçu ${d.receipt_number || ''} envoyé à ${d.email}`}>
+                                <Icon name="mail" className="w-3 h-3" /> Reçu envoyé
+                              </span>
+                            )}
                           </div>
                           <span className="text-[11px] text-ios-text3 whitespace-nowrap">{timeAgo(d.created_at)}</span>
                         </div>
@@ -2130,6 +2143,9 @@ export default function AdminDashboard() {
                         </div>
                         <div className="mt-1.5 text-lg font-extrabold text-arina-blue tabular">
                           {Number(d.amount) || 0} {d.currency || '€'}
+                          {d.receipt_number && (
+                            <span className="ml-2 text-[11px] font-semibold text-ios-text3 align-middle">{d.receipt_number}</span>
+                          )}
                         </div>
                         {d.message && <p className="text-sm text-ios-text2 mt-1 leading-relaxed line-clamp-2">« {d.message} »</p>}
                         <div className="mt-3 flex flex-wrap items-center gap-3">

@@ -49,7 +49,18 @@ function makeFakePool(opts = {}) {
       if (!d) return { rows: [] };
       d.status = params[0];
       d.received_at = params[0] === 'received' ? new Date().toISOString() : null;
+      if (params[2]) d.receipt_number = params[2];
       return { rows: [d] };
+    }
+    if (/UPDATE donations SET receipt_sent_at/i.test(s)) {
+      const d = state.donations.find((x) => x.id === Number(params[1]));
+      if (!d) return { rows: [] };
+      d.receipt_sent_at = params[0];
+      return { rows: [d] };
+    }
+    if (/SELECT \* FROM donations WHERE id/i.test(s)) {
+      const d = state.donations.find((x) => x.id === Number(params[0]));
+      return { rows: d ? [d] : [] };
     }
     if (/DELETE FROM donations/i.test(s)) {
       const idx = state.donations.findIndex((x) => x.id === Number(params[0]));

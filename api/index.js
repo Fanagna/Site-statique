@@ -3,6 +3,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const { put, del } = require('@vercel/blob');
+const { buildReceiptPdf } = require('./receipt');
 
 // Pièces jointes candidatures : formats et taille max (sous la limite Vercel Blob de 5 Mo/upload direct)
 const ALLOWED_ATTACH_EXT = /\.(pdf|doc|docx)$/i;
@@ -143,7 +144,16 @@ app.use((req, res, next) => {
 // Envoi silencieux : si RESEND_API_KEY / NOTIFY_EMAIL ne sont pas configurés,
 // rien n'est envoyé et le site continue de fonctionner normalement.
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || '';
-async function sendEmail({ subject, text, html }) {
+
+// Échappe les entités HTML (les champs publics — nom, message — ne doivent
+// jamais être interpolés bruts dans un email HTML : risque d'injection).
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function sendEmail({ subject, text, html, to, cc, attachments }) {
   try {
     if (!process.env.RESEND_API_KEY || !NOTIFY_EMAIL) return false;
     const res = await fetch('https://api.resend.com/emails', {
@@ -154,10 +164,12 @@ async function sendEmail({ subject, text, html }) {
       },
       body: JSON.stringify({
         from: process.env.EMAIL_FROM || 'ARINA <onboarding@resend.dev>',
-        to: [NOTIFY_EMAIL],
+        to: to || [NOTIFY_EMAIL],
+        ...(cc && cc.length ? { cc } : {}),
         subject,
         text,
         html: html || `<div style="font-family:Arial,sans-serif"><p>${text}</p></div>`,
+        ...(attachments && attachments.length ? { attachments } : {}),
       }),
     });
     return res.ok;
@@ -358,8 +370,12 @@ function ensureSchema() {
       anonymous BOOLEAN DEFAULT FALSE,
       status VARCHAR(20) DEFAULT 'pledge',
       received_at TIMESTAMP,
+      receipt_number VARCHAR(40),
+      receipt_sent_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
+    `ALTER TABLE donations ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(40)`,
+    `ALTER TABLE donations ADD COLUMN IF NOT EXISTS receipt_sent_at TIMESTAMP`,
   ];
 
   // Après création des tables : crée le compte admin par défaut s'il n'existe pas
@@ -1101,14 +1117,58 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
   try {
     const { status } = req.body || {};
     if (!['pledge', 'received'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+    const before = await pool.query('SELECT * FROM donations WHERE id = $1', [req.params.id]);
+    if (before.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const old = before.rows[0];
+    // Premier passage à « reçu » : un reçu PDF est généré et envoyé au donateur
+    const firstReceipt = status === 'received' && old.status !== 'received';
+    const receiptNumber = firstReceipt
+      ? `ARINA-${new Date().getFullYear()}-${String(old.id).padStart(4, '0')}`
+      : (old.receipt_number || null);
+
     const result = await pool.query(
       `UPDATE donations SET status=$1,
-        received_at = CASE WHEN $1 = 'received' THEN COALESCE(received_at, CURRENT_TIMESTAMP) ELSE NULL END
+        received_at = CASE WHEN $1 = 'received' THEN COALESCE(received_at, CURRENT_TIMESTAMP) ELSE NULL END,
+        receipt_number = COALESCE($3, receipt_number)
        WHERE id=$2 RETURNING *`,
-      [status, req.params.id]
+      [status, req.params.id, firstReceipt ? receiptNumber : null]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json({ ...result.rows[0], amount: Number(result.rows[0].amount) });
+    let r = result.rows[0];
+    let receiptEmailSent = false;
+
+    if (firstReceipt) {
+      // Génération du reçu + envoi par email (Resend) : au donateur, copie à l'association
+      try {
+        const pdf = await buildReceiptPdf({ donation: { ...r, amount: Number(r.amount) } });
+        const amount = Number(r.amount).toLocaleString('fr-FR');
+        receiptEmailSent = await sendEmail({
+          to: [r.email],
+          cc: [NOTIFY_EMAIL],
+          subject: `Votre reçu de don ARINA — ${receiptNumber}`,
+          text: `Bonjour ${r.name},\n\nMerci pour votre don de ${amount} ${(r.currency || 'EUR').toUpperCase()}.\nVotre reçu (réf. ${receiptNumber}) est joint à cet email.\n\n${r.message ? 'Votre message : ' + r.message + '\n\n' : ''}Merci pour votre générosité.\n\nL'équipe ARINA`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
+            <div style="background:#7A2C3E;color:#fff;padding:18px 24px;border-radius:12px 12px 0 0">
+              <strong style="font-size:18px">ARINA — Reçu de don</strong>
+            </div>
+            <div style="border:1px solid #eee;border-top:0;padding:24px;border-radius:0 0 12px 12px">
+              <p>Bonjour <strong>${escapeHtml(r.name)}</strong>,</p>
+              <p>Merci pour votre don de <strong style="color:#7A2C3E">${amount} ${(r.currency || 'EUR').toUpperCase()}</strong>.</p>
+              <p>Votre reçu (réf. <strong>${escapeHtml(receiptNumber)}</strong>) est joint à cet email.</p>
+              ${r.message ? `<p style="color:#666">« ${escapeHtml(r.message)} »</p>` : ''}
+              <p style="color:#888;font-size:13px">Merci pour votre générosité — chaque don change des vies.<br/>L'équipe ARINA</p>
+            </div>
+          </div>`,
+          attachments: [{ filename: `${receiptNumber}.pdf`, content: Buffer.from(pdf).toString('base64'), content_type: 'application/pdf' }],
+        });
+        // L'horodatage d'envoi n'est enregistré QUE si l'email est réellement parti
+        const upd = await pool.query('UPDATE donations SET receipt_sent_at = $1 WHERE id = $2 RETURNING *', [receiptEmailSent ? new Date().toISOString() : null, r.id]);
+        if (upd.rows.length) r = upd.rows[0];
+      } catch (err) {
+        console.error('⚠️ Reçu non envoyé :', err.message);
+      }
+    }
+
+    res.json({ ...r, amount: Number(r.amount), receiptEmailSent });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

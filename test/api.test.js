@@ -151,11 +151,22 @@ test('GET /api/donations avec clé admin → liste', async () => {
   assert.ok(r.body.length >= 1);
 });
 
-test('PATCH /api/donations/:id → marquer reçu', async () => {
+test('PATCH /api/donations/:id → marquer reçu (numéro de reçu généré)', async () => {
   const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'received');
   assert.ok(r.body.received_at);
+  assert.match(r.body.receipt_number, /^ARINA-\d{4}-0001$/); // reçu généré à la confirmation
+  // Sans clé Resend, l'email n'est pas envoyé : receiptEmailSent = false, sent_at null
+  assert.equal(r.body.receiptEmailSent, false);
+  assert.equal(r.body.receipt_sent_at, null);
+});
+
+test('PATCH /api/donations/:id → remise en attente (pas de nouveau reçu)', async () => {
+  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'pledge');
+  assert.equal(r.body.received_at, null);
 });
 
 test('PATCH /api/donations/:id avec statut invalide → 400', async () => {

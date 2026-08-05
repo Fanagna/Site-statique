@@ -181,5 +181,9 @@ CREATE TABLE IF NOT EXISTS donations (
   anonymous BOOLEAN DEFAULT FALSE,
   status VARCHAR(20) DEFAULT 'pledge',
   received_at TIMESTAMP,
+  receipt_number VARCHAR(40),
+  receipt_sent_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(40);
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS receipt_sent_at TIMESTAMP;
