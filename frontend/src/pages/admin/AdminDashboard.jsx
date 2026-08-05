@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Toast, { useToast } from '../../components/admin/Toast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
-  fetchFinances, createFinance, updateFinance, deleteFinance, importFinances,
+  fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchDonors, createDonor, updateDonor, deleteDonor,
   fetchNews,
   fetchContacts, deleteContact,
@@ -23,12 +23,13 @@ import { Icon } from '../../components/admin/icons';
 import {
   formatMGA, today, fmtDate, timeAgo, initials, inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
-import {
-  downloadTemplate, parseWorkbook, exportEvaluationXlsx, exportDonorsXlsx,
-} from '../../components/admin/ExcelTools';
+import { exportEvaluationXlsx } from '../../components/admin/ExcelTools';
 import {
   DonorDonut, DonorExpenseBars, DonorMonthlyStacked, donorColor,
 } from '../../components/admin/DonorCharts';
+import {
+  EvolutionChart, TopExpensesChart, CategoryDonut,
+} from '../../components/admin/DashboardCharts';
 
 /* ═══════════════════════════════════════
    Helpers
@@ -40,221 +41,6 @@ const monthKey = (d) => {
 };
 const pctDelta = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0);
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-
-/* ═══════════════════════════════════════
-   Charts (real data)
-   ═══════════════════════════════════════ */
-function EvolutionChart({ finances, loading }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(t);
-  }, []);
-
-  const data = useMemo(() => {
-    const months = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        label: d.toLocaleDateString('fr-FR', { month: 'short' }),
-        revenus: 0,
-        depenses: 0,
-      });
-    }
-    (finances || []).forEach((f) => {
-      const m = months.find((x) => x.key === monthKey(f.date));
-      if (!m) return;
-      if (f.type === 'Revenu') m.revenus += Number(f.montant) || 0;
-      else m.depenses += Number(f.montant) || 0;
-    });
-    return months;
-  }, [finances]);
-
-  const max = useMemo(() => Math.max(...data.map((m) => Math.max(m.revenus, m.depenses)), 1), [data]);
-
-  if (loading) return <div className="h-56 skeleton" />;
-  if (!data.some((m) => m.revenus > 0 || m.depenses > 0)) {
-    return (
-      <EmptyState
-        icon="trendUp"
-        text="Aucune transaction sur les 6 derniers mois — l'évolution mensuelle apparaîtra ici."
-      />
-    );
-  }
-  const W = 100;
-  const H = 40;
-  const x = (i) => (data.length === 1 ? 0 : (i / (data.length - 1)) * W);
-  const y = (v) => H - (Math.max(Number(v) || 0, 0) / max) * (H - 10) - 5;
-  const mkPath = (get) => data.map((m, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(get(m)).toFixed(2)}`).join(' ');
-  const revenusPath = mkPath((m) => m.revenus);
-  const depensesPath = mkPath((m) => m.depenses);
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-44">
-        <defs>
-          <linearGradient id="evoRev" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2e7d32" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#2e7d32" stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id="evoDep" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#dc2626" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-          <line key={t} x1="0" x2={W} y1={(H * t).toFixed(2)} y2={(H * t).toFixed(2)} stroke="currentColor" strokeOpacity="0.07" strokeWidth="0.3" />
-        ))}
-        <path d={`${revenusPath} L${W},${H} L0,${H} Z`} fill="url(#evoRev)" style={{ opacity: mounted ? 1 : 0, transition: 'opacity .8s ease' }} />
-        <path d={`${depensesPath} L${W},${H} L0,${H} Z`} fill="url(#evoDep)" style={{ opacity: mounted ? 1 : 0, transition: 'opacity .8s ease .1s' }} />
-        <path d={revenusPath} fill="none" stroke="#2e7d32" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={mounted ? '1 0' : '0 1'} style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.22,1,0.36,1)' }} />
-        <path d={depensesPath} fill="none" stroke="#dc2626" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={mounted ? '1 0' : '0 1'} style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.22,1,0.36,1) .15s' }} />
-        {data.map((m, i) => (
-          <g key={m.key}>
-            <circle cx={x(i).toFixed(2)} cy={y(m.revenus).toFixed(2)} r="1.6" fill="#2e7d32" stroke="var(--color-ios-card)" strokeWidth="0.9" style={{ opacity: mounted ? 1 : 0, transition: `opacity .3s ease ${0.4 + i * 0.08}s` }} />
-            <circle cx={x(i).toFixed(2)} cy={y(m.depenses).toFixed(2)} r="1.6" fill="#dc2626" stroke="var(--color-ios-card)" strokeWidth="0.9" style={{ opacity: mounted ? 1 : 0, transition: `opacity .3s ease ${0.4 + i * 0.08}s` }} />
-          </g>
-        ))}
-      </svg>
-      <div className="flex justify-between mt-1 px-0.5">
-        {data.map((m) => (
-          <span key={m.key} className="text-[10px] text-ios-text3 capitalize">{m.label}</span>
-        ))}
-      </div>
-      <div className="flex items-center justify-center gap-5 mt-4 text-xs font-medium text-ios-text3">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2e7d32]" /> Revenus</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" /> Dépenses</span>
-      </div>
-    </div>
-  );
-}
-
-/* Top 5 des dépenses (barres horizontales) */
-function TopExpensesChart({ finances, loading }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 120);
-    return () => clearTimeout(t);
-  }, []);
-
-  const data = useMemo(() => {
-    const map = {};
-    (finances || [])
-      .filter((f) => f.type === 'Dépense')
-      .forEach((f) => {
-        const v = Math.max(0, Number(f.montant) || 0);
-        if (v <= 0) return;
-        const k = f.categorie || 'Autre';
-        map[k] = (map[k] || 0) + v;
-      });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [finances]);
-
-  const total = data.reduce((s, [, v]) => s + v, 0);
-  const colors = ['#E0574F', '#F59F00', '#B14A54', '#FFA18E', '#9CA3AF'];
-
-  if (loading) return <div className="h-56 skeleton" />;
-  if (total === 0) {
-    return <EmptyState icon="trendDown" text="Aucune dépense enregistrée — le top 5 des dépenses apparaîtra ici." />;
-  }
-  return (
-    <div className="space-y-4 mt-5">
-      {data.map(([label, value], i) => (
-        <div key={label}>
-          <div className="flex items-center justify-between text-sm mb-1.5">
-            <span className="text-ios-text2 truncate">{label}</span>
-            <span className="font-semibold tabular">{formatMGA(value)}</span>
-          </div>
-          <div className="h-2.5 rounded-full bg-ios-fill overflow-hidden">
-            <div
-              title={`${label} : ${formatMGA(value)}`}
-              className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{ width: mounted ? `${(value / total) * 100}%` : '0%', background: `linear-gradient(90deg, ${colors[i % colors.length]}, ${colors[i % colors.length]}cc)` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CategoryDonut({ finances, loading }) {
-  const colors = ['#E0574F', '#F59F00', '#B14A54', '#FFA18E', '#FFD0B3', '#9CA3AF'];
-  const data = useMemo(() => {
-    const map = {};
-    (finances || [])
-      .filter((f) => f.type === 'Dépense')
-      .forEach((f) => {
-        const v = Math.max(0, Number(f.montant) || 0);
-        if (v <= 0) return;
-        const k = f.categorie || 'Autre';
-        map[k] = (map[k] || 0) + v;
-      });
-    const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
-    if (entries.length > 6) {
-      const top = entries.slice(0, 5);
-      const rest = entries.slice(5).reduce((s, [, v]) => s + v, 0);
-      top.push(['Autres', rest]);
-      return top;
-    }
-    return entries;
-  }, [finances]);
-
-  const total = data.reduce((s, [, v]) => s + v, 0);
-  const R = 42;
-  const C = 2 * Math.PI * R;
-
-  if (loading) return <div className="h-56 skeleton" />;
-  if (total === 0) {
-    return <EmptyState icon="trendDown" text="Aucune dépense enregistrée — la répartition par catégorie apparaîtra ici." />;
-  }
-
-  let acc = 0;
-  return (
-    <div className="flex flex-col items-center gap-5 mt-5">
-      <div className="relative w-40 h-40">
-        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-          <circle cx="50" cy="50" r={R} fill="none" stroke="var(--color-ios-hairline)" strokeWidth="11" />
-          {data.map(([label, value], i) => {
-            const frac = value / total;
-            const dash = frac * C;
-            const offset = -acc * C;
-            acc += frac;
-            return (
-              <circle
-                key={label}
-                cx="50"
-                cy="50"
-                r={R}
-                fill="none"
-                stroke={colors[i % colors.length]}
-                strokeWidth="11"
-                strokeDasharray={`${dash} ${C - dash}`}
-                strokeDashoffset={offset}
-                className="transition-all duration-700"
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold tabular">{formatMGA(total)}</span>
-          <span className="text-[10px] text-ios-text3">total</span>
-        </div>
-      </div>
-      <div className="w-full space-y-2">
-        {data.map(([label, value], i) => (
-          <div key={label} className="flex items-center gap-2.5 text-sm">
-            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colors[i % colors.length] }} />
-            <span className="text-ios-text2 truncate">{label}</span>
-            <span className="ml-auto font-semibold tabular">{formatMGA(value)}</span>
-            <span className="text-xs text-ios-text3 w-10 text-right tabular">{Math.round((value / total) * 100)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════
    Main dashboard
@@ -327,16 +113,6 @@ export default function AdminDashboard() {
   const [showDonorForm, setShowDonorForm] = useState(false);
   const [editingDonor, setEditingDonor] = useState(null);
   const [donorForm, setDonorForm] = useState({ name: '', need: '' });
-
-  /* ── Import Excel (évaluation) ── */
-  const fileInputRef = useRef(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importRows, setImportRows] = useState([]);
-  const [importErrors, setImportErrors] = useState([]);
-  const [importUnknown, setImportUnknown] = useState([]);
-  const [importFileName, setImportFileName] = useState('');
-  const [importAutoCreate, setImportAutoCreate] = useState(true);
-  const [importBusy, setImportBusy] = useState(false);
 
   /* ── Load (uniquement les données du rôle) ── */
   const loadData = useCallback(async () => {
@@ -830,50 +606,11 @@ export default function AdminDashboard() {
     showToast(`📥 ${fname} téléchargé${evalDonor ? ` — ${evalDonor}` : ''}`);
   }, [evalYear, evalMonth, evalDonor, finances, donors, showToast]);
 
-  /* Export Excel « par donateur » : un seul fichier avec un onglet par donateur
-     (détails des dépenses ET revenus de chacun pour le mois/année sélectionné) */
-  const exportDonorsXlsxHandler = useCallback(() => {
-    const monthName = evalMonth ? MONTH_NAMES[Number(evalMonth) - 1] : '';
-    const fname = `rapports-donateurs-ARINA-${evalYear}${monthName ? '-' + monthName.toLowerCase() : ''}.xlsx`;
-    exportDonorsXlsx({ year: evalYear, month: evalMonth, finances, donors, fileName: fname });
-    showToast(`📥 ${fname} téléchargé — un onglet Excel par donateur`);
-  }, [evalYear, evalMonth, finances, donors, showToast]);
-
   /* Export du rapport complet d'UN donateur (toute la période) — depuis l'onglet Donateurs */
   const exportDonorReport = (d) => {
     const slug = String(d.name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/-+$/g, '');
     exportEvaluationXlsx({ year: '', month: '', donor: d.name, finances, donors, fileName: `rapport-${slug}-ARINA.xlsx` });
     showToast(`📥 Rapport complet de « ${d.name} » téléchargé (dépenses + revenus)`);
-  };
-
-  /* Import Excel : lecture du classeur → aperçu (modal) → enregistrement en base */
-  const onImportFile = async (e) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    try {
-      const res = await parseWorkbook(f, donors);
-      setImportRows(res.rows || []);
-      setImportErrors(res.errors || []);
-      setImportUnknown(res.unknownDonors || []);
-      setImportFileName(f.name);
-      setImportOpen(true);
-    } catch {
-      showToast('❌ Impossible de lire ce fichier — utilisez le modèle Excel téléchargeable.', 'error');
-    }
-  };
-  const runImport = async () => {
-    if (!importRows.length) return;
-    setImportBusy(true);
-    const r = await importFinances(importRows, importAutoCreate);
-    setImportBusy(false);
-    if (!r.ok) { showToast(`❌ Import échoué : ${r.error}`, 'error'); return; }
-    const { created, errors: serverErrors, createdDonors } = r.data || {};
-    const nbErr = serverErrors?.length || 0;
-    showToast(`✅ ${created} transaction${created > 1 ? 's' : ''} importée${created > 1 ? 's' : ''} dans la base${createdDonors?.length ? ` — donateurs créés : ${createdDonors.join(', ')}` : ''}${nbErr ? ` — ${nbErr} ligne(s) ignorée(s)` : ''}`);
-    setImportOpen(false);
-    setImportRows([]); setImportErrors([]); setImportUnknown([]);
-    await loadData();
   };
 
   /* Activity feed (real from API, else derived from loaded data) */
@@ -927,7 +664,7 @@ export default function AdminDashboard() {
     dashboard: { title: 'Tableau de bord', subtitle: "Vue d'ensemble de votre structure" },
     enfants: { title: 'Enfants', subtitle: 'Bénéficiaires accompagnés par ARINA' },
     finances: { title: 'Finances', subtitle: 'Revenus, dépenses et trésorerie' },
-    evaluation: { title: 'Évaluation mensuelle', subtitle: 'Transactions par mois et par donateur — import & export Excel' },
+    evaluation: { title: 'Évaluation mensuelle', subtitle: 'Analytics temps réel et transactions par mois et par donateur — export Excel' },
     donateurs: { title: 'Donateurs', subtitle: 'Partenaires financiers et besoins financés' },
     messages: { title: 'Messages', subtitle: 'Demandes reçues via le site' },
     volunteers: { title: 'Candidatures bénévoles', subtitle: 'Bénévoles avec leur lettre de motivation' },
@@ -1081,19 +818,49 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          <div className="animate-fade-up">
-            <h2 className="text-2xl lg:text-[28px] font-bold tracking-tight flex items-center gap-2">Bonjour, {user?.username} <Hand className="w-6 h-6 text-arina-gold" /></h2>
-            <p className="text-ios-text3 text-sm mt-1">
-              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — Voici l'état de votre structure aujourd'hui.
-            </p>
+          {/* Hero banner */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-arina-accent via-arina-blue to-arina-blue-dark text-white p-6 lg:p-8 animate-fade-up shadow-2xl shadow-arina-blue/25">
+            <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute -bottom-24 -left-12 w-80 h-80 rounded-full bg-arina-gold/20 blur-3xl" />
+            <div className="absolute top-8 right-10 w-20 h-20 rounded-full border-2 border-white/15 animate-float-slow" />
+            <div className="absolute bottom-6 right-36 w-10 h-10 rounded-full border border-white/20 animate-float-slow" style={{ animationDelay: '1.3s' }} />
+            <div className="relative flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white/90 text-xs font-semibold backdrop-blur-sm">
+                  <span className={`w-1.5 h-1.5 rounded-full ${apiStatus === 'online' ? 'bg-emerald-300 animate-pulse-dot' : apiStatus === 'offline' ? 'bg-amber-300' : 'bg-gray-300 animate-pulse'}`} />
+                  {apiStatus === 'online' ? 'Base de données connectée' : apiStatus === 'offline' ? 'Mode local — base injoignable' : 'Connexion…'}
+                </span>
+                <h2 className="text-2xl lg:text-[30px] font-bold tracking-tight mt-3 flex items-center gap-2.5">
+                  Bonjour, {user?.username} <Hand className="w-6 h-6 text-arina-gold animate-float-slow" />
+                </h2>
+                <p className="text-white/80 text-sm mt-1.5">
+                  {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — Voici l'état de votre structure aujourd'hui.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { label: 'Revenus ce mois', value: revThis, icon: 'trendUp', cls: 'text-emerald-300' },
+                  { label: 'Dépenses ce mois', value: depThis, icon: 'trendDown', cls: 'text-rose-300' },
+                  { label: 'Solde', value: solde, icon: 'wallet', cls: solde >= 0 ? 'text-emerald-300' : 'text-rose-300' },
+                ].map((s, i) => (
+                  <div key={s.label} className="min-w-[122px] px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 animate-fade-up" style={{ animationDelay: `${0.12 + i * 0.08}s` }}>
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/70">
+                      <Icon name={s.icon} className={`w-3 h-3 ${s.cls}`} /> {s.label}
+                    </div>
+                    <div className={`text-lg font-extrabold tabular mt-1 ${s.cls}`}>{financesLoading ? '—' : formatMGA(s.value)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* KPI cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map((s, i) => (
-              <div key={s.label} className="card-apple card-apple-hover p-5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+              <div key={s.label} className="group relative card-apple card-apple-hover p-5 animate-fade-up overflow-hidden" style={{ animationDelay: `${i * 60}ms` }}>
+                <div className={`absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r ${s.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
                 <div className="flex items-start justify-between">
-                  <div className={`w-11 h-11 rounded-[14px] bg-gradient-to-br ${s.gradient} text-white flex items-center justify-center shadow-sm`}>
+                  <div className={`w-11 h-11 rounded-[14px] bg-gradient-to-br ${s.gradient} text-white flex items-center justify-center shadow-lg shadow-arina-blue/15 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}>
                     <Icon name={s.icon} className="w-5 h-5" />
                   </div>
                   {s.delta !== null && (
@@ -1105,7 +872,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="mt-4">
                   <div className="text-xs font-medium text-ios-text3">{s.label}</div>
-                  <div className="text-[22px] lg:text-[26px] font-bold tracking-tight tabular mt-0.5">
+                  <div className="text-[22px] lg:text-[26px] font-bold tracking-tight tabular mt-0.5 group-hover:text-arina-blue transition-colors duration-300">
                     <CountUp value={s.value} format={s.format} />
                   </div>
                   <div className="text-xs text-ios-text3 mt-1 truncate">{s.sub}</div>
@@ -1116,24 +883,43 @@ export default function AdminDashboard() {
 
           {/* Charts */}
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 card-apple p-6 animate-fade-up" style={{ animationDelay: '180ms' }}>
-              <div className="mb-5">
-                <h3 className="font-bold">Évolution sur 6 mois</h3>
-                <p className="text-xs text-ios-text3 mt-0.5">Tendance mensuelle des revenus et dépenses</p>
+            <div className="lg:col-span-2 card-apple p-6 animate-fade-up hover:shadow-apple-lg transition-shadow duration-300" style={{ animationDelay: '180ms' }}>
+              <div className="flex items-center gap-3 mb-5">
+                <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                  <Icon name="trendUp" className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="font-bold">Évolution sur 6 mois</h3>
+                  <p className="text-xs text-ios-text3 mt-0.5">Tendance mensuelle des revenus et dépenses</p>
+                </div>
               </div>
               <EvolutionChart finances={finances} loading={financesLoading} />
             </div>
 
             <div className="space-y-6">
-              <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '240ms' }}>
-                <h3 className="font-bold">Dépenses par catégorie</h3>
-                <p className="text-xs text-ios-text3 mt-0.5">Répartition réelle des sorties</p>
+              <div className="card-apple p-6 animate-fade-up hover:shadow-apple-lg transition-shadow duration-300" style={{ animationDelay: '240ms' }}>
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 flex items-center justify-center flex-shrink-0">
+                    <Icon name="trendDown" className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h3 className="font-bold">Dépenses par catégorie</h3>
+                    <p className="text-xs text-ios-text3 mt-0.5">Répartition réelle des sorties</p>
+                  </div>
+                </div>
                 <CategoryDonut finances={finances} loading={financesLoading} />
               </div>
 
-              <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '300ms' }}>
-                <h3 className="font-bold">Top 5 des dépenses</h3>
-                <p className="text-xs text-ios-text3 mt-0.5">Les catégories les plus coûteuses</p>
+              <div className="card-apple p-6 animate-fade-up hover:shadow-apple-lg transition-shadow duration-300" style={{ animationDelay: '300ms' }}>
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                    <Icon name="activity" className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h3 className="font-bold">Top 5 des dépenses</h3>
+                    <p className="text-xs text-ios-text3 mt-0.5">Les catégories les plus coûteuses</p>
+                  </div>
+                </div>
                 <TopExpensesChart finances={finances} loading={financesLoading} />
               </div>
             </div>
@@ -1445,52 +1231,71 @@ export default function AdminDashboard() {
               {donors.map((d) => <option key={d.id} value={d.name}>{d.name}{d.need ? ` — ${d.need}` : ''}</option>)}
               <option value="Sans donateur">Sans donateur (à compléter)</option>
             </select>
-            <span className="text-xs text-ios-text3">MNT automatique (QT × PU) — défilement horizontal pour les 12 mois</span>
+            <span className="hidden lg:inline text-xs text-ios-text3">MNT automatique (QT × PU) — défilement horizontal pour les 12 mois</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button onClick={downloadTemplate} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-ios-fill text-ios-text text-sm font-semibold hover:bg-ios-fill-2 transition-all" title="Télécharger le modèle Excel d'import">
-                <Icon name="file" className="w-4 h-4" /> Modèle
-              </button>
-              <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-warm text-arina-blue text-sm font-semibold hover:bg-[#FDE7E1] dark:hover:bg-white/10 transition-all" title="Importer les dépenses et dons du mois depuis un fichier Excel">
-                <Icon name="upload" className="w-4 h-4" /> Importer Excel
-              </button>
               <button onClick={exportEvaluationXlsxHandler} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-blue text-white text-sm font-semibold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all" title="Exporter le rapport en Excel (.xlsx)">
                 <Download className="w-4 h-4" /> Exporter Excel
               </button>
-              <button onClick={exportDonorsXlsxHandler} className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-arina-warm text-arina-blue text-sm font-semibold hover:bg-[#FDE7E1] dark:hover:bg-white/10 transition-all" title="Exporter un fichier Excel avec un onglet par donateur — détails des dépenses et revenus de chacun pour la période">
-                <Download className="w-4 h-4" /> Exporter par donateur
-              </button>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onImportFile} />
             </div>
           </div>
 
           {/* ── Tableau de bord analytique (temps réel) ── */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Dons reçus', value: kpiDons, c: 'text-emerald-600 dark:text-emerald-400' },
-              { label: 'Dépenses', value: kpiDep, c: 'text-red-500 dark:text-red-400' },
-              { label: 'Solde', value: kpiSolde, c: kpiSolde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400' },
+              { label: 'Dons reçus', value: kpiDons, icon: 'trendUp', gradient: 'from-emerald-500 to-teal-600', c: 'text-emerald-600 dark:text-emerald-400' },
+              { label: 'Dépenses', value: kpiDep, icon: 'trendDown', gradient: 'from-rose-500 to-red-600', c: 'text-red-500 dark:text-red-400' },
+              { label: 'Solde', value: kpiSolde, icon: 'wallet', gradient: kpiSolde >= 0 ? 'from-arina-gold to-arina-accent' : 'from-rose-500 to-red-600', c: kpiSolde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400' },
             ].map((s, i) => (
-              <div key={i} className="card-apple p-5">
-                <div className={`text-xl lg:text-2xl font-extrabold tabular ${s.c}`}>{financesLoading ? '—' : formatMGA(s.value)}</div>
-                <div className="text-xs text-ios-text3 mt-0.5">{s.label}{evalDonor ? ` · ${evalDonor}` : ''}</div>
+              <div key={s.label} className="group relative card-apple card-apple-hover p-5 animate-fade-up overflow-hidden" style={{ animationDelay: `${i * 70}ms` }}>
+                <div className={`absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r ${s.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-11 h-11 rounded-[14px] bg-gradient-to-br ${s.gradient} text-white flex items-center justify-center shadow-lg shadow-arina-blue/15 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}>
+                    <Icon name={s.icon} className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-medium text-ios-text3 truncate">{s.label}{evalDonor ? ` · ${evalDonor}` : ''}</div>
+                    <div className={`text-lg lg:text-xl font-extrabold tabular mt-0.5 ${s.c} group-hover:scale-105 origin-left transition-transform duration-300`}>{financesLoading ? '—' : <CountUp value={s.value} format={formatMGA} />}</div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
-            <div className="card-apple p-5">
-              <h3 className="font-bold text-sm">Dons par donateur</h3>
-              <p className="text-[11px] text-ios-text3 mt-0.5">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+            <div className="group relative card-apple p-5 animate-fade-up overflow-hidden" style={{ animationDelay: '60ms' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                  <Icon name="trendUp" className="w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Dons par donateur</h3>
+                  <p className="text-[11px] text-ios-text3">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+                </div>
+              </div>
               <DonorDonut finances={evalScope} donors={donors} loading={financesLoading} />
             </div>
-            <div className="card-apple p-5">
-              <h3 className="font-bold text-sm">Dépenses par donateur</h3>
-              <p className="text-[11px] text-ios-text3 mt-0.5">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+            <div className="group relative card-apple p-5 animate-fade-up overflow-hidden" style={{ animationDelay: '120ms' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white flex items-center justify-center shadow-md shadow-rose-500/20">
+                  <Icon name="trendDown" className="w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Dépenses par donateur</h3>
+                  <p className="text-[11px] text-ios-text3">{evalMonth ? `${MONTH_NAMES[Number(evalMonth) - 1]} ` : ''}{evalYear}</p>
+                </div>
+              </div>
               <DonorExpenseBars finances={evalScope} donors={donors} loading={financesLoading} />
             </div>
-            <div className="card-apple p-5 lg:col-span-2">
-              <h3 className="font-bold text-sm">Évolution mensuelle des dépenses par donateur</h3>
-              <p className="text-[11px] text-ios-text3 mt-0.5">{evalYear}</p>
+            <div className="group relative card-apple p-5 lg:col-span-2 animate-fade-up overflow-hidden" style={{ animationDelay: '180ms' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue-dark text-white flex items-center justify-center shadow-md shadow-arina-blue/20">
+                  <Icon name="calendar" className="w-[18px] h-[18px]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Évolution mensuelle des dépenses par donateur</h3>
+                  <p className="text-[11px] text-ios-text3">{evalYear}</p>
+                </div>
+              </div>
               <DonorMonthlyStacked finances={yearFinances} donors={donors} year={evalYear} loading={financesLoading} />
             </div>
           </div>
@@ -1795,7 +1600,7 @@ export default function AdminDashboard() {
           <div className="card-apple p-5">
             <h3 className="font-bold text-sm">Comment ça marche ?</h3>
             <p className="text-sm text-ios-text2 mt-2 leading-relaxed">
-              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez un mois puis <span className="font-semibold">« Exporter par donateur »</span> : un fichier Excel avec un onglet par partenaire (détail des dépenses et revenus). Vous pouvez aussi cliquer sur l'icône <Icon name="file" className="w-3.5 h-3.5 inline-block" /> d'une ligne pour télécharger le rapport complet d'un donateur.
+              Chaque transaction (don ou dépense) est rattachée au donateur qui la finance. Dans l'onglet <span className="font-semibold">Évaluation</span>, choisissez le mois puis <span className="font-semibold">« Exporter Excel »</span> pour télécharger le rapport détaillé. Pour le rapport complet d'un donateur, cliquez sur l'icône <Icon name="file" className="w-3.5 h-3.5 inline-block" /> de sa ligne — parfait pour faire le point avec chaque partenaire (Ravinala, Horizon, Grandir Dignement…).
             </p>
           </div>
         </div>
@@ -2334,79 +2139,6 @@ export default function AdminDashboard() {
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowDonorForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
               <button onClick={saveDonor} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Enregistrer</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal — aperçu import Excel */}
-      {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setImportOpen(false)}>
-          <div className="card-apple w-full max-w-2xl animate-pop max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 pt-5 pb-4 border-b border-ios-hairline flex items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold">Importer {importFileName}</h3>
-                <p className="text-xs text-ios-text3 mt-0.5">{importRows.length} ligne{importRows.length > 1 ? 's' : ''} prête{importRows.length > 1 ? 's' : ''} à importer{importErrors.length ? ` · ${importErrors.length} erreur${importErrors.length > 1 ? 's' : ''}` : ''}</p>
-              </div>
-              <button onClick={() => setImportOpen(false)} className="p-2 rounded-lg text-ios-text3 hover:bg-ios-fill" title="Fermer"><Icon name="x" className="w-5 h-5" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto scroll-slim p-6 space-y-4">
-              {importUnknown.length > 0 && (
-                <div className="rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-                  <span className="font-semibold">Donateurs inconnus :</span> {importUnknown.join(', ')}
-                  <label className="flex items-center gap-2 mt-2 text-[13px]">
-                    <input type="checkbox" checked={importAutoCreate} onChange={(e) => setImportAutoCreate(e.target.checked)} className="accent-arina-blue" />
-                    Créer automatiquement ces donateurs dans la liste
-                  </label>
-                </div>
-              )}
-              {importErrors.length > 0 && (
-                <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-                  <span className="font-semibold">Lignes ignorées ({importErrors.length}) :</span>
-                  <ul className="mt-1.5 space-y-0.5 text-[13px]">
-                    {importErrors.slice(0, 20).map((e, i) => <li key={i}>Ligne {e.row} : {e.reason}</li>)}
-                    {importErrors.length > 20 && <li>… et {importErrors.length - 20} autres</li>}
-                  </ul>
-                </div>
-              )}
-              {importRows.length === 0 && importErrors.length === 0 && (
-                <p className="text-sm text-ios-text3">Aucune ligne exploitable dans ce fichier.</p>
-              )}
-              {importRows.length > 0 && (
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3 mb-2">Aperçu (premières lignes)</div>
-                  <div className="overflow-x-auto rounded-xl border border-ios-hairline">
-                    <table className="w-full text-xs">
-                      <thead className="bg-ios-fill">
-                        <tr>
-                          {['Date', 'Type', 'Désignation', 'Description', 'QT', 'PU', 'MNT', 'Donateur'].map((h) => <th key={h} className="px-3 py-2 text-left font-semibold text-ios-text3">{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-ios-hairline">
-                        {importRows.slice(0, 8).map((r, i) => (
-                          <tr key={i}>
-                            <td className="px-3 py-2 tabular whitespace-nowrap">{r.date}</td>
-                            <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${r.type === 'Revenu' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400'}`}>{r.type}</span></td>
-                            <td className="px-3 py-2">{r.categorie}</td>
-                            <td className="px-3 py-2 text-ios-text3 max-w-[160px] truncate">{r.description || '—'}</td>
-                            <td className="px-3 py-2 tabular text-right">{r.quantity ?? '—'}</td>
-                            <td className="px-3 py-2 tabular text-right">{r.unit_price ?? '—'}</td>
-                            <td className="px-3 py-2 tabular text-right font-semibold">{Number(r.montant).toLocaleString('fr-FR')}</td>
-                            <td className="px-3 py-2">{r.donor}</td>
-                          </tr>
-                        ))}
-                        {importRows.length > 8 && <tr><td colSpan={8} className="px-3 py-2 text-center text-ios-text3">… et {importRows.length - 8} autres lignes</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="px-6 py-4 border-t border-ios-hairline flex gap-3">
-              <button onClick={() => setImportOpen(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
-              <button onClick={runImport} disabled={importBusy || importRows.length === 0} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {importBusy ? 'Importation…' : `Importer ${importRows.length} ligne${importRows.length > 1 ? 's' : ''}`}
-              </button>
             </div>
           </div>
         </div>

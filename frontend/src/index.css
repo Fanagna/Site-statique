@@ -254,6 +254,45 @@ textarea:focus-visible,
   animation: pulseDot 1.6s ease-in-out infinite;
 }
 
+/* Floating decorative shapes (hero banner) */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.animate-float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+/* Pulsing halo behind chart points */
+@keyframes chartPing {
+  0% { transform: scale(1); opacity: 0.7; }
+  80%, 100% { transform: scale(2.6); opacity: 0; }
+}
+.chart-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chartPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Donut entrance: scale + fade with rotation */
+@keyframes donutIn {
+  from { opacity: 0; transform: scale(0.7) rotate(-14deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+.donut-in {
+  animation: donutIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Donut slice hover highlight */
+.donut-slice {
+  transition: stroke-width 0.25s ease, filter 0.25s ease, opacity 0.4s ease;
+  cursor: pointer;
+}
+.donut-slice:hover {
+  stroke-width: 13;
+  filter: brightness(1.12);
+}
+
 /* Slim scrollbar for panels */
 .scroll-slim::-webkit-scrollbar {
   width: 6px;

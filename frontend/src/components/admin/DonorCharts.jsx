@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { formatMGA, EmptyState } from './ui';
+import { formatMGA, CountUp, EmptyState } from './ui';
 
 /* Palette stable par donateur (index du donateur dans la liste triée) */
 const PALETTE = ['#E0574F', '#F59F00', '#2E7D32', '#2563EB', '#7C3AED', '#0D9488', '#DB2777', '#9CA3AF'];
@@ -48,7 +48,7 @@ export function DonorDonut({ finances, donors, loading }) {
   let acc = 0;
   return (
     <div className="flex flex-col items-center gap-5 mt-5">
-      <div className="relative w-40 h-40">
+      <div className="relative w-40 h-40 donut-in">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
           <circle cx="50" cy="50" r={R} fill="none" stroke="var(--color-ios-hairline)" strokeWidth="11" />
           {data.map(([label, value]) => {
@@ -62,23 +62,26 @@ export function DonorDonut({ finances, donors, loading }) {
                 cx="50" cy="50" r={R} fill="none"
                 stroke={donorColor(donors, label)} strokeWidth="11"
                 strokeDasharray={`${dash} ${C - dash}`} strokeDashoffset={offset}
-                style={{ transition: 'stroke-dashoffset .9s cubic-bezier(0.22,1,0.36,1)', opacity: mounted ? 1 : 0 }}
-              />
+                className="donut-slice"
+                style={{ transition: 'stroke-dashoffset .9s cubic-bezier(0.22,1,0.36,1), opacity .4s ease, stroke-width .25s ease, filter .25s ease', opacity: mounted ? 1 : 0 }}
+              >
+                <title>{`${label} : ${formatMGA(value)} (${Math.round((value / total) * 100)}%)`}</title>
+              </circle>
             );
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold tabular">{formatMGA(total)}</span>
+          <span className="text-lg font-bold tabular"><CountUp value={total} format={formatMGA} /></span>
           <span className="text-[10px] text-ios-text3">dons</span>
         </div>
       </div>
       <div className="w-full space-y-2">
-        {data.map(([label, value]) => (
-          <div key={label} className="flex items-center gap-2.5 text-sm">
+        {data.map(([label, value], i) => (
+          <div key={label} className="flex items-center gap-2.5 text-sm animate-fade-up" style={{ animationDelay: `${0.25 + i * 0.07}s` }}>
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: donorColor(donors, label) }} />
             <span className="text-ios-text2 truncate">{label}</span>
-            <span className="ml-auto font-semibold tabular">{formatMGA(value)}</span>
-            <span className="text-xs text-ios-text3 w-10 text-right tabular">{Math.round((value / total) * 100)}%</span>
+            <span className="ml-auto font-semibold tabular"><CountUp value={value} format={formatMGA} /></span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-ios-fill text-ios-text3 w-12 text-right tabular">{Math.round((value / total) * 100)}%</span>
           </div>
         ))}
       </div>
@@ -100,16 +103,19 @@ export function DonorExpenseBars({ finances, donors, loading }) {
   if (total === 0) return <EmptyState icon="trendDown" text="Aucune dépense enregistrée — le top des dépenses par donateur apparaîtra ici." />;
   return (
     <div className="space-y-4 mt-5">
-      {data.map(([label, value]) => (
-        <div key={label}>
-          <div className="flex items-center justify-between text-sm mb-1.5">
+      {data.map(([label, value], i) => (
+        <div key={label} className="group animate-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
+          <div className="flex items-center justify-between text-sm mb-1.5 gap-2">
             <span className="text-ios-text2 truncate">{label}</span>
-            <span className="font-semibold tabular">{formatMGA(value)}</span>
+            <span className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-ios-fill text-ios-text3 tabular">{Math.round((value / total) * 100)}%</span>
+              <span className="font-semibold tabular"><CountUp value={value} format={formatMGA} /></span>
+            </span>
           </div>
           <div className="h-2.5 rounded-full bg-ios-fill overflow-hidden">
             <div
-              title={`${label} : ${formatMGA(value)}`}
-              className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              title={`${label} : ${formatMGA(value)} (${Math.round((value / total) * 100)}%)`}
+              className="h-full rounded-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:brightness-110"
               style={{ width: mounted ? `${(value / total) * 100}%` : '0%', background: `linear-gradient(90deg, ${donorColor(donors, label)}, ${donorColor(donors, label)}cc)` }}
             />
           </div>
@@ -155,8 +161,21 @@ export function DonorMonthlyStacked({ finances, donors, year, loading }) {
                 const h = (v / max) * (H - 6);
                 const y = H - 3 - acc - h;
                 acc += h;
+                const c = donorColor(donors, donor);
                 return (
-                  <rect key={donor} x={bx} y={y} width={bw} height={Math.max(h, 0.4)} rx="0.6" fill={donorColor(donors, donor)} opacity="0.92">
+                  <rect
+                    key={donor}
+                    x={bx}
+                    width={bw}
+                    rx="0.6"
+                    fill={c}
+                    opacity="0.92"
+                    style={{
+                      y: mounted ? y : H - 3,
+                      height: mounted ? Math.max(h, 0.4) : 0,
+                      transition: 'y .7s cubic-bezier(0.22,1,0.36,1), height .7s cubic-bezier(0.22,1,0.36,1)',
+                    }}
+                  >
                     <title>{`${m.name} — ${donor} : ${formatMGA(v)}`}</title>
                   </rect>
                 );
