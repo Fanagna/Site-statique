@@ -28,6 +28,9 @@ const fakePool = makeFakePool({
   ],
   donations: [
     { id: 1, amount: 50, currency: 'EUR', name: 'Marie', email: 'marie@exemple.mg', message: null, method: 'orange', anonymous: false, status: 'pledge', received_at: null, created_at: new Date().toISOString() },
+    // Don déjà confirmé dont le reçu a déjà été envoyé : simule le cycle
+    // « reçu → à confirmer → reçu » où aucun 2e reçu ne doit partir.
+    { id: 2, amount: 30, currency: 'EUR', name: 'Jean', email: 'jean@exemple.mg', message: null, method: 'bank', anonymous: false, status: 'pledge', received_at: null, receipt_number: 'ARINA-2026-0002', receipt_sent_at: '2026-01-15T10:00:00.000Z', created_at: new Date().toISOString() },
   ],
 });
 
@@ -167,6 +170,17 @@ test('PATCH /api/donations/:id → remise en attente (pas de nouveau reçu)', as
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'pledge');
   assert.equal(r.body.received_at, null);
+});
+
+test('PATCH /api/donations/:id → re-confirmation après reçu déjà envoyé : AUCUN 2e envoi', async () => {
+  // Don 2 : reçu déjà envoyé (receipt_sent_at posé). Le re-confirmer ne doit
+  // NI renvoyer d'email NI écraser l'horodatage d'envoi ni le numéro de reçu.
+  const r = await send('PATCH', '/api/donations/2', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'received');
+  assert.equal(r.body.receiptEmailSent, false); // aucun nouvel email
+  assert.equal(r.body.receipt_sent_at, '2026-01-15T10:00:00.000Z'); // horodatage conservé
+  assert.equal(r.body.receipt_number, 'ARINA-2026-0002'); // numéro conservé
 });
 
 /* ═══ APERÇU DU REÇU PDF ═══ */

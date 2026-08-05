@@ -1120,8 +1120,12 @@ app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), 
     const before = await pool.query('SELECT * FROM donations WHERE id = $1', [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const old = before.rows[0];
-    // Premier passage à « reçu » : un reçu PDF est généré et envoyé au donateur
-    const firstReceipt = status === 'received' && old.status !== 'received';
+    // Premier passage à « reçu » : un reçu PDF est généré et envoyé au donateur.
+    // Garde-fou : si un reçu a DÉJÀ été envoyé (receipt_sent_at posé), on n'en renvoie
+    // pas un second après un retour en « à confirmer » — l'horodatage d'origine est
+    // conservé. En revanche, si le 1er envoi avait échoué (receipt_sent_at NULL),
+    // une re-confirmation relance bien l'envoi.
+    const firstReceipt = status === 'received' && old.status !== 'received' && !old.receipt_sent_at;
     const receiptNumber = firstReceipt
       ? `ARINA-${new Date().getFullYear()}-${String(old.id).padStart(4, '0')}`
       : (old.receipt_number || null);
