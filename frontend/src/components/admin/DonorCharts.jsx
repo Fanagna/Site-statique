@@ -1,14 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { formatMGA, CountUp, EmptyState } from './ui';
-
-/* Palette stable par donateur (index du donateur dans la liste triée)
-   — tons professionnels harmonisés avec l'identité ARINA */
-const PALETTE = ['#7A2C3E', '#B97E2B', '#2E7D32', '#2563EB', '#7C3AED', '#0D9488', '#A94438', '#9CA3AF'];
-const donorIndex = (donors, name) => {
-  const idx = (donors || []).findIndex((d) => String(d.name).toLowerCase() === String(name || '').toLowerCase());
-  return idx === -1 ? (donors || []).length : idx;
-};
-export const donorColor = (donors, name) => PALETTE[donorIndex(donors, name) % PALETTE.length];
+import { CountUp, EmptyState } from './ui';
+import { formatMGA, donorColor } from './utils';
 
 const monthKey = (d) => {
   if (!d) return '';
@@ -18,7 +10,7 @@ const monthKey = (d) => {
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 /* Récap par donateur : dons / dépenses / solde (filtre annuel + mois) */
-export function useDonorTotals(finances, donors) {
+function useDonorTotals(finances) {
   return useMemo(() => {
     const map = {};
     const add = (name) => {
@@ -40,7 +32,7 @@ export function useDonorTotals(finances, donors) {
 export function DonorDonut({ finances, donors, loading }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMounted(true), 120); return () => clearTimeout(t); }, []);
-  const totals = useDonorTotals(finances, donors);
+  const totals = useDonorTotals(finances);
   const data = useMemo(() => totals.map((t) => [t.name, t.dons]).filter(([, v]) => v > 0), [totals]);
   const total = data.reduce((s, [, v]) => s + v, 0);
   const R = 42, C = 2 * Math.PI * R;
@@ -94,7 +86,7 @@ export function DonorDonut({ finances, donors, loading }) {
 export function DonorExpenseBars({ finances, donors, loading }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMounted(true), 140); return () => clearTimeout(t); }, []);
-  const totals = useDonorTotals(finances, donors);
+  const totals = useDonorTotals(finances);
   const data = useMemo(
     () => totals.map((t) => [t.name, t.depenses]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5),
     [totals],

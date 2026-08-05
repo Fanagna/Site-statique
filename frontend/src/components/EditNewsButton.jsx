@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Pencil } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 /* Bouton « Modifier » visible UNIQUEMENT pour l'admin connecté.
    Ouvre directement le formulaire d'édition de l'actualité dans /admin/actualites. */
