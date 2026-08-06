@@ -29,6 +29,8 @@ import {
    éloigné, partiellement hors cadre ou affiché sur un écran de téléphone.
    Détection QR uniquement (formats), plus fréquente (retryDelay), résolution
    idéale 720p et zoom intégré pour les codes lointains.
+   🔊 MODE SONORE (kiosque) : bip uniquement quand le serveur valide le pointage
+   (son distinct entrée / sortie), buzz sur erreur — activable/désactivable.
    ═══════════════════════════════════════════ */
 
 const fmtTime = (iso) => {
@@ -42,6 +44,59 @@ const DIR_LABEL = { entry: 'ENTRÉE', exit: 'SORTIE' };
 // Scan intelligent : les badges ARINA sont 100 % QR — restreindre aux QR accélère
 // la détection (le détecteur ne cherche plus les autres formats de codes).
 const SCAN_FORMATS = ['qr_code'];
+
+/* ── Mode sonore (bip de validation pour le kiosque) ──
+   Bip synthétisé via Web Audio (aucun fichier requis). Le son n'est joué QUE
+   lorsque le serveur a validé le pointage (pas sur une simple détection) :
+   « ding-dong » montant pour une ENTRÉE, deux notes descendantes pour une
+   SORTIE, et un buzz grave pour les erreurs (badge inconnu, réseau…). */
+let audioCtx = null;
+function ensureAudioCtx() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  } catch { return null; }
+}
+function tone(ctx, freq, at, dur, vol = 0.22) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(vol, at + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + dur + 0.05);
+}
+function playSuccessBeep(type = 'entry') {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  if (type === 'exit') {
+    tone(ctx, 784, t0, 0.12);
+    tone(ctx, 587, t0 + 0.14, 0.22);
+  } else {
+    tone(ctx, 880, t0, 0.12);
+    tone(ctx, 1174, t0 + 0.14, 0.2);
+  }
+}
+function playErrorBuzz() {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 180;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.35);
+}
 
 export default function ScanPage() {
   const { user, logout } = useAuth();
@@ -60,6 +115,28 @@ export default function ScanPage() {
   const [paused, setPaused] = useState(false);
   const busyRef = useRef(false);
   const timersRef = useRef([]);
+
+  /* ── Mode sonore (mémorisé entre les sessions) ── */
+  const [soundOn, setSoundOn] = useState(() => {
+    try { return localStorage.getItem('arina_scan_sound') !== 'off'; } catch { return true; }
+  });
+  const toggleSound = useCallback(() => {
+    setSoundOn((s) => {
+      const next = !s;
+      try { localStorage.setItem('arina_scan_sound', next ? 'on' : 'off'); } catch { /* stockage indisponible */ }
+      return next;
+    });
+  }, []);
+  // Politique d'autoplay des navigateurs : déverrouille l'audio dès le 1er geste
+  useEffect(() => {
+    const unlock = () => ensureAudioCtx();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   const clearTimers = () => {
     timersRef.current.forEach(clearTimeout);
@@ -142,12 +219,16 @@ export default function ScanPage() {
     const d = res.data || {};
 
     if (res.ok && d.code === 'OK') {
+      // Bip de validation (kiosque) — uniquement après confirmation du serveur
+      if (soundOn) playSuccessBeep(d.pointage?.type);
       setOverlay({ kind: 'success', child: d.child, pointage: d.pointage, event: d.event, timeline: d.timeline });
       refreshFeed(eventId);
       refreshEvents();
       return; // l'enfant confirme par le bouton « ✅ Confirmé »
     }
 
+    // Échec (badge inconnu, compte désactivé, événement invalide, réseau) : buzz
+    if (soundOn) playErrorBuzz();
     switch (d.code) {
       case 'BADGE_INVALID':
         showBrief({ kind: 'badge-invalid', error: d.error });
@@ -168,13 +249,16 @@ export default function ScanPage() {
         });
         break;
     }
-  }, [eventId, refreshFeed, refreshEvents, showBrief]);
+  }, [eventId, refreshFeed, refreshEvents, showBrief, soundOn]);
 
   /* Scanner caméra → JSON du QR → handleScan */
   const onCameraScan = useCallback((codes) => {
     const raw = codes?.[0]?.rawValue;
-    if (raw && !busyRef.current) handleScan(raw);
-  }, [handleScan]);
+    if (raw && !busyRef.current) {
+      if (soundOn) ensureAudioCtx(); // déverrouille l'audio avant le 1er scan (autoplay mobile)
+      handleScan(raw);
+    }
+  }, [handleScan, soundOn]);
 
   const onCameraError = useCallback((err) => {
     const kind = err?.kind || 'unknown';
@@ -204,12 +288,13 @@ export default function ScanPage() {
       if (gen?.ok && gen.data?.badgeId) badgeId = gen.data.badgeId;
     }
     if (!badgeId) {
+      if (soundOn) playErrorBuzz();
       setOverlay({ kind: 'network', error: 'Impossible de générer le badge de cet enfant.' });
       return;
     }
     const payload = JSON.stringify({ id: child.id, badgeId, name: `${child.prenom} ${child.nom}`.trim() });
     handleScan(payload);
-  }, [handleScan]);
+  }, [handleScan, soundOn]);
 
   const filteredKids = children.filter((c) =>
     `${c.prenom} ${c.nom}`.toLowerCase().includes(manualQuery.trim().toLowerCase())
@@ -281,6 +366,13 @@ export default function ScanPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSound}
+                className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${soundOn ? 'bg-arina-blue/10 text-arina-blue hover:bg-arina-blue/20' : 'bg-ios-fill text-ios-text3 hover:bg-ios-fill-2'}`}
+                title={soundOn ? 'Désactiver le bip sonore (kiosque)' : 'Activer le bip sonore (kiosque)'}
+              >
+                {soundOn ? '🔊 Son actif' : '🔇 Son coupé'}
+              </button>
               <button
                 onClick={toggleCamera}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all"
