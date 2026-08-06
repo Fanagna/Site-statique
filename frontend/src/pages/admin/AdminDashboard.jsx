@@ -497,12 +497,12 @@ export default function AdminDashboard() {
   const donorStats = useMemo(() => {
     const nowYear = String(new Date().getFullYear());
     const map = {};
-    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, depenses: 0, depensesAn: 0, budget: Number(d.budget) || 0 }; });
+    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, nbDons: 0, depenses: 0, depensesAn: 0, budget: Number(d.budget) || 0 }; });
     finances.forEach((f) => {
       const k = f.donor;
       if (!k || !map[k]) return;
       const v = Number(f.montant) || 0;
-      if (f.type === 'Revenu') map[k].dons += v;
+      if (f.type === 'Revenu') { map[k].dons += v; map[k].nbDons += 1; }
       else {
         map[k].depenses += v;
         if (monthKey(f.date).startsWith(nowYear)) map[k].depensesAn += v;
@@ -513,6 +513,8 @@ export default function AdminDashboard() {
       restant: Math.max(0, d.budget - d.depensesAn),
       pct: d.budget > 0 ? Math.min(150, Math.round((d.depensesAn / d.budget) * 100)) : 0,
       depasse: d.budget > 0 && d.depensesAn > d.budget,
+      // Total donné (dons en ligne + manuels) moins dépenses financées
+      solde: d.dons - d.depenses,
     }));
   }, [donors, finances]);
 
@@ -2048,7 +2050,7 @@ export default function AdminDashboard() {
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Besoin financé</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Budget annuel</th>
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Utilisation du budget</th>
-                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dons reçus</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3" title="Total donné toutes périodes — dons en ligne et manuels confirmés">Total donné</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dépenses</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Solde</th>
                       <th className="px-4 py-3" />
@@ -2089,7 +2091,10 @@ export default function AdminDashboard() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</div>
+                          <div className="text-[11px] text-ios-text3 tabular">{d.nbDons} don{d.nbDons > 1 ? 's' : ''}</div>
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold tabular text-red-500 dark:text-red-400">{formatMGA(d.depenses)}</td>
                         <td className={`px-4 py-3 text-right font-bold tabular ${d.solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(d.solde)}</td>
                         <td className="px-4 py-3">
