@@ -600,6 +600,7 @@ test('POST /api/scan : entrée valide → 201, pointage enregistré', async () =
   assert.equal(r.body.success, true);
   assert.equal(r.body.pointage.type, 'entry');
   assert.ok(r.body.pointage.scanned_at);
+  assert.ok(Array.isArray(r.body.timeline), 'la timeline est renvoyée aussi en mode explicite');
   assert.equal(r.body.child.firstName, 'Jean');
   assert.equal(r.body.event.name, 'Atelier entrée');
   const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
@@ -655,6 +656,50 @@ test('GET /api/events/:id/attendances → listé groupé par enfant', async () =
   assert.equal(r.body[0].firstName, 'Jean');
   assert.equal(r.body[0].entries.length, 1);
   assert.equal(r.body[0].exits.length, 1);
+});
+
+/* ═══ PRÉSENCES : SCAN AUTO (détection entrée/sortie automatique) ═══ */
+test('POST /api/scan AUTO : 1er scan sans direction → ENTRÉE détectée + timeline', async () => {
+  const evt = await post('/api/events', { name: 'Auto entrée' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry', 'le premier scan doit être une entrée');
+  assert.ok(Array.isArray(r.body.timeline), 'la timeline doit être renvoyée');
+  assert.equal(r.body.timeline.length, 1);
+  assert.equal(r.body.timeline[0].type, 'entry');
+  assert.ok(r.body.timeline[0].scanned_at, 'chaque heure doit être horodatée');
+});
+
+test('POST /api/scan AUTO : entrée puis sortie puis entrée (alternance) + heures affichées', async () => {
+  const evt = await post('/api/events', { name: 'Auto cycle' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r1 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r1.body.pointage.type, 'entry');
+  const r2 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r2.status, 201);
+  assert.equal(r2.body.pointage.type, 'exit', '2e scan → sortie automatique');
+  assert.equal(r2.body.timeline.length, 2, 'les 2 heures sont affichées');
+  assert.deepEqual(r2.body.timeline.map((t) => t.type), ['entry', 'exit']);
+  const r3 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r3.status, 201);
+  assert.equal(r3.body.pointage.type, 'entry', '3e scan → retour au centre = entrée');
+  assert.equal(r3.body.timeline.length, 3);
+});
+
+test('POST /api/scan AUTO : sans événement → « Présence du jour » + pointage auto', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }) }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  assert.ok(['entry', 'exit'].includes(r.body.pointage.type), 'le sens est détecté automatiquement');
+  assert.ok(Array.isArray(r.body.timeline));
+});
+
+test('POST /api/scan AUTO : badge désactivé → 403 (inchangé)', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 2, badgeId: 'ARINA-0002-CD34' }), eventId: 1 }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.code, 'BENEFICIARY_DISABLED');
 });
 
 /* ═══ BADGES : attribués automatiquement à l'inscription ═══ */

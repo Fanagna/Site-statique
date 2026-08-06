@@ -229,6 +229,14 @@ function makeFakePool(opts = {}) {
       const ids = new Set(state.events.filter((e) => e.is_daily && String(e.daily_key) >= from && String(e.daily_key) <= to).map((e) => e.id));
       return { rows: state.attendances.filter((a) => ids.has(a.event_id)).map((a) => ({ event_id: a.event_id, beneficiary_id: a.beneficiary_id, type: a.type, scanned_at: a.scanned_at })) };
     }
+    // Timeline complète d'un enfant pour une session (scan auto — toutes les heures)
+    if (/SELECT type, scanned_at FROM attendances WHERE/i.test(s)) {
+      const rows = state.attendances
+        .filter((a) => a.beneficiary_id === Number(params[0]) && a.event_id === Number(params[1]))
+        .sort((x, y) => x.id - y.id)
+        .map((a) => ({ type: a.type, scanned_at: a.scanned_at }));
+      return { rows };
+    }
     if (/SELECT id, type, scanned_at FROM attendances WHERE/i.test(s)) {
       const found = state.attendances
         .filter((a) => a.beneficiary_id === Number(params[0]) && a.event_id === Number(params[1]))

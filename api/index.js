@@ -1501,11 +1501,6 @@ app.get('/api/events/:id/attendances', requireAuth, async (req, res) => {
   } catch (err) { res.json([]); }
 });
 
-// POST /api/scan — pointage entrée/sortie depuis le QR du badge.
-// Cas d'erreur (codes utilisés par l'écran de scan) :
-//   BADGE_INVALID        → 400/404 « Badge non reconnu »
-//   BENEFICIARY_DISABLED → 403 « Compte désactivé »
-//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
 // Date locale du centre (Indian/Antananarivo, UTC+3) au format YYYY-MM-DD : la
 // « journée » de pointage bascule à minuit heure locale (pas à minuit UTC, qui
 // tomberait à 21 h locales). Le frontend utilise la même convention côté client.
@@ -1522,13 +1517,18 @@ function localToday() {
 }
 
 // POST /api/scan — pointage entrée/sortie depuis le QR du badge.
+// SANS direction (ou direction 'auto') : le sens est DÉTECTÉ AUTOMATIQUEMENT à
+// partir du dernier pointage de l'enfant pour la session — 1er scan → ENTRÉE,
+// puis ENTRÉE ↔ SORTIE en alternance (sortie, retour au centre, etc.).
 // Cas d'erreur (codes utilisés par l'écran de scan) :
 //   BADGE_INVALID        → 400/404 « Badge non reconnu »
 //   BENEFICIARY_DISABLED → 403 « Compte désactivé »
-//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
-//   EXIT_WITHOUT_ENTRY   → 422 « Vous devez d'abord scanner l'entrée » (+ suggestion)
+//   ALREADY_SCANNED      → 409 (mode explicite uniquement)
+//   EXIT_WITHOUT_ENTRY   → 422 (mode explicite uniquement)
 // Sans eventId, le pointage est rattaché à la « Présence du jour » (session
 // quotidienne créée automatiquement au premier scan valide — une seule par jour).
+// La réponse inclut la timeline de l'enfant pour la session (toutes les heures
+// d'entrées/sorties) : l'écran affiche les heures à l'enfant avant confirmation.
 app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educator), async (req, res) => {
   try {
     const { badge, eventId, direction } = req.body || {};
@@ -1536,7 +1536,8 @@ app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educa
     if (typeof badge === 'string' && badge.trim()) {
       try { parsed = JSON.parse(badge); } catch { /* badge illisible */ }
     }
-    const dir = direction === 'exit' ? 'exit' : 'entry';
+    // null (ou 'auto') = détection automatique du sens ; 'entry'/'exit' = mode explicite
+    const dir = direction === 'exit' ? 'exit' : direction === 'entry' ? 'entry' : null;
 
     // 1) Badge inconnu / mal formé — on ne crée PAS de session du jour pour un mauvais badge
     if (!parsed || !parsed.id) {
@@ -1583,36 +1584,57 @@ app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educa
     );
     const prev = lastR.rows[0];
 
-    // 5) Double pointage : on rescanner le MÊME sens que le dernier scan
-    if (prev && prev.type === dir) {
-      return res.status(409).json({
-        code: 'ALREADY_SCANNED',
-        error: 'Vous êtes déjà pointé(e) !',
-        lastScan: { type: prev.type, scanned_at: prev.scanned_at },
-      });
+    // 5) AUTO : détection automatique du sens entrée/sortie
+    //    - aucun pointage → ENTRÉE (premier scan de la session)
+    //    - dernier pointage = entrée → SORTIE
+    //    - dernier pointage = sortie → ENTRÉE (retour au centre)
+    const finalDir = dir || (prev && prev.type === 'entry' ? 'exit' : 'entry');
+
+    // En mode explicite uniquement : garde-fous historiques (double pointage,
+    // sortie sans entrée). En mode auto ils sont impossibles par construction.
+    if (dir) {
+      // 5b) Double pointage : on rescanner le MÊME sens que le dernier scan
+      if (prev && prev.type === finalDir) {
+        return res.status(409).json({
+          code: 'ALREADY_SCANNED',
+          error: 'Vous êtes déjà pointé(e) !',
+          lastScan: { type: prev.type, scanned_at: prev.scanned_at },
+        });
+      }
+      // 5c) Sortie sans entrée : on propose automatiquement une entrée
+      if (finalDir === 'exit' && !prev) {
+        return res.status(422).json({
+          code: 'EXIT_WITHOUT_ENTRY',
+          error: 'Vous devez d\'abord scanner l\'entrée',
+          suggest: 'entry',
+        });
+      }
     }
 
-    // 6) Sortie sans entrée : on propose automatiquement une entrée
-    //    (le cas « double sortie » est déjà intercepté par le contrôle 5)
-    if (dir === 'exit' && !prev) {
-      return res.status(422).json({
-        code: 'EXIT_WITHOUT_ENTRY',
-        error: 'Vous devez d\'abord scanner l\'entrée',
-        suggest: 'entry',
-      });
-    }
-
-    // 7) Pointage valide → enregistré en base
+    // 6) Pointage valide → enregistré en base
     const ins = await pool.query(
       'INSERT INTO attendances (beneficiary_id, event_id, type) VALUES ($1,$2,$3) RETURNING id, type, scanned_at',
-      [benef.id, evtId, dir]
+      [benef.id, evtId, finalDir]
     );
     const p = ins.rows[0];
+
+    // 7) Timeline de l'enfant pour la session : toutes les heures entrées/sorties
+    //    (l'écran de scan les affiche avant la confirmation).
+    const tR = await pool.query(
+      'SELECT type, scanned_at FROM attendances WHERE beneficiary_id = $1 AND event_id = $2 ORDER BY id ASC',
+      [benef.id, evtId]
+    );
+    const timeline = tR.rows.map((x) => ({
+      type: x.type,
+      scanned_at: x.scanned_at ? new Date(x.scanned_at).toISOString() : null,
+    }));
+
     res.status(201).json({
       success: true, code: 'OK',
       pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
       child: { id: benef.id, badgeId: benef.badge_id, firstName: benef.first_name, lastName: benef.last_name },
       event: { id: evtId, name: evtR.rows[0].name },
+      timeline,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -392,13 +392,15 @@ export async function fetchEventAttendances(id) {
 // Pointage depuis le contenu JSON du badge QR. Renvoie { ok, status, data } :
 // l'écran de scan s'appuie sur data.code (BADGE_INVALID, BENEFICIARY_DISABLED,
 // ALREADY_SCANNED, EXIT_WITHOUT_ENTRY, OK) pour afficher le bon message.
+// Sans direction, le serveur DÉTECTE automatiquement entrée/sortie (1er scan →
+// entrée, puis alternance) et renvoie la timeline des heures dans data.timeline.
 export async function scanBadge(badge, eventId, direction) {
   try {
     const adminKey = localStorage.getItem('arina_admin_key');
     const res = await fetch(`${API_BASE}/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
-      body: JSON.stringify({ badge, eventId, direction }),
+      body: JSON.stringify({ badge, eventId, ...(direction ? { direction } : {}) }),
     });
     const body = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data: body };
