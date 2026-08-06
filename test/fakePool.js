@@ -229,6 +229,14 @@ function makeFakePool(opts = {}) {
       const ids = new Set(state.events.filter((e) => e.is_daily && String(e.daily_key) >= from && String(e.daily_key) <= to).map((e) => e.id));
       return { rows: state.attendances.filter((a) => ids.has(a.event_id)).map((a) => ({ event_id: a.event_id, beneficiary_id: a.beneficiary_id, type: a.type, scanned_at: a.scanned_at })) };
     }
+    // Timeline complète d'un enfant pour une session (scan auto — toutes les heures)
+    if (/SELECT type, scanned_at FROM attendances WHERE/i.test(s)) {
+      const rows = state.attendances
+        .filter((a) => a.beneficiary_id === Number(params[0]) && a.event_id === Number(params[1]))
+        .sort((x, y) => x.id - y.id)
+        .map((a) => ({ type: a.type, scanned_at: a.scanned_at }));
+      return { rows };
+    }
     if (/SELECT id, type, scanned_at FROM attendances WHERE/i.test(s)) {
       const found = state.attendances
         .filter((a) => a.beneficiary_id === Number(params[0]) && a.event_id === Number(params[1]))
@@ -236,14 +244,34 @@ function makeFakePool(opts = {}) {
       return { rows: found.length ? [{ ...found[found.length - 1] }] : [] };
     }
     if (/INSERT INTO attendances/i.test(s)) {
+      // Params : [beneficiary_id, event_id, type] (scan) ou + [scanned_at] (CRUD présences)
       const row = {
         id: state.attendances.length + 1,
         beneficiary_id: params[0], event_id: params[1], type: params[2],
-        scanned_at: new Date().toISOString(), created_at: new Date().toISOString(),
+        scanned_at: params[3] || new Date().toISOString(), created_at: new Date().toISOString(),
       };
       state.attendances.push(row);
       state.inserts.push({ table: 'attendances', row });
       return { rows: [row] };
+    }
+    // CRUD présences : lecture du pointage (édition — conserve sa date d'origine)
+    if (/SELECT scanned_at FROM attendances WHERE id/i.test(s)) {
+      const a = state.attendances.find((x) => x.id === Number(params[0]));
+      return { rows: a ? [{ ...a }] : [] };
+    }
+    if (/UPDATE attendances SET/i.test(s)) {
+      // Params : [type (nullable), scanned_at, id]
+      const a = state.attendances.find((x) => x.id === Number(params[2]));
+      if (!a) return { rows: [] };
+      if (params[0] != null) a.type = params[0];
+      if (params[1] != null) a.scanned_at = params[1];
+      return { rows: [{ ...a }] };
+    }
+    if (/DELETE FROM attendances/i.test(s)) {
+      const idx = state.attendances.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.attendances.splice(idx, 1);
+      return { rows: [removed] };
     }
 
     // Finances — revenu automatique lié à un don confirmé (donation_id)
@@ -276,6 +304,14 @@ function makeFakePool(opts = {}) {
       };
       state.financeRows.push(row);
       return { rows: [row] };
+    }
+    // Donateurs — insertion automatique à la validation d'un don (ON CONFLICT DO NOTHING)
+    if (/INSERT INTO donors/i.test(s)) {
+      const name = String(params[0] || '').trim();
+      if (name && !state.donors.some((d) => String(d.name).toLowerCase() === name.toLowerCase())) {
+        state.donors.push({ id: state.donors.length + 1, name, need: params[1] || 'Don en ligne', budget: 0, created_at: new Date().toISOString() });
+      }
+      return { rows: [] };
     }
     // Donateurs (GET requireAuth — données de l'évaluation mensuelle)
     if (/SELECT \* FROM donors/i.test(s)) return { rows: [...state.donors] };

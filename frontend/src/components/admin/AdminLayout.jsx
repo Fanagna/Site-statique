@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './icons';
-import { cleanupCaches } from './utils';
+import { safeGet, safeSet, pruneOversizedCaches } from '../../utils/storage';
 
 const ROLE_LABELS = {
   admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
@@ -30,33 +30,35 @@ export default function AdminLayout({
   onLogout,
   children,
 }) {
-  /* Purge des caches localStorage corrompus ou trop volumineux : exécutée une
-     seule fois par session (flag), avant le premier rendu complet des pages
-     admin — empêche les crashes JSON.parse / QuotaExceededError au chargement. */
+  /* Purge des caches localStorage volumineux : exécutée une seule fois par
+     session (flag), avant le premier rendu complet des pages admin — empêche
+     les QuotaExceededError / JSON corrompu au chargement. */
   useEffect(() => {
-    if (sessionStorage.getItem('arina_cache_cleaned') === '1') return;
-    cleanupCaches();
+    let done = false;
+    try { done = sessionStorage.getItem('arina_cache_cleaned') === '1'; } catch { /* stockage indisponible */ }
+    if (done) return;
+    pruneOversizedCaches();
     try { sessionStorage.setItem('arina_cache_cleaned', '1'); } catch { /* optionnel */ }
   }, []);
 
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('arina_sidebar') === '1');
+  const [collapsed, setCollapsed] = useState(() => safeGet('arina_sidebar') === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(() => {
-    const stored = localStorage.getItem('arina_dark');
+    const stored = safeGet('arina_dark');
     if (stored !== null) return stored === '1';
     return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   const toggleDark = () => {
     setDark((d) => {
-      localStorage.setItem('arina_dark', d ? '0' : '1');
+      safeSet('arina_dark', d ? '0' : '1');
       return !d;
     });
   };
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
-      localStorage.setItem('arina_sidebar', c ? '0' : '1');
+      safeSet('arina_sidebar', c ? '0' : '1');
       return !c;
     });
   };

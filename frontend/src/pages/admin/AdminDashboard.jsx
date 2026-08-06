@@ -18,6 +18,9 @@ import {
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
 
+// Accès localStorage protégé : une panne de stockage ne doit jamais planter l'app
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
+
 // Rôles & onglets autorisés (source unique : ./roles)
 import { ROLES, ROLE_LABELS, ROLE_TABS } from './roles';
 import { allNews } from '../../data/news';
@@ -28,7 +31,7 @@ import {
   inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
 import {
-  formatMGA, today, fmtDate, timeAgo, initials, donorColor, readCache, writeCache, optimizeImage, readFileAsDataURL,
+  formatMGA, today, fmtDate, timeAgo, initials, donorColor, optimizeImage, readFileAsDataURL,
 } from '../../components/admin/utils';
 import { exportEvaluationXlsx } from '../../components/admin/ExcelTools';
 import {
@@ -144,12 +147,12 @@ export default function AdminDashboard() {
     // la gestion de chaque domaine reste réservée au rôle concerné).
     const bFromApi = await fetchBeneficiaries();
     if (bFromApi !== null) { anyOk = true; if (bFromApi.length) setBenefs(bFromApi); else setBenefs([]); }
-    else { anyFail = true; const cached = readCache('arina_benefs', []); setBenefs(Array.isArray(cached) ? cached : []); }
+    else { anyFail = true; setBenefs(safeParse(safeGet('arina_benefs'), [])); }
     setBenefsLoading(false);
 
     const fFromApi = await fetchFinances();
     if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
-    else { anyFail = true; const cached = readCache('arina_finances', []); setFinances(Array.isArray(cached) ? cached : []); }
+    else { anyFail = true; setFinances(safeParse(safeGet('arina_finances'), [])); }
     setFinancesLoading(false);
 
     // Diagnostic email (Resend) : affiché en bannière dans l'onglet Dons si non configuré
@@ -159,7 +162,7 @@ export default function AdminDashboard() {
     // Donateurs : nécessaires pour l'évaluation (filtre + rapports) et l'onglet dédié
     const dFromApi = await fetchDonors();
     if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonors(dFromApi); }
-    else { anyFail = true; const cached = readCache('arina_donors', []); setDonors(Array.isArray(cached) ? cached : []); }
+    else { anyFail = true; setDonors(safeParse(safeGet('arina_donors'), [])); }
 
     if (can('actualites')) {
       const nFromApi = await fetchNews();
@@ -170,25 +173,25 @@ export default function AdminDashboard() {
     if (can('messages')) {
       const cFromApi = await fetchContacts();
       if (cFromApi !== null) { anyOk = true; if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
-      else { anyFail = true; const cached = readCache('arina_contacts', []); setContacts(Array.isArray(cached) ? cached : []); }
+      else { anyFail = true; setContacts(safeParse(safeGet('arina_contacts'), [])); }
     }
 
     if (can('volunteers')) {
       const vFromApi = await fetchVolunteers();
       if (vFromApi !== null) { anyOk = true; if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
-      else { anyFail = true; const cached = readCache('arina_volunteers', []); setVolunteers(Array.isArray(cached) ? cached : []); }
+      else { anyFail = true; setVolunteers(safeParse(safeGet('arina_volunteers'), [])); }
     }
 
     if (can('testimonials')) {
       const tFromApi = await fetchTestimonials();
       if (tFromApi !== null) { anyOk = true; if (tFromApi.length) setTestimonials(tFromApi); else setTestimonials([]); }
-      else { anyFail = true; const cached = readCache('arina_testimonials', []); setTestimonials(Array.isArray(cached) ? cached : []); }
+      else { anyFail = true; setTestimonials(safeParse(safeGet('arina_testimonials'), [])); }
     }
 
     if (can('dons')) {
       const dFromApi = await fetchDonations();
       if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonations(dFromApi); }
-      else { anyFail = true; const cached = readCache('arina_donations', []); setDonations(Array.isArray(cached) ? cached : []); }
+      else { anyFail = true; setDonations(safeParse(safeGet('arina_donations'), [])); }
     }
 
     if (can('comptes')) {
@@ -217,13 +220,23 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { if (benefs.length) writeCache('arina_benefs', benefs); }, [benefs]);
-  useEffect(() => { if (finances.length) writeCache('arina_finances', finances); }, [finances]);
-  useEffect(() => { if (donors.length) writeCache('arina_donors', donors); }, [donors]);
-  useEffect(() => { if (news !== allNews && news.length) writeCache('arina_news', news); }, [news]);
-  useEffect(() => { if (contacts.length) writeCache('arina_contacts', contacts); }, [contacts]);
-  useEffect(() => { if (testimonials.length) writeCache('arina_testimonials', testimonials); }, [testimonials]);
-  useEffect(() => { if (donations.length) writeCache('arina_donations', donations); }, [donations]);
+  useEffect(() => {
+    // Cache « léger » : les photos sont des base64 volumineuses — elles feraient
+    // dépasser le quota localStorage (le cache échouerait silencieusement).
+    if (benefs.length) safeSet('arina_benefs', JSON.stringify(benefs.map((b) => ({ ...b, photo: '' }))));
+  }, [benefs]);
+  useEffect(() => { if (finances.length) safeSet('arina_finances', JSON.stringify(finances)); }, [finances]);
+  useEffect(() => { if (donors.length) safeSet('arina_donors', JSON.stringify(donors)); }, [donors]);
+  useEffect(() => {
+    // Cache « léger » : les images base64 (jusqu'à 2 Mo chacune) feraient dépasser
+    // le quota localStorage (~5 Mo) et planteraient l'application (écran d'erreur).
+    if (news !== allNews && news.length) {
+      safeSet('arina_news', JSON.stringify(news.map((n) => ({ ...n, image: '', image_url: '' }))));
+    }
+  }, [news]);
+  useEffect(() => { if (contacts.length) safeSet('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
+  useEffect(() => { if (testimonials.length) safeSet('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
+  useEffect(() => { if (donations.length) safeSet('arina_donations', JSON.stringify(donations)); }, [donations]);
 
   /* ── Encart « Présence du jour » (éducateur / admin) ── */
   const [todayPresence, setTodayPresence] = useState(null); // { event, total, present, late, absent, … }
@@ -485,12 +498,12 @@ export default function AdminDashboard() {
   const donorStats = useMemo(() => {
     const nowYear = String(new Date().getFullYear());
     const map = {};
-    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, depenses: 0, depensesAn: 0, budget: Number(d.budget) || 0 }; });
+    donors.forEach((d) => { map[d.name] = { ...d, dons: 0, nbDons: 0, depenses: 0, depensesAn: 0, budget: Number(d.budget) || 0 }; });
     finances.forEach((f) => {
       const k = f.donor;
       if (!k || !map[k]) return;
       const v = Number(f.montant) || 0;
-      if (f.type === 'Revenu') map[k].dons += v;
+      if (f.type === 'Revenu') { map[k].dons += v; map[k].nbDons += 1; }
       else {
         map[k].depenses += v;
         if (monthKey(f.date).startsWith(nowYear)) map[k].depensesAn += v;
@@ -501,6 +514,8 @@ export default function AdminDashboard() {
       restant: Math.max(0, d.budget - d.depensesAn),
       pct: d.budget > 0 ? Math.min(150, Math.round((d.depensesAn / d.budget) * 100)) : 0,
       depasse: d.budget > 0 && d.depensesAn > d.budget,
+      // Total donné (dons en ligne + manuels) moins dépenses financées
+      solde: d.dons - d.depenses,
     }));
   }, [donors, finances]);
 
@@ -544,7 +559,7 @@ export default function AdminDashboard() {
   // (le revenu est enregistré en Ariary). Remettre en attente reste direct.
   const toggleDonation = (d) => {
     if (d.status !== 'received') {
-      setConfirmRate(localStorage.getItem('arina_eur_rate') || '');
+      setConfirmRate(safeGet('arina_eur_rate') || '');
       setConfirmDonation(d);
       return;
     }
@@ -568,7 +583,7 @@ export default function AdminDashboard() {
     const body = { status: 'received' };
     if (rate !== '') {
       body.rate = Number(rate);
-      localStorage.setItem('arina_eur_rate', rate); // taux mémorisé pour la prochaine fois
+      safeSet('arina_eur_rate', rate); // taux mémorisé pour la prochaine fois
     }
     setConfirmSubmitting(true);
     const r = await updateDonation(d.id, body);
@@ -2036,7 +2051,7 @@ export default function AdminDashboard() {
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Besoin financé</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Budget annuel</th>
                       <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide text-ios-text3">Utilisation du budget</th>
-                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dons reçus</th>
+                      <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3" title="Total donné toutes périodes — dons en ligne et manuels confirmés">Total donné</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Dépenses</th>
                       <th className="px-4 py-3 text-right font-semibold text-xs uppercase tracking-wide text-ios-text3">Solde</th>
                       <th className="px-4 py-3" />
@@ -2077,7 +2092,10 @@ export default function AdminDashboard() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="font-semibold tabular text-emerald-600 dark:text-emerald-400">{formatMGA(d.dons)}</div>
+                          <div className="text-[11px] text-ios-text3 tabular">{d.nbDons} don{d.nbDons > 1 ? 's' : ''}</div>
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold tabular text-red-500 dark:text-red-400">{formatMGA(d.depenses)}</td>
                         <td className={`px-4 py-3 text-right font-bold tabular ${d.solde >= 0 ? 'text-arina-blue' : 'text-red-600 dark:text-red-400'}`}>{formatMGA(d.solde)}</td>
                         <td className="px-4 py-3">

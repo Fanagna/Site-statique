@@ -459,6 +459,46 @@ test('PATCH /api/donations/:id → taux invalide → 400', async () => {
   assert.match(r.body.error || '', /taux/i);
 });
 
+/* ═══ DONATEURS : inscription AUTOMATIQUE à la validation du don ═══ */
+test('PATCH /api/donations/:id → « reçu » : le nom du donateur est ajouté à la liste Donateurs', async () => {
+  // Promesse de don depuis le site public
+  const created = await post('/api/donations', { amount: 40, currency: 'EUR', name: 'Donateur En Ligne', email: 'enligne@exemple.mg', method: 'mvola', anonymous: false });
+  assert.equal(created.status, 201);
+  // Validation par l'admin
+  const r = await send('PATCH', `/api/donations/${created.body.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'received');
+  // Le nom apparaît dans la liste Donateurs de l'espace privé
+  const list = await get('/api/donors', { 'x-admin-key': 'test-admin-key' });
+  const donor = (list.body || []).find((d) => d.name === 'Donateur En Ligne');
+  assert.ok(donor, 'le donateur validé doit apparaître dans /api/donors');
+  assert.equal(donor.need, 'Don en ligne');
+});
+
+test('PATCH /api/donations/:id → « reçu » : don ANONYME → aucun donateur ajouté', async () => {
+  const created = await post('/api/donations', { amount: 15, currency: 'EUR', name: 'Anonyme X', email: 'anon@exemple.mg', anonymous: true });
+  assert.equal(created.status, 201);
+  const before = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body.length;
+  const r = await send('PATCH', `/api/donations/${created.body.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'received');
+  const after = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body.length;
+  assert.equal(after, before, 'un don anonyme ne doit pas créer de donateur');
+});
+
+test('PATCH /api/donations/:id → re-confirmation : aucun donateur en double', async () => {
+  // Le don « Donateur En Ligne » a déjà été validé (test précédent) : le repasser
+  // en attente puis le re-confirmer ne doit pas créer un 2e donateur identique.
+  const d = fakePool.state.donations.find((x) => x.name === 'Donateur En Ligne');
+  assert.ok(d, 'le don doit exister en base');
+  await send('PATCH', `/api/donations/${d.id}`, { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
+  const r = await send('PATCH', `/api/donations/${d.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  const list = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body;
+  const count = list.filter((x) => x.name === 'Donateur En Ligne').length;
+  assert.equal(count, 1, 'le donateur ne doit exister qu\'une seule fois');
+});
+
 /* ═══ DIAGNOSTIC EMAIL ═══ */
 test('GET /api/email-status → non configuré sans SMTP ni Resend', async () => {
   const r = await get('/api/email-status', { 'x-admin-key': 'test-admin-key' });
@@ -600,6 +640,7 @@ test('POST /api/scan : entrée valide → 201, pointage enregistré', async () =
   assert.equal(r.body.success, true);
   assert.equal(r.body.pointage.type, 'entry');
   assert.ok(r.body.pointage.scanned_at);
+  assert.ok(Array.isArray(r.body.timeline), 'la timeline est renvoyée aussi en mode explicite');
   assert.equal(r.body.child.firstName, 'Jean');
   assert.equal(r.body.event.name, 'Atelier entrée');
   const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
@@ -655,6 +696,50 @@ test('GET /api/events/:id/attendances → listé groupé par enfant', async () =
   assert.equal(r.body[0].firstName, 'Jean');
   assert.equal(r.body[0].entries.length, 1);
   assert.equal(r.body[0].exits.length, 1);
+});
+
+/* ═══ PRÉSENCES : SCAN AUTO (détection entrée/sortie automatique) ═══ */
+test('POST /api/scan AUTO : 1er scan sans direction → ENTRÉE détectée + timeline', async () => {
+  const evt = await post('/api/events', { name: 'Auto entrée' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry', 'le premier scan doit être une entrée');
+  assert.ok(Array.isArray(r.body.timeline), 'la timeline doit être renvoyée');
+  assert.equal(r.body.timeline.length, 1);
+  assert.equal(r.body.timeline[0].type, 'entry');
+  assert.ok(r.body.timeline[0].scanned_at, 'chaque heure doit être horodatée');
+});
+
+test('POST /api/scan AUTO : entrée puis sortie puis entrée (alternance) + heures affichées', async () => {
+  const evt = await post('/api/events', { name: 'Auto cycle' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r1 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r1.body.pointage.type, 'entry');
+  const r2 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r2.status, 201);
+  assert.equal(r2.body.pointage.type, 'exit', '2e scan → sortie automatique');
+  assert.equal(r2.body.timeline.length, 2, 'les 2 heures sont affichées');
+  assert.deepEqual(r2.body.timeline.map((t) => t.type), ['entry', 'exit']);
+  const r3 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r3.status, 201);
+  assert.equal(r3.body.pointage.type, 'entry', '3e scan → retour au centre = entrée');
+  assert.equal(r3.body.timeline.length, 3);
+});
+
+test('POST /api/scan AUTO : sans événement → « Présence du jour » + pointage auto', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }) }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  assert.ok(['entry', 'exit'].includes(r.body.pointage.type), 'le sens est détecté automatiquement');
+  assert.ok(Array.isArray(r.body.timeline));
+});
+
+test('POST /api/scan AUTO : badge désactivé → 403 (inchangé)', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 2, badgeId: 'ARINA-0002-CD34' }), eventId: 1 }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.code, 'BENEFICIARY_DISABLED');
 });
 
 /* ═══ BADGES : attribués automatiquement à l'inscription ═══ */
@@ -815,6 +900,106 @@ test('GET /api/presences/today → 401 sans clé, 403 pour le président', async
   assert.equal(anon.status, 401);
   const pres = await get('/api/presences/today', { 'x-admin-key': 'test-president-key' });
   assert.equal(pres.status, 403);
+});
+
+/* ═══ PRÉSENCES : CRUD des pointages (page Présences — liste des enfants) ═══ */
+test('GET /api/presences/:date → 401 sans clé', async () => {
+  const r = await get('/api/presences/2026-09-01');
+  assert.equal(r.status, 401);
+});
+
+test('GET /api/presences/:date sans session → tous les enfants, pointages vides', async () => {
+  const r = await get('/api/presences/2026-09-01', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event, null);
+  assert.ok(Array.isArray(r.body.children));
+  assert.ok(r.body.children.length >= 2, 'tous les enfants doivent être listés');
+  assert.ok(r.body.children.every((c) => Array.isArray(c.entries) && Array.isArray(c.exits) && c.entries.length === 0 && c.exits.length === 0));
+});
+
+test('GET /api/presences/:date date invalide → 400', async () => {
+  const r = await get('/api/presences/aujourdhui', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages → crée la session du jour + le pointage', async () => {
+  const r = await post('/api/presences/2026-09-02/pointages', { beneficiaryId: 1, type: 'entry', time: '07:45' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry');
+  assert.equal(r.body.event.name, 'Présence du jour');
+  const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'le pointage doit être en base');
+  assert.equal(stored.beneficiary_id, 1);
+  const evt = fakePool.state.events.find((e) => e.daily_key === '2026-09-02');
+  assert.ok(evt && evt.is_daily, 'la session du jour doit être créée');
+  assert.equal(stored.event_id, evt.id);
+});
+
+test('POST /api/presences/:date/pointages → 403 pour le président', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry' }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 403);
+});
+
+test('POST /api/presences/:date/pointages type invalide → 400', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'middle' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages heure invalide → 400', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry', time: '25h99' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages bénéficiaire inconnu → 404', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 999, type: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+});
+
+test('POST + GET : pointages regroupés par enfant avec id (entrées + sorties)', async () => {
+  await post('/api/presences/2026-09-04/pointages', { beneficiaryId: 1, type: 'entry', time: '07:30' }, { 'x-admin-key': 'test-educator-key' });
+  await post('/api/presences/2026-09-04/pointages', { beneficiaryId: 1, type: 'exit', time: '12:00' }, { 'x-admin-key': 'test-educator-key' });
+  const r = await get('/api/presences/2026-09-04', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  const jean = r.body.children.find((c) => c.id === 1);
+  assert.ok(jean, 'Jean doit être listé');
+  assert.equal(jean.entries.length, 1);
+  assert.equal(jean.exits.length, 1);
+  assert.ok(jean.entries[0].id, 'chaque pointage expose son id (édition/suppression)');
+  // Lova (inactif) n'a pas pointé → listé avec pointages vides
+  const lova = r.body.children.find((c) => c.id === 2);
+  assert.ok(lova && lova.entries.length === 0 && lova.exits.length === 0);
+});
+
+test('PUT /api/presences/pointages/:id → type et heure modifiés (fuseau Antananarivo)', async () => {
+  const created = await post('/api/presences/2026-09-05/pointages', { beneficiaryId: 1, type: 'entry', time: '08:00' }, { 'x-admin-key': 'test-educator-key' });
+  const pid = created.body.pointage.id;
+  const r = await send('PUT', `/api/presences/pointages/${pid}`, { type: 'exit', time: '16:30' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.pointage.type, 'exit');
+  const stored = fakePool.state.attendances.find((a) => a.id === pid);
+  assert.equal(stored.type, 'exit');
+  // 16h30 heure Antananarivo (UTC+3) = 13:30 UTC
+  assert.equal(new Date(stored.scanned_at).toISOString(), '2026-09-05T13:30:00.000Z');
+});
+
+test('PUT /api/presences/pointages/:id inconnu → 404', async () => {
+  const r = await send('PUT', '/api/presences/pointages/99999', { time: '09:00' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+});
+
+test('DELETE /api/presences/pointages/:id → pointage retiré', async () => {
+  const created = await post('/api/presences/2026-09-06/pointages', { beneficiaryId: 1, type: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  const pid = created.body.pointage.id;
+  const r = await send('DELETE', `/api/presences/pointages/${pid}`, undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+  assert.ok(!fakePool.state.attendances.some((a) => a.id === pid), 'le pointage doit être retiré');
+});
+
+test('DELETE /api/presences/pointages/:id inconnu → 404', async () => {
+  const r = await send('DELETE', '/api/presences/pointages/99999', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
 });
 
 /* ═══ STATS RÉELLES ═══ */

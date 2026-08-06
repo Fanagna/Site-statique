@@ -1,24 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Camera, Circle, Lock, Printer, Trash2, User } from 'lucide-react';
+import { Camera, Lock, Printer, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../hooks/useAuth';
-import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
+import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto, deleteBeneficiary } from '../../services/api';
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
 import AdminLayout from '../../components/admin/AdminLayout';
 import Toast from '../../components/admin/Toast';
 import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
-import { readCache, writeCache, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
+import { fmtDate, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
 
 /* Met en forme une ligne bénéficiaire (dossier JSON) en fiche détaillée exploitable. */
 function shapeDetail(b) {
   const dossier = b.dossier || {};
   return {
-    ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
-    situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
+    ...b, code: `AR-${String(b.id).padStart(3, '0')}`,
     assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
-    formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
+    formations: dossier.formations || [], suivis: dossier.suivis || [], notes: dossier.notes || '',
     dossier,
   };
 }
@@ -42,6 +42,8 @@ export default function BeneficiaryDetailPage() {
   const [form, setForm] = useState(initial ? { ...initial } : {});
   const [suivis, setSuivis] = useState(initial ? initial.suivis || [] : []);
   const [newSuivi, setNewSuivi] = useState('');
+  const [formations, setFormations] = useState(initial ? initial.formations || [] : []);
+  const [newFormation, setNewFormation] = useState({ nom: '', statut: 'En cours', progression: '', icon: 'book' });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
   const { toast, showToast, closeToast } = useToast();
@@ -53,6 +55,7 @@ export default function BeneficiaryDetailPage() {
       setData(detail);
       setForm({ ...detail });
       setSuivis(detail.suivis || []);
+      setFormations(detail.formations || []);
     };
 
     (async () => {
@@ -65,6 +68,7 @@ export default function BeneficiaryDetailPage() {
         setData(null);
         setForm({});
         setSuivis([]);
+        setFormations([]);
         setLoading(true);
       }
       try {
@@ -78,8 +82,8 @@ export default function BeneficiaryDetailPage() {
         // Base injoignable ou enfant absent : on garde la fiche déjà affichée,
         // sinon on tente le cache local avant la redirection automatique.
         if (initialRef.current) return;
-        const stored = readCache('arina_benefs', []);
-        const cached = (Array.isArray(stored) ? stored : []).find((x) => x.id === Number(id));
+        const stored = safeParse(safeGet('arina_benefs'), []);
+        const cached = stored.find((x) => x.id === Number(id));
         if (cached) { hydrate(cached); return; }
       } finally {
         if (!cancelled) setLoading(false);
@@ -168,17 +172,41 @@ export default function BeneficiaryDetailPage() {
     return true;
   };
 
+  /* Suppression DÉFINITIVE : appel réel à l'API. (Avant, le bouton « Supprimer »
+     ne faisait que naviguer — aucun enregistrement n'était supprimé en base.) */
+  const removeBenef = async () => {
+    if (!confirm(`Supprimer définitivement ${data.prenom} ${data.nom} ? Cette action est irréversible.`)) return;
+    const r = await deleteBeneficiary(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    // Cache local : on retire l'enfant pour rester cohérent (lecture hors-ligne)
+    const stored = safeParse(safeGet('arina_benefs'), []);
+    safeSet('arina_benefs', JSON.stringify(stored.filter((x) => String(x.id) !== String(id))));
+    showToast(`✅ ${data.prenom} ${data.nom} supprimé de la base de données`);
+    navigate('/admin');
+  };
+
   const saveNotes = async (value) => {
     setData((d) => ({ ...d, notes: value }));
     const ok = await persistBenef({ ...data, notes: value, dossier: { ...(data.dossier || {}), notes: value } });
     if (!ok) setData((d) => ({ ...d, notes: data.notes }));
   };
   const saveEdit = async () => {
+    // Le dossier édité (form.dossier) prime — plus la seule fiche. Les pourcentages
+    // d'assiduité/progression restent synchronisés dans le dossier comme avant.
+    const dossier = { ...(form.dossier || data.dossier || {}) };
+    dossier.assiduite = Number(form.assiduite) || Number(data.assiduite) || 0;
+    dossier.progression = Number(form.progression) || Number(data.progression) || 0;
+    // Migration douce : la clé obsolète `felicitations` (remplacée par `recommandation`)
+    // est retirée du dossier à l'enregistrement pour éviter qu'un ancien texte ne ressorte.
+    if (dossier.arina && 'felicitations' in dossier.arina) {
+      const arina = { ...dossier.arina };
+      delete arina.felicitations;
+      dossier.arina = arina;
+    }
     const ok = await persistBenef({
       ...data, ...form,
-      assiduite: Number(form.assiduite) || Number(data.assiduite) || 0,
-      progression: Number(form.progression) || Number(data.progression) || 0,
-      dossier: { ...(data.dossier || {}), assiduite: Number(form.assiduite) || Number(data.assiduite) || 0, progression: Number(form.progression) || Number(data.progression) || 0 },
+      assiduite: dossier.assiduite, progression: dossier.progression,
+      dossier,
     });
     if (ok) setEditing(false);
   };
@@ -198,6 +226,39 @@ export default function BeneficiaryDetailPage() {
     }
   };
 
+  /* ── Formations : ajout / suppression (stockées dans dossier.formations) ── */
+  const addFormation = async () => {
+    if (!newFormation.nom.trim()) { showToast('❌ Le nom de la formation est requis', 'error'); return; }
+    const entry = {
+      nom: newFormation.nom.trim(),
+      statut: newFormation.statut || 'En cours',
+      progression: Math.min(100, Math.max(0, Number(newFormation.progression) || 0)),
+      icon: newFormation.icon || 'book',
+    };
+    const next = [...formations, entry];
+    const saved = await persistBenef({
+      ...data,
+      formations: next,
+      dossier: { ...(data.dossier || {}), formations: next },
+    });
+    if (saved) {
+      setFormations(next);
+      setNewFormation({ nom: '', statut: 'En cours', progression: '', icon: 'book' });
+      showToast(`✅ Formation « ${entry.nom} » ajoutée`);
+    }
+  };
+
+  const removeFormation = async (i) => {
+    if (!confirm('Supprimer cette formation ?')) return;
+    const next = formations.filter((_, x) => x !== i);
+    const saved = await persistBenef({
+      ...data,
+      formations: next,
+      dossier: { ...(data.dossier || {}), formations: next },
+    });
+    if (saved) setFormations(next);
+  };
+
   const handlePhotoClick = () => {
     fileInputRef.current?.click();
   };
@@ -210,29 +271,28 @@ export default function BeneficiaryDetailPage() {
       return;
     }
     setUploading(true);
-    // Optimisée (1200 px max, WebP) : nette à l'affichage, légère pour la base
-    const optimized = await optimizeImage(file, { maxDim: 1200, quality: 0.9 });
-    let base64 = optimized;
-    if (!base64) base64 = await readFileAsDataURL(file);
-    const updated = { ...data, photo: base64 };
-    setData(updated);
-    setForm({ ...form, photo: base64 });
-    // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
-    const stored = readCache('arina_benefs', []);
-    const list = Array.isArray(stored) ? stored : [];
-    const idx = list.findIndex((x) => x.id === Number(id));
-    if (idx >= 0) {
-      list[idx].photo = base64;
-      writeCache('arina_benefs', list);
+    try {
+      // Optimisée (1200 px max, WebP) : nette à l'affichage, légère pour la base
+      const optimized = await optimizeImage(file, { maxDim: 1200, quality: 0.9 });
+      let base64 = optimized;
+      if (!base64) base64 = await readFileAsDataURL(file);
+      const updated = { ...data, photo: base64 };
+      setData(updated);
+      setForm({ ...form, photo: base64 });
+      // NB : le cache local reste volontairement SANS photo (base64 → quota
+      // localStorage). La photo est chargée depuis l'API à chaque visite.
+      // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
+      const r = await updateBeneficiaryPhoto(id, base64);
+      if (!r.ok) {
+        showToast(`❌ Photo NON enregistrée dans la base : ${r.error}`, 'error');
+        return;
+      }
+      showToast('✅ Photo enregistrée dans la base de données');
+    } catch {
+      showToast('❌ Impossible de lire cette image — essayez-en une autre.', 'error');
+    } finally {
+      setUploading(false);
     }
-    // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
-    const r = await updateBeneficiaryPhoto(id, base64);
-    setUploading(false);
-    if (!r.ok) {
-      showToast(`❌ Photo NON enregistrée dans la base : ${r.error}`, 'error');
-      return;
-    }
-    showToast('✅ Photo enregistrée dans la base de données');
   };
 
   const removePhoto = async () => {
@@ -245,12 +305,11 @@ export default function BeneficiaryDetailPage() {
     delete updated.photo;
     setData(updated);
     setForm({ ...form, photo: undefined });
-    const stored = readCache('arina_benefs', []);
-    const list = Array.isArray(stored) ? stored : [];
-    const idx = list.findIndex((x) => x.id === Number(id));
+    const stored = safeParse(safeGet('arina_benefs'), []);
+    const idx = stored.findIndex((x) => x.id === Number(id));
     if (idx >= 0) {
-      delete list[idx].photo;
-      writeCache('arina_benefs', list);
+      delete stored[idx].photo;
+      safeSet('arina_benefs', JSON.stringify(stored));
     }
     showToast('✅ Photo retirée de la base de données');
   };
@@ -273,6 +332,18 @@ export default function BeneficiaryDetailPage() {
     </div>
   );
 
+  /* ── Édition du dossier complet (Identité / Familiale / Juridique / Étude / ARINA) ──
+     Les valeurs sont lues dans le formulaire d'édition (form.dossier), avec repli sur
+     les données affichées — les sections vides deviennent saisissables en mode édition. */
+  const dossVal = (section, field) => (form.dossier?.[section]?.[field] ?? data.dossier?.[section]?.[field] ?? '');
+  const setDoss = (section, field) => (e) => {
+    const v = e.target ? e.target.value : e;
+    setForm((prev) => ({
+      ...prev,
+      dossier: { ...(prev.dossier || {}), [section]: { ...(prev.dossier?.[section] || {}), [field]: v } },
+    }));
+  };
+
   return (
     <AdminLayout
       groups={groups}
@@ -292,7 +363,7 @@ export default function BeneficiaryDetailPage() {
             {editing ? 'Annuler' : 'Modifier'}
           </button>
           <button onClick={() => setTab('suivi')} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
-          <button onClick={() => { if (confirm('Supprimer ce bénéficiaire ?')) navigate('/admin'); }} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
+          <button onClick={removeBenef} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
         </>
       }
     >
@@ -303,12 +374,26 @@ export default function BeneficiaryDetailPage() {
             {/* Filigrane logo ARINA en fond */}
             <img src="/logo-arina.jpg" alt="" className="absolute right-4 top-4 w-14 h-14 rounded-xl object-contain bg-white/90 p-1 opacity-90 shadow-lg" />
 
-            {/* Photo — tout en haut, au-dessus des écritures */}
-            <div className="w-36 h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 flex items-center justify-center mx-auto shadow-2xl">
-              {data.photo ? (
+            {/* Photo — tout en haut, au-dessus des écritures (UNIQUE : plus de
+                 deuxième photo dupliquée dans l'onglet Détail) */}
+            <div className="relative w-36 h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 flex items-center justify-center mx-auto shadow-2xl">
+              {uploading ? (
+                <div className="animate-spin w-10 h-10 border-3 border-white border-t-transparent rounded-full" />
+              ) : data.photo ? (
                 <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-16 h-16 text-white/80" />
+              )}
+            </div>
+            {/* Contrôles photo — discrets, non imprimés */}
+            <div className="no-print flex items-center justify-center gap-2 mt-3">
+              <button onClick={handlePhotoClick} className="px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/30 border border-white/30 text-xs font-semibold inline-flex items-center gap-1.5 transition-all">
+                <Camera className="w-3.5 h-3.5" /> {data.photo ? 'Changer la photo' : 'Ajouter une photo'}
+              </button>
+              {data.photo && (
+                <button onClick={removePhoto} className="px-3.5 py-1.5 rounded-full bg-red-500/25 hover:bg-red-500/40 border border-red-300/40 text-xs font-semibold inline-flex items-center gap-1.5 transition-all">
+                  <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                </button>
               )}
             </div>
 
@@ -327,227 +412,274 @@ export default function BeneficiaryDetailPage() {
           </div>
         </div>
 
+        {/* Champ d'upload photo — TOUJOURS monté (les boutons de l'en-tête sont
+             visibles sur tous les onglets : Détail, Suivi, Formations) */}
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden no-print" />
+
         {/* ── DÉTAIL TAB ── */}
         {tab === 'detail' && (
           <>
             <div className="grid lg:grid-cols-3 gap-6 animate-fade-up">
-              {/* Photo card */}
-              <div className="card-apple p-6 text-center">
-                <div
-                  onClick={handlePhotoClick}
-                  className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-ios-hairline bg-ios-fill'}`}
-                >
-                  {uploading ? (
-                    <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
-                  ) : data.photo ? (
-                    <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <User className="w-10 h-10 text-gray-400 group-hover:text-arina-blue transition-colors" />
-                      <span className="text-[10px] text-ios-text3 group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
-                    <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity flex items-center gap-1"><Camera className="w-4 h-4" /> Modifier</span>
-                  </div>
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                <p className="text-sm text-ios-text3 mb-1">Photo confidentielle</p>
-                {data.photo && (
-                  <button onClick={removePhoto} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Supprimer la photo</button>
-                )}
-              </div>
-
-              {/* Info card */}
+              {/* Fiche de renseignements */}
               <div className="lg:col-span-2 card-apple p-6">
-                {cardTitle('users', 'Informations personnelles')}
+                {cardTitle('users', 'Fiche de renseignements')}
                 {editing ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {['prenom', 'nom', 'age', 'genre', 'telephone', 'region', 'niveauScolaire'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
+                    {[
+                      { k: 'prenom', label: 'Prénom' },
+                      { k: 'nom', label: 'Nom' },
+                      { k: 'age', label: 'Âge', type: 'number' },
+                      { k: 'dateEntree', label: "Date d'entrée", type: 'date' },
+                      { k: 'formation', label: 'Formation au centre' },
+                    ].map((f) => (
+                      <label key={f.k} className="block">
+                        <span className="block text-xs font-semibold text-ios-text3 mb-1">{f.label}</span>
+                        <input type={f.type || 'text'} value={form[f.k] || ''} onChange={(e) => setForm({ ...form, [f.k]: e.target.value })} className={inputClass} />
+                      </label>
                     ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Statut</span>
+                      <select value={form.statut || 'Actif'} onChange={(e) => setForm({ ...form, statut: e.target.value })} className={inputClass}>
+                        <option>Actif</option>
+                        <option>Diplômé</option>
+                        <option>Inactif</option>
+                      </select>
+                    </label>
+                    <div className="col-span-2 flex justify-end gap-2 mt-2">
+                      <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-ios-fill text-ios-text hover:bg-ios-fill-2 transition-all">Annuler</button>
+                      <button onClick={saveEdit} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark transition-all">Enregistrer</button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Nom', v: `${data.prenom} ${data.nom}` }, { l: 'Âge', v: `${data.age} ans` }, { l: 'Genre', v: data.genre }, { l: 'Téléphone', v: data.telephone }, { l: 'Région', v: data.region }, { l: 'Niveau scolaire', v: data.niveauScolaire }].map((r, i) => (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    {[
+                      { l: 'Prénom', v: data.prenom },
+                      { l: 'Nom', v: data.nom },
+                      { l: 'Âge', v: `${data.age} ans` },
+                      { l: 'Statut', v: data.statut },
+                      { l: "Date d'entrée", v: fmtDate(data.dateEntree) },
+                      { l: 'Formation', v: data.formation },
+                    ].map((r, i) => (
                       <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="grid lg:grid-cols-2 gap-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
-              {/* Situation familiale */}
+              {/* Progression */}
               <div className="card-apple p-6">
-                {cardTitle('users', 'Situation familiale')}
+                {cardTitle('activity', 'Progression')}
                 {editing ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {['situationFamiliale', 'parent', 'freresSoeurs'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
-                    ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Assiduité (%)</span>
+                      <input type="number" min="0" max="100" value={form.assiduite || ''} onChange={(e) => setForm({ ...form, assiduite: e.target.value })} className={inputClass} />
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Score de progression (%)</span>
+                      <input type="number" min="0" max="100" value={form.progression || ''} onChange={(e) => setForm({ ...form, progression: e.target.value })} className={inputClass} />
+                    </label>
+                    <button onClick={saveEdit} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark transition-all">Enregistrer</button>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Situation', v: data.situationFamiliale }, { l: 'Parent/Tuteur', v: data.parent }, { l: 'Frères/sœurs', v: data.freresSoeurs }].map((r, i) => (
-                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Suivi ARINA */}
-              <div className="card-apple p-6">
-                {cardTitle('activity', 'Suivi ARINA')}
-                {editing ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {['educateur', 'dateEntree', 'motif', 'objectifs', 'statut'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
-                    ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                  </div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600 dark:text-green-400' : '' }].map((r, i) => (
-                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' && <Circle className="w-2.5 h-2.5 inline-block fill-current text-green-500 mr-1" />}{r.v || '—'}</span></div>
-                    ))}
+                  <div className="space-y-5">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Assiduité</span><span className="font-bold text-ios-text">{data.assiduite}%</span></div>
+                      <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Progression</span><span className="font-bold text-ios-text">{data.progression}%</span></div>
+                      <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Progression */}
-            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '160ms' }}>
-              {cardTitle('activity', 'Progression')}
-              <div className="grid sm:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Taux d'assiduité</span><span className="font-bold text-ios-text">{editing ? form.assiduite || data.assiduite : data.assiduite}%</span></div>
-                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Score de progression</span><span className="font-bold text-ios-text">{editing ? form.progression || data.progression : data.progression}%</span></div>
-                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
-                </div>
-              </div>
-              {editing && (
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <input type="number" placeholder="Assiduité %" value={form.assiduite || ''} onChange={(e) => setForm({ ...form, assiduite: e.target.value })} className={inputClass} />
-                  <input type="number" placeholder="Progression %" value={form.progression || ''} onChange={(e) => setForm({ ...form, progression: e.target.value })} className={inputClass} />
-                  <button onClick={saveEdit} className="col-span-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                </div>
-              )}
-            </div>
-
-            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes */}
-            {data.dossier && (Object.keys(data.dossier).length > 0) && (
+            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes
+                 — affiché en lecture s'il contient des données, et TOUJOURS en mode édition
+                 pour pouvoir remplir un dossier vide depuis la fiche. */}
+            {(editing || (data.dossier && Object.keys(data.dossier).length > 0)) && (
               <div className="grid md:grid-cols-2 gap-6 items-start animate-fade-up" style={{ animationDelay: '220ms' }}>
                 {/* IDENTITÉ */}
-                {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
+                {(editing || (data.dossier.identite && Object.values(data.dossier.identite).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue text-white flex items-center justify-center"><Icon name="users" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
-                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['pseudo', 'Pseudo'], ['dateNaissance', 'Date de naissance'], ['lieuNaissance', 'Lieu de naissance'], ['adresse', 'Adresse exacte'], ['contact', 'Contact'], ['situationScolaire', 'Situation scolaire'], ['loisirs', 'Loisirs']].map(([f, l]) => (
+                          <label key={f} className="block">
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('identite', f)} onChange={setDoss('identite', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
+                          <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* SITUATION FAMILIALE */}
-                {(data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v)) && (
+                {(editing || (data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue-dark text-white flex items-center justify-center"><Icon name="grid" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Situation familiale</h4>
                     </div>
-                    <div className="space-y-4 text-sm">
-                      {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
-                        <div key={s.t}>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">{s.t}</div>
-                          <div className="grid sm:grid-cols-4 gap-3">
-                            {[{ l: 'Nom', f: s.k[0] }, { l: 'Profession', f: s.k[1] }, { l: 'Contact', f: s.k[2] }, { l: 'Adresse', f: s.k[3] }].map((r, i) => (
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['pereNom', 'Nom du père'], ['pereProfession', 'Profession du père'], ['pereContact', 'Contact du père'], ['pereAdresse', 'Adresse du père'], ['mereNom', 'Nom de la mère'], ['mereProfession', 'Profession de la mère'], ['mereContact', 'Contact de la mère'], ['mereAdresse', 'Adresse de la mère'], ['tuteurNom', 'Nom du tuteur'], ['tuteurContact', 'Contact du tuteur'], ['tuteurAdresse', 'Adresse du tuteur'], ['nbFreresSoeurs', 'Nombre de frères et sœurs'], ['situationParents', 'Situation des parents'], ['niveauVie', 'Niveau de vie des parents']].map(([f, l]) => (
+                          <label key={f} className="block">
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('familiale', f)} onChange={setDoss('familiale', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-4 text-sm">
+                        {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
+                          <div key={s.t}>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">{s.t}</div>
+                            <div className="grid sm:grid-cols-4 gap-3">
+                              {[{ l: 'Nom', f: s.k[0] }, { l: 'Profession', f: s.k[1] }, { l: 'Contact', f: s.k[2] }, { l: 'Adresse', f: s.k[3] }].map((r, i) => (
+                                <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Tuteur</div>
+                          <div className="grid sm:grid-cols-3 gap-3">
+                            {[{ l: 'Nom', f: 'tuteurNom' }, { l: 'Contacts', f: 'tuteurContact' }, { l: 'Adresse', f: 'tuteurAdresse' }].map((r, i) => (
                               <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
                             ))}
                           </div>
                         </div>
-                      ))}
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Tuteur</div>
-                        <div className="grid sm:grid-cols-3 gap-3">
-                          {[{ l: 'Nom', f: 'tuteurNom' }, { l: 'Contacts', f: 'tuteurContact' }, { l: 'Adresse', f: 'tuteurAdresse' }].map((r, i) => (
+                        <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
+                          {[{ l: 'Nombre de frères et sœurs', f: 'nbFreresSoeurs' }, { l: 'Situation des parents', f: 'situationParents' }, { l: 'Niveau de vie des parents', f: 'niveauVie' }].map((r, i) => (
                             <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
                           ))}
                         </div>
                       </div>
-                      <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
-                        {[{ l: 'Nombre de frères et sœurs', f: 'nbFreresSoeurs' }, { l: 'Situation des parents', f: 'situationParents' }, { l: 'Niveau de vie des parents', f: 'niveauVie' }].map((r, i) => (
-                          <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
                 {/* SITUATION JURIDIQUE */}
-                {(data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v)) && (
+                {(editing || (data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center"><Icon name="file" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Situation juridique</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
-                        <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['motifInculpation', "Motifs d'inculpation"], ['dateEcrou', "Date d'écrou"], ['dureeDetention', 'Durée de détention'], ['dateLiberation', 'Date de libération'], ['motifLiberation', 'Motifs de libération']].map(([f, l]) => (
+                          <label key={f} className={f === 'motifInculpation' ? 'block sm:col-span-2' : 'block'}>
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('juridique', f)} onChange={setDoss('juridique', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
+                          <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* ÉTUDE */}
-                {(data.dossier.etude && Object.values(data.dossier.etude).some((v) => v)) && (
+                {(editing || (data.dossier.etude && Object.values(data.dossier.etude).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 text-white flex items-center justify-center"><Icon name="calendar" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Étude</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
-                        <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['classeActuelle', 'Classe actuelle'], ['etablissement', 'Établissement'], ['carriereEnvisagee', 'Carrière envisagée'], ['diplomeObtenu', 'Diplôme obtenu'], ['specialites', 'Spécialités']].map(([f, l]) => (
+                          <label key={f} className={f === 'specialites' ? 'block sm:col-span-2' : 'block'}>
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('etude', f)} onChange={setDoss('etude', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
+                          <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* ARINA — pleine largeur (2 colonnes) */}
-                {((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation) && (
+                {(editing || ((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation)) && (
                   <div className="card-apple p-6 md:col-span-2">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-gold to-amber-600 text-white flex items-center justify-center"><Icon name="star" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
-                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                      ))}
-                    </div>
-                    {(() => {
-                      const arina = data.dossier.arina || {};
-                      // La clé `recommandation` prime dès qu'elle existe (même vide = effacée) ;
-                      // `felicitations` n'est qu'un repli de migration pour les anciens dossiers.
-                      const rec = 'recommandation' in arina ? arina.recommandation : (arina.felicitations || '');
-                      if (!rec) return null;
-                      return (
-                        <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Recommandation du professeur</div>
-                          <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{rec}</p>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Date d'entrée au centre</span>
+                          <input type="date" value={dossVal('arina', 'dateEntreeCentre')} onChange={setDoss('arina', 'dateEntreeCentre')} className={inputClass} />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Formation au centre</span>
+                          <input value={form.formation || ''} onChange={(e) => setForm({ ...form, formation: e.target.value })} className={inputClass} />
+                        </label>
+                        <label className="block sm:col-span-2">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Recommandation du professeur</span>
+                          {/* Repli de migration : un ancien dossier peut ne contenir que
+                              `felicitations` — son texte doit apparaître ici (sinon la
+                              sauvegarde l'effacerait). */}
+                          <textarea rows={3} value={dossVal('arina', 'recommandation') || (!('recommandation' in (form.dossier?.arina || data.dossier?.arina || {})) ? (data.dossier?.arina?.felicitations || '') : '')} onChange={setDoss('arina', 'recommandation')} className={`${inputClass} resize-none`} />
+                        </label>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                          {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
+                            <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                          ))}
                         </div>
-                      );
-                    })()}
+                        {(() => {
+                          const arina = data.dossier.arina || {};
+                          // La clé `recommandation` prime dès qu'elle existe (même vide = effacée) ;
+                          // `felicitations` n'est qu'un repli de migration pour les anciens dossiers.
+                          const rec = 'recommandation' in arina ? arina.recommandation : (arina.felicitations || '');
+                          if (!rec) return null;
+                          return (
+                            <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Recommandation du professeur</div>
+                              <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{rec}</p>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Bouton d'enregistrement du dossier complet (mode édition) */}
+                {editing && (
+                  <div className="md:col-span-2 flex flex-wrap items-center justify-end gap-2 no-print">
+                    <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-ios-fill text-ios-text hover:bg-ios-fill-2 transition-all">Annuler</button>
+                    <button onClick={saveEdit} className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all">💾 Enregistrer le dossier complet</button>
                   </div>
                 )}
               </div>
@@ -557,25 +689,68 @@ export default function BeneficiaryDetailPage() {
 
         {/* ── FORMATIONS TAB ── */}
         {tab === 'formations' && (
-          <div className="card-apple p-6 animate-fade-up">
-            {cardTitle('file', 'Formations')}
-            <div className="space-y-4">
-              {(data.formations || []).map((f, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <span className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><AppIcon name={f.icon} className="w-5 h-5" /></span>
-                    <div>
-                      <div className="font-semibold text-ios-text">{f.nom}</div>
-                      <div className="text-sm text-ios-text3">{f.statut}</div>
+          <div className="space-y-6">
+            {/* Ajouter une formation */}
+            <div className="card-apple p-6 animate-fade-up">
+              {cardTitle('plus', 'Ajouter une formation')}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Nom de la formation *</span>
+                  <input value={newFormation.nom} onChange={(e) => setNewFormation({ ...newFormation, nom: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && addFormation()} placeholder="Ex. Menuiserie" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Statut</span>
+                  <select value={newFormation.statut} onChange={(e) => setNewFormation({ ...newFormation, statut: e.target.value })} className={inputClass}>
+                    <option>En cours</option>
+                    <option>Terminée</option>
+                    <option>En pause</option>
+                    <option>En attente</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Progression (%)</span>
+                  <input type="number" min="0" max="100" value={newFormation.progression} onChange={(e) => setNewFormation({ ...newFormation, progression: e.target.value })} placeholder="0-100" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Icône</span>
+                  <select value={newFormation.icon} onChange={(e) => setNewFormation({ ...newFormation, icon: e.target.value })} className={inputClass}>
+                    {['book', 'brain', 'wrench', 'hammer', 'cooking-pot', 'play', 'star', 'user', 'handshake'].map((ic) => (
+                      <option key={ic} value={ic}>{ic}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex justify-end mt-3">
+                <button onClick={addFormation} className="px-6 py-2.5 bg-arina-blue text-white text-sm font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors inline-flex items-center gap-1.5">
+                  <Icon name="plus" className="w-4 h-4" /> Ajouter la formation
+                </button>
+              </div>
+            </div>
+
+            {/* Liste des formations */}
+            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
+              {cardTitle('file', `Formations de ${data.prenom}`)}
+              <div className="space-y-3">
+                {formations.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0"><AppIcon name={f.icon} className="w-5 h-5" /></span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-ios-text truncate">{f.nom}</div>
+                        <div className="text-sm text-ios-text3">{f.statut}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 h-2 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
+                        <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
+                      </div>
+                      <button onClick={() => removeFormation(i)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer la formation"><Icon name="trash" className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-24 h-2 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
-                    <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
-                  </div>
-                </div>
-              ))}
-              {(data.formations || []).length === 0 && <p className="text-ios-text3 text-sm">Aucune formation enregistrée</p>}
+                ))}
+                {formations.length === 0 && <p className="text-ios-text3 text-sm">Aucune formation enregistrée — ajoutez la première ci-dessus.</p>}
+              </div>
             </div>
           </div>
         )}

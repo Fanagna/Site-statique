@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchNews, createNews, updateNews, deleteNews } from '../../services/api';
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
 import { allNews, categories } from '../../data/news';
 import { ROLE_TABS } from './roles';
 import AdminLayout from '../../components/admin/AdminLayout';
@@ -10,7 +11,7 @@ import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import UpdatedBadge from '../../components/UpdatedBadge';
 import { inputClass, EmptyState, Th } from '../../components/admin/ui';
-import { fmtDate, timeAgo, readCache, writeCache, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
+import { fmtDate, timeAgo, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
 
 const PAGE_SIZE = 8;
 
@@ -78,8 +79,7 @@ export default function NewsManagementPage() {
       } else {
         setApiStatus('offline');
         // Cache local SÛR : un JSON corrompu ne doit jamais bloquer la page
-        const cached = readCache('arina_news', null);
-        setNews(Array.isArray(cached) ? cached : allNews);
+        setNews(safeParse(safeGet('arina_news'), allNews));
       }
       setLoading(false);
     })();
@@ -87,9 +87,11 @@ export default function NewsManagementPage() {
   }, []);
 
   useEffect(() => {
-    // Écriture SÛRE : les images base64 (data: URLs) peuvent dépasser le quota
-    // localStorage (QuotaExceededError) — writeCache n'écrit jamais en erreur.
-    if (news.length) writeCache('arina_news', news);
+    if (news.length) {
+      // Cache « léger » (images retirées) : les data: URLs base64 dépasseraient le
+      // quota localStorage — l'écriture échouait et faisait planter l'application.
+      safeSet('arina_news', JSON.stringify(news.map((n) => ({ ...n, image: '', image_url: '' }))));
+    }
   }, [news]);
 
   /* Auto-open the creation form when arriving via ?new=1 (quick action) */

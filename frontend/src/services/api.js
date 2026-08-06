@@ -392,13 +392,15 @@ export async function fetchEventAttendances(id) {
 // Pointage depuis le contenu JSON du badge QR. Renvoie { ok, status, data } :
 // l'écran de scan s'appuie sur data.code (BADGE_INVALID, BENEFICIARY_DISABLED,
 // ALREADY_SCANNED, EXIT_WITHOUT_ENTRY, OK) pour afficher le bon message.
+// Sans direction, le serveur DÉTECTE automatiquement entrée/sortie (1er scan →
+// entrée, puis alternance) et renvoie la timeline des heures dans data.timeline.
 export async function scanBadge(badge, eventId, direction) {
   try {
     const adminKey = localStorage.getItem('arina_admin_key');
     const res = await fetch(`${API_BASE}/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
-      body: JSON.stringify({ badge, eventId, direction }),
+      body: JSON.stringify({ badge, eventId, ...(direction ? { direction } : {}) }),
     });
     const body = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data: body };
@@ -432,6 +434,33 @@ export async function fetchBeneficiaryBadgePdf(id) {
 // lateNames, absentNames, attendanceRate, startTime } — ou null si base injoignable.
 export async function fetchTodayPresence() {
   return await apiCall('/presences/today');
+}
+
+// ── Présences du jour : CRUD des pointages (page Présences — liste des enfants) ──
+// Tous les enfants + leurs entrées/sorties d'une date : { date, event, children }
+// (chaque child a { …fiche, entries: [{id, scanned_at}], exits: [{id, scanned_at}] }).
+export async function fetchPresencesByDate(date) {
+  return await apiCall(`/presences/${date}`);
+}
+
+// Ajoute un pointage manuel : { beneficiaryId, type: 'entry'|'exit', time?: 'HH:MM' }
+export async function createPresencePointage(date, payload) {
+  return apiCallDetailed(`/presences/${date}/pointages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Corrige un pointage : { type?, time?: 'HH:MM' }
+export async function updatePresencePointage(id, payload) {
+  return apiCallDetailed(`/presences/pointages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePresencePointage(id) {
+  return apiCallDetailed(`/presences/pointages/${id}`, { method: 'DELETE' });
 }
 
 // PDF multi-badges (format carte de crédit, 4 par page) → URL Blob, ou null

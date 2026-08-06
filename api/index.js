@@ -1279,6 +1279,28 @@ app.patch('/api/donations/:id', requireRole(), async (req, res) => {
       }
     }
 
+    // 🧑‍🤝‍🧑 Donateur inscrit AUTOMATIQUEMENT dans la liste « Donateurs » : à la
+    // validation (don non anonyme), le nom du visiteur est ajouté à la table
+    // donors — il apparaît dans l'onglet Donateurs de l'espace privé et ses
+    // revenus sont comptabilisés dans les stats par donateur. Idempotent
+    // (ON CONFLICT DO NOTHING) : une re-confirmation ne crée jamais de doublon.
+    // NB : un retour en « à confirmer » retire le revenu des finances mais laisse
+    // le nom dans la liste Donateurs (choix : la personne s'est engagée à donner).
+    if (status === 'received' && !r.anonymous) {
+      const donorName = String(r.name || '').trim().slice(0, 255);
+      if (donorName) {
+        try {
+          await pool.query(
+            `INSERT INTO donors (name, need) VALUES ($1, 'Don en ligne') ON CONFLICT (name) DO NOTHING`,
+            [donorName]
+          );
+        } catch (err) {
+          // La confirmation du don reste valide même si l'inscription du donateur échoue
+          console.error('⚠️ Donateur non ajouté à la liste :', err.message);
+        }
+      }
+    }
+
     // 💰 Revenus automatiques : un don confirmé « reçu » crée automatiquement une
     // ligne de revenu (type income, catégorie Don) liée au don (donation_id). Le
     // tableau de bord, l'Évaluation et les exports Excel se mettent à jour aussitôt.
@@ -1501,11 +1523,6 @@ app.get('/api/events/:id/attendances', requireAuth, async (req, res) => {
   } catch (err) { res.json([]); }
 });
 
-// POST /api/scan — pointage entrée/sortie depuis le QR du badge.
-// Cas d'erreur (codes utilisés par l'écran de scan) :
-//   BADGE_INVALID        → 400/404 « Badge non reconnu »
-//   BENEFICIARY_DISABLED → 403 « Compte désactivé »
-//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
 // Date locale du centre (Indian/Antananarivo, UTC+3) au format YYYY-MM-DD : la
 // « journée » de pointage bascule à minuit heure locale (pas à minuit UTC, qui
 // tomberait à 21 h locales). Le frontend utilise la même convention côté client.
@@ -1522,13 +1539,18 @@ function localToday() {
 }
 
 // POST /api/scan — pointage entrée/sortie depuis le QR du badge.
+// SANS direction (ou direction 'auto') : le sens est DÉTECTÉ AUTOMATIQUEMENT à
+// partir du dernier pointage de l'enfant pour la session — 1er scan → ENTRÉE,
+// puis ENTRÉE ↔ SORTIE en alternance (sortie, retour au centre, etc.).
 // Cas d'erreur (codes utilisés par l'écran de scan) :
 //   BADGE_INVALID        → 400/404 « Badge non reconnu »
 //   BENEFICIARY_DISABLED → 403 « Compte désactivé »
-//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
-//   EXIT_WITHOUT_ENTRY   → 422 « Vous devez d'abord scanner l'entrée » (+ suggestion)
+//   ALREADY_SCANNED      → 409 (mode explicite uniquement)
+//   EXIT_WITHOUT_ENTRY   → 422 (mode explicite uniquement)
 // Sans eventId, le pointage est rattaché à la « Présence du jour » (session
 // quotidienne créée automatiquement au premier scan valide — une seule par jour).
+// La réponse inclut la timeline de l'enfant pour la session (toutes les heures
+// d'entrées/sorties) : l'écran affiche les heures à l'enfant avant confirmation.
 app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educator), async (req, res) => {
   try {
     const { badge, eventId, direction } = req.body || {};
@@ -1536,7 +1558,8 @@ app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educa
     if (typeof badge === 'string' && badge.trim()) {
       try { parsed = JSON.parse(badge); } catch { /* badge illisible */ }
     }
-    const dir = direction === 'exit' ? 'exit' : 'entry';
+    // null (ou 'auto') = détection automatique du sens ; 'entry'/'exit' = mode explicite
+    const dir = direction === 'exit' ? 'exit' : direction === 'entry' ? 'entry' : null;
 
     // 1) Badge inconnu / mal formé — on ne crée PAS de session du jour pour un mauvais badge
     if (!parsed || !parsed.id) {
@@ -1583,36 +1606,57 @@ app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educa
     );
     const prev = lastR.rows[0];
 
-    // 5) Double pointage : on rescanner le MÊME sens que le dernier scan
-    if (prev && prev.type === dir) {
-      return res.status(409).json({
-        code: 'ALREADY_SCANNED',
-        error: 'Vous êtes déjà pointé(e) !',
-        lastScan: { type: prev.type, scanned_at: prev.scanned_at },
-      });
+    // 5) AUTO : détection automatique du sens entrée/sortie
+    //    - aucun pointage → ENTRÉE (premier scan de la session)
+    //    - dernier pointage = entrée → SORTIE
+    //    - dernier pointage = sortie → ENTRÉE (retour au centre)
+    const finalDir = dir || (prev && prev.type === 'entry' ? 'exit' : 'entry');
+
+    // En mode explicite uniquement : garde-fous historiques (double pointage,
+    // sortie sans entrée). En mode auto ils sont impossibles par construction.
+    if (dir) {
+      // 5b) Double pointage : on rescanner le MÊME sens que le dernier scan
+      if (prev && prev.type === finalDir) {
+        return res.status(409).json({
+          code: 'ALREADY_SCANNED',
+          error: 'Vous êtes déjà pointé(e) !',
+          lastScan: { type: prev.type, scanned_at: prev.scanned_at },
+        });
+      }
+      // 5c) Sortie sans entrée : on propose automatiquement une entrée
+      if (finalDir === 'exit' && !prev) {
+        return res.status(422).json({
+          code: 'EXIT_WITHOUT_ENTRY',
+          error: 'Vous devez d\'abord scanner l\'entrée',
+          suggest: 'entry',
+        });
+      }
     }
 
-    // 6) Sortie sans entrée : on propose automatiquement une entrée
-    //    (le cas « double sortie » est déjà intercepté par le contrôle 5)
-    if (dir === 'exit' && !prev) {
-      return res.status(422).json({
-        code: 'EXIT_WITHOUT_ENTRY',
-        error: 'Vous devez d\'abord scanner l\'entrée',
-        suggest: 'entry',
-      });
-    }
-
-    // 7) Pointage valide → enregistré en base
+    // 6) Pointage valide → enregistré en base
     const ins = await pool.query(
       'INSERT INTO attendances (beneficiary_id, event_id, type) VALUES ($1,$2,$3) RETURNING id, type, scanned_at',
-      [benef.id, evtId, dir]
+      [benef.id, evtId, finalDir]
     );
     const p = ins.rows[0];
+
+    // 7) Timeline de l'enfant pour la session : toutes les heures entrées/sorties
+    //    (l'écran de scan les affiche avant la confirmation).
+    const tR = await pool.query(
+      'SELECT type, scanned_at FROM attendances WHERE beneficiary_id = $1 AND event_id = $2 ORDER BY id ASC',
+      [benef.id, evtId]
+    );
+    const timeline = tR.rows.map((x) => ({
+      type: x.type,
+      scanned_at: x.scanned_at ? new Date(x.scanned_at).toISOString() : null,
+    }));
+
     res.status(201).json({
       success: true, code: 'OK',
       pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
       child: { id: benef.id, badgeId: benef.badge_id, firstName: benef.first_name, lastName: benef.last_name },
       event: { id: evtId, name: evtR.rows[0].name },
+      timeline,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1805,6 +1849,159 @@ app.get('/api/presences/today', requireRole(ROLES.educator), async (req, res) =>
       attendanceRate: total > 0 ? Math.round((todayWeek.entered / total) * 100) : 0,
       week,
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ PRÉSENCES : CRUD des pointages (page Présences — liste des enfants) ═══
+// La « Présence du jour » est une session quotidienne par date (badge_events
+// is_daily + daily_key). Ces routes permettent de consulter et de CORRIGER les
+// entrées/sorties de tous les enfants pour une date donnée, sans passer par le
+// scanner : ajout manuel d'un pointage, modification de son heure, suppression.
+
+// Valide une date YYYY-MM-DD
+function isValidDateStr(s) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(String(s)));
+}
+
+// Construit le timestamp ISO UTC correspondant à (date, HH:MM) en heure locale
+// d'Antananarivo (UTC+3) — même fuseau que tout le reste du pointage.
+function tanaTimestamp(dateStr, hhmm) {
+  const d = new Date(`${dateStr}T${String(hhmm || '00:00').padStart(5, '0')}:00+03:00`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// Date (fuseau Antananarivo) d'un horodatage ISO — conserve la date d'un pointage
+// existant quand on ne fournit pas de nouvelle date en modification.
+function tanaDateOf(iso) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Indian/Antananarivo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(iso));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+// Retrouve (ou crée) la session quotidienne d'une date — même logique que le scan
+async function getOrCreateDailyEvent(dateStr) {
+  let r = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]);
+  if (r.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO badge_events (name, event_date, is_daily, daily_key) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (daily_key) WHERE daily_key IS NOT NULL DO NOTHING`,
+      ['Présence du jour', dateStr, true, dateStr]
+    );
+    r = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]);
+  }
+  return r.rows[0] || null;
+}
+
+// GET /api/presences/:date — TOUS les enfants + leurs entrées/sorties de la date.
+// Lecture seule (aucune création de session) : une date sans session renvoie les
+// enfants avec des pointages vides (l'interface affiche les absents).
+app.get('/api/presences/:date', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const [benefR, evtR] = await Promise.all([
+      pool.query('SELECT * FROM beneficiaries ORDER BY first_name, last_name'),
+      pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]),
+    ]);
+    const evt = evtR.rows[0] || null;
+    let attRows = [];
+    if (evt) {
+      const attR = await pool.query(
+        `SELECT a.id, a.type, a.scanned_at, b.id AS beneficiary_id, b.first_name, b.last_name, b.photo_url, b.status
+         FROM attendances a JOIN beneficiaries b ON b.id = a.beneficiary_id
+         WHERE a.event_id = $1 ORDER BY a.scanned_at ASC, a.id ASC`,
+        [evt.id]
+      );
+      attRows = attR.rows;
+    }
+    // Groupement par enfant : chaque pointage expose son id (édition/suppression)
+    const byChild = new Map();
+    for (const row of attRows) {
+      let g = byChild.get(row.beneficiary_id);
+      if (!g) { g = { entries: [], exits: [] }; byChild.set(row.beneficiary_id, g); }
+      const p = { id: row.id, scanned_at: row.scanned_at ? new Date(row.scanned_at).toISOString() : null };
+      (row.type === 'entry' ? g.entries : g.exits).push(p);
+    }
+    const children = benefR.rows.map((b) => {
+      const g = byChild.get(b.id) || { entries: [], exits: [] };
+      return { ...normalizeBenef(b), entries: g.entries, exits: g.exits };
+    });
+    res.json({
+      date: dateStr,
+      event: evt ? { id: evt.id, name: evt.name, event_date: evt.event_date } : null,
+      children,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/presences/:date/pointages — ajoute une entrée ou une sortie manuelle.
+// Le corps : { beneficiaryId, type: 'entry'|'exit', time?: 'HH:MM' } (heure locale
+// facultative — l'heure courante est utilisée par défaut).
+app.post('/api/presences/:date/pointages', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const { beneficiaryId, type, time } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (!dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const id = Number(beneficiaryId);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'Bénéficiaire requis' });
+    const bR = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [id]);
+    if (bR.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(dateStr, hhmm) : new Date().toISOString();
+    const evt = await getOrCreateDailyEvent(dateStr);
+    if (!evt) return res.status(500).json({ error: 'Impossible de créer la présence du jour' });
+    const ins = await pool.query(
+      'INSERT INTO attendances (beneficiary_id, event_id, type, scanned_at) VALUES ($1,$2,$3,$4) RETURNING id, type, scanned_at',
+      [id, evt.id, dir, scannedAt]
+    );
+    const p = ins.rows[0];
+    res.status(201).json({
+      pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
+      child: { id: bR.rows[0].id, prenom: bR.rows[0].first_name, nom: bR.rows[0].last_name },
+      event: { id: evt.id, name: evt.name },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/presences/pointages/:id — corrige un pointage (type et/ou heure).
+// Le corps : { type?, time?: 'HH:MM', date?: 'YYYY-MM-DD' } — la date par défaut
+// est celle du pointage existant (l'heure reste en heure locale Antananarivo).
+app.put('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const { type, time, date } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (type !== undefined && type !== null && !dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const curR = await pool.query('SELECT scanned_at FROM attendances WHERE id = $1', [pid]);
+    if (curR.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    const curDate = date ? String(date) : tanaDateOf(curR.rows[0].scanned_at);
+    if (!isValidDateStr(curDate)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(curDate, hhmm) : curR.rows[0].scanned_at;
+    const up = await pool.query(
+      'UPDATE attendances SET type = COALESCE($1, type), scanned_at = $2 WHERE id = $3 RETURNING id, type, scanned_at',
+      [dir, scannedAt, pid]
+    );
+    if (up.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ pointage: up.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/presences/pointages/:id — supprime un pointage erroné
+app.delete('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const r = await pool.query('DELETE FROM attendances WHERE id = $1 RETURNING id', [pid]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ deleted: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -9,9 +9,24 @@ import { Icon } from '../../components/admin/icons';
 import { inputClass, EmptyState } from '../../components/admin/ui';
 import { fmtDate, initials } from '../../components/admin/utils';
 import {
-  fetchEvents, createEvent, deleteEvent, fetchEventAttendances,
   fetchBeneficiaries, fetchBeneficiaryBadge, fetchBeneficiaryBadgePdf, exportBadgesPdf,
+  fetchPresencesByDate, createPresencePointage, updatePresencePointage, deletePresencePointage,
 } from '../../services/api';
+
+/* Date locale (YYYY-MM-DD) — même convention que le serveur (Antananarivo) */
+const todayLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+const nowHHMM = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
+const fmtTime = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+};
+const hourOf = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : String(d.getHours()).padStart(2, '0');
+};
+const DIR_LABEL = { entry: 'Entrée', exit: 'Sortie' };
 
 /* Télécharge une URL Blob avec le nom de fichier voulu */
 function downloadBlobUrl(url, filename) {
@@ -29,95 +44,146 @@ export default function PresencesPage() {
   const { user, logout } = useAuth();
   const { toast, showToast, closeToast } = useToast();
 
-  const [tab, setTab] = useState('evenements'); // 'evenements' | 'badges'
-  const [events, setEvents] = useState([]);
+  const [tab, setTab] = useState('presences'); // 'presences' | 'badges'
+
+  /* ── Présences : filtres + données du jour ── */
+  const [date, setDate] = useState(todayLocal());
+  const [nameQuery, setNameQuery] = useState('');
+  const [hourFilter, setHourFilter] = useState('');
+  const [data, setData] = useState(null); // { date, event, children }
+  const [loading, setLoading] = useState(true);
+
+  /* ── Modals CRUD ── */
+  const [addModal, setAddModal] = useState(null); // { child, type }
+  const [editModal, setEditModal] = useState(null); // { child, pointage }
+  const [addTime, setAddTime] = useState(nowHHMM());
+  const [editTime, setEditTime] = useState(nowHHMM());
+  const [saving, setSaving] = useState(false);
+
+  /* ── Badges (onglet) ── */
   const [children, setChildren] = useState([]);
-  const [loadingEvents, setLoadingEvents] = useState(true);
-
-  /* Événement sélectionné + ses présences */
-  const [selectedId, setSelectedId] = useState(null);
-  const [attendances, setAttendances] = useState([]);
-  const [loadingAtt, setLoadingAtt] = useState(false);
-
-  /* Modal création */
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', event_date: new Date().toISOString().split('T')[0], location: '', description: '' });
-
-  /* Badges */
-  const [query, setQuery] = useState('');
+  const [badgeQuery, setBadgeQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [qrModal, setQrModal] = useState(null); // { child, badgeId, qrCode }
   const [exporting, setExporting] = useState(false);
 
-  const loadEvents = useCallback(async () => {
-    const evts = await fetchEvents();
-    if (Array.isArray(evts)) {
-      setEvents(evts);
-      setSelectedId((cur) => (cur && evts.some((e) => e.id === cur) ? cur : null));
-    }
-    setLoadingEvents(false);
+  /* Charge les présences de la date sélectionnée */
+  const loadPresences = useCallback(async (d) => {
+    setLoading(true);
+    const res = await fetchPresencesByDate(d);
+    if (res) setData(res);
+    else setData((cur) => (cur && cur.date === d ? cur : null));
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    loadEvents();
+    loadPresences(date);
+  }, [date, loadPresences]);
+
+  /* Liste complète des enfants (onglet Badges) */
+  useEffect(() => {
     (async () => {
       const kids = await fetchBeneficiaries();
       if (Array.isArray(kids)) setChildren(kids);
     })();
-  }, [loadEvents]);
+  }, []);
 
-  /* Présences de l'événement sélectionné */
-  useEffect(() => {
-    if (!selectedId) { setAttendances([]); return; }
-    setLoadingAtt(true);
-    (async () => {
-      const list = await fetchEventAttendances(selectedId);
-      if (Array.isArray(list)) setAttendances(list);
-      setLoadingAtt(false);
-    })();
-  }, [selectedId]);
+  /* ── CRUD des pointages ── */
 
-  const selectedEvent = events.find((e) => e.id === selectedId) || null;
+  const reload = () => loadPresences(date);
 
-  const saveEvent = async () => {
-    if (!form.name.trim()) { showToast("❌ Le nom de l'événement est requis", 'error'); return; }
-    const r = await createEvent(form);
-    if (!r.ok) { showToast(`❌ Événement NON créé dans la base : ${r.error}`, 'error'); return; }
-    setShowForm(false);
-    setForm({ name: '', event_date: new Date().toISOString().split('T')[0], location: '', description: '' });
-    await loadEvents();
-    setSelectedId(r.data.id);
-    showToast(`✅ Événement « ${r.data.name} » créé`);
+  const openAdd = (child, type) => {
+    setAddModal({ child, type });
+    setAddTime(nowHHMM());
   };
 
-  const removeEvent = async (id) => {
-    const evt = events.find((e) => e.id === id);
-    const msg = evt?.is_daily
-      ? `Supprimer la session « ${evt.name} » et toutes ses présences ? Elle sera recréée automatiquement au prochain scan.`
-      : `Supprimer l'événement « ${evt?.name} » et toutes ses présences ?`;
-    if (!confirm(msg)) return;
-    const r = await deleteEvent(id);
+  const openEdit = (pointage, child) => {
+    setEditModal({ child, pointage });
+    setEditTime(fmtTime(pointage.scanned_at) !== '—' ? fmtTime(pointage.scanned_at) : nowHHMM());
+  };
+
+  const saveAdd = async () => {
+    if (!addModal || saving) return;
+    if (!addTime) { showToast('❌ Indiquez une heure', 'error'); return; }
+    setSaving(true);
+    const r = await createPresencePointage(date, {
+      beneficiaryId: addModal.child.id, type: addModal.type, time: addTime,
+    });
+    setSaving(false);
+    if (!r.ok) { showToast(`❌ Pointage NON enregistré : ${r.error}`, 'error'); return; }
+    setAddModal(null);
+    await reload();
+    showToast(`✅ ${DIR_LABEL[addModal.type]} de ${addModal.child.prenom} ${addModal.child.nom} à ${addTime} enregistrée`);
+  };
+
+  const saveEdit = async () => {
+    if (!editModal || saving) return;
+    if (!editTime) { showToast('❌ Indiquez une heure', 'error'); return; }
+    setSaving(true);
+    const r = await updatePresencePointage(editModal.pointage.id, { type: editModal.pointage.type, time: editTime });
+    setSaving(false);
+    if (!r.ok) { showToast(`❌ Modification NON enregistrée : ${r.error}`, 'error'); return; }
+    setEditModal(null);
+    await reload();
+    showToast(`✅ Pointage de ${editModal.child.prenom} ${editModal.child.nom} corrigé à ${editTime}`);
+  };
+
+  const removePointage = async (pointage, child) => {
+    const who = `${child.prenom} ${child.nom}`;
+    const when = fmtTime(pointage.scanned_at);
+    if (!confirm(`Supprimer le pointage ${DIR_LABEL[pointage.type]} de ${who} à ${when} ?`)) return;
+    const r = await deletePresencePointage(pointage.id);
     if (!r.ok) { showToast(`❌ Suppression NON effectuée : ${r.error}`, 'error'); return; }
-    if (selectedId === id) setSelectedId(null);
-    await loadEvents();
-    showToast('✅ Événement supprimé');
+    await reload();
+    showToast(`🗑️ Pointage ${DIR_LABEL[pointage.type]} de ${who} supprimé`);
   };
+
+  /* ── Filtres de la liste ── */
+  const allChildren = data?.children || [];
+  const filtered = allChildren.filter((c) => {
+    const q = nameQuery.trim().toLowerCase();
+    if (q && !`${c.prenom} ${c.nom}`.toLowerCase().includes(q)) return false;
+    if (hourFilter) {
+      const hh = hourFilter.slice(0, 2);
+      const has = [...c.entries, ...c.exits].some((p) => hourOf(p.scanned_at) === hh);
+      if (!has) return false;
+    }
+    return true;
+  });
+
+  const activeChildren = allChildren.filter((c) => c.statut === 'Actif');
+  const onSite = activeChildren.filter((c) => c.entries.length > c.exits.length).length;
+  const absent = activeChildren.filter((c) => c.entries.length === 0).length;
+
+  const statusOf = (c) => {
+    // Un enfant non actif (diplômé / inactif) sans pointage n'est pas « absent » :
+    // il n'est simplement pas concerné par la feuille de présence du jour.
+    if (c.entries.length === 0 && c.exits.length === 0) {
+      return c.statut === 'Actif'
+        ? { label: 'Absent', cls: 'bg-ios-fill text-ios-text3' }
+        : { label: '—', cls: 'bg-ios-fill/60 text-ios-text3' };
+    }
+    if (c.entries.length > c.exits.length) return { label: 'Sur place', cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
+    return { label: 'Parti', cls: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+  };
+
+  const hasFilters = nameQuery.trim() !== '' || hourFilter !== '';
+  const resetFilters = () => { setNameQuery(''); setHourFilter(''); };
 
   /* ── Badges ── */
-  const filteredKids = children.filter((c) => {
-    const q = query.trim().toLowerCase();
+  const filteredBadgeKids = children.filter((c) => {
+    const q = badgeQuery.trim().toLowerCase();
     return !q || `${c.prenom} ${c.nom} ${c.badgeId || ''}`.toLowerCase().includes(q);
   });
 
   const toggleSelect = (id) =>
     setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const allVisibleSelected = filteredKids.length > 0 && filteredKids.every((c) => selectedIds.includes(c.id));
+  const allVisibleSelected = filteredBadgeKids.length > 0 && filteredBadgeKids.every((c) => selectedIds.includes(c.id));
 
   const toggleSelectAll = () =>
-    setSelectedIds(allVisibleSelected ? [] : [...new Set([...selectedIds, ...filteredKids.map((c) => c.id)])]);
+    setSelectedIds(allVisibleSelected ? [] : [...new Set([...selectedIds, ...filteredBadgeKids.map((c) => c.id)])]);
 
-  /* Génère le PDF multi-badges (partagé par « Exporter la sélection » et « Exporter tous ») */
   const generateBadgesPdf = async (ids, count, label) => {
     setExporting(true);
     showToast('⏳ Génération du PDF des badges…');
@@ -157,10 +223,6 @@ export default function PresencesPage() {
     setQrModal({ child, badgeId: r.data.badgeId, qrCode: r.data.qrCode });
   };
 
-  /* Stats de l'événement sélectionné */
-  const present = Math.max(0, attendances.reduce((n, g) => n + g.entries.length - g.exits.length, 0));
-  const uniqueKids = attendances.length;
-
   const allowedTabs = ROLE_TABS[user?.role] || ROLE_TABS.unknown;
   const can = (t) => allowedTabs.includes(t);
   const groups = [
@@ -183,7 +245,7 @@ export default function PresencesPage() {
       activeKey="presences"
       onNavigate={() => {}}
       title="Présences & badges"
-      subtitle="Événements, pointages QR et badges des enfants"
+      subtitle="Liste des enfants, entrées/sorties et badges QR"
       footerNav={[{ key: 'site', label: 'Voir le site', icon: 'globe', to: '/' }]}
       user={user}
       onLogout={logout}
@@ -196,14 +258,6 @@ export default function PresencesPage() {
           >
             <Icon name="send" className="w-4 h-4" /> Scanner
           </Link>
-          {tab === 'evenements' && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all"
-            >
-              <Icon name="plus" className="w-4 h-4" /> Nouvel événement
-            </button>
-          )}
           {tab === 'badges' && (
             <button
               onClick={exportSelected}
@@ -220,143 +274,221 @@ export default function PresencesPage() {
       {/* Onglets internes */}
       <div className="flex gap-1 rounded-2xl bg-ios-fill p-1 w-fit mb-4 animate-fade-up">
         <button
-          onClick={() => setTab('evenements')}
-          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === 'evenements' ? 'bg-ios-card shadow text-ios-text' : 'text-ios-text2 hover:text-ios-text'}`}
+          onClick={() => setTab('presences')}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === 'presences' ? 'bg-ios-card shadow text-ios-text' : 'text-ios-text2 hover:text-ios-text'}`}
         >
-          <Icon name="calendar" className="w-4 h-4 inline -mt-0.5 mr-1.5" />Événements
+          <Icon name="activity" className="w-4 h-4 inline -mt-0.5 mr-1.5" />Présences
         </button>
         <button
           onClick={() => setTab('badges')}
           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tab === 'badges' ? 'bg-ios-card shadow text-ios-text' : 'text-ios-text2 hover:text-ios-text'}`}
         >
-          <Icon name="download" className="w-4 h-4 inline -mt-0.5 mr-1.5" />Badges
+          <Icon name="qrCode" className="w-4 h-4 inline -mt-0.5 mr-1.5" />Badges
         </button>
       </div>
 
-      {tab === 'evenements' && (
+      {tab === 'presences' && (
         <div className="space-y-4">
-          {/* ── Liste des événements ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {loadingEvents ? (
-              <div className="card-apple p-6"><div className="skeleton h-24" /></div>
-            ) : events.length === 0 ? (
-              <div className="card-apple md:col-span-2 xl:col-span-3">
-                <EmptyState
-                  icon="calendar"
-                  text="Aucun événement pour le moment. Créez votre premier événement pour pointer les présences."
-                  action={<button onClick={() => setShowForm(true)} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /> Nouvel événement</button>}
+          {/* ── Barre de filtres : date, heure, nom ── */}
+          <div className="card-apple p-4 animate-fade-up">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">
+                  <Icon name="calendar" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Date
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayLocal()}
+                  onChange={(e) => e.target.value && setDate(e.target.value)}
+                  className={inputClass}
                 />
               </div>
-            ) : events.map((e) => {
-              const presentCount = Math.max(0, e.entries - e.exits);
-              const active = selectedId === e.id;
-              return (
-                <div
-                  key={e.id}
-                  className={`card-apple card-apple-hover p-4 cursor-pointer transition-all ${active ? 'ring-2 ring-arina-blue/50' : ''}`}
-                  onClick={() => setSelectedId(e.id)}
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">
+                  <Icon name="clock" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Heure (filtre)
+                </label>
+                <input
+                  type="time"
+                  value={hourFilter}
+                  onChange={(e) => setHourFilter(e.target.value)}
+                  className={inputClass}
+                  title="Afficher les enfants pointés à cette heure"
+                />
+                <p className="mt-1 text-[11px] text-ios-text3">Filtre sur l'heure des pointages — ex. 08:00 affiche les pointages entre 08h00 et 08h59.</p>
+              </div>
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">
+                  <Icon name="search" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Nom
+                </label>
+                <input
+                  value={nameQuery}
+                  onChange={(e) => setNameQuery(e.target.value)}
+                  placeholder="Rechercher un enfant…"
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDate(todayLocal())}
+                  className="px-3.5 py-2.5 rounded-xl bg-ios-fill text-xs font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all"
+                  title="Revenir à aujourd'hui"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-bold truncate">
-                        {e.name}
-                        {e.is_daily && (
-                          <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle">🌞 Quotidien</span>
-                        )}
-                      </h3>
-                      <div className="mt-1 text-xs text-ios-text3 space-y-0.5">
-                        {e.event_date && <div><Icon name="calendar" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{fmtDate(e.event_date)}</div>}
-                        {e.location && <div>📍 {e.location}</div>}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(ev) => { ev.stopPropagation(); removeEvent(e.id); }}
-                      className="p-1.5 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors flex-shrink-0"
-                      title="Supprimer l'événement"
-                    >
-                      <Icon name="trash" className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-[11px]">
-                    <span className="px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">{e.entries} entrée{e.entries > 1 ? 's' : ''}</span>
-                    <span className="px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold">{e.exits} sortie{e.exits > 1 ? 's' : ''}</span>
-                    <span className="px-2 py-1 rounded-full bg-arina-warm text-arina-blue font-bold">👀 {presentCount} présent{presentCount > 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="mt-2 text-[11px] text-ios-text3">{active ? '▼ Présences affichées ci-dessous' : 'Cliquez pour voir les présences'}</div>
-                </div>
-              );
-            })}
+                  <Icon name="refreshCw" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Aujourd'hui
+                </button>
+                {hasFilters && (
+                  <button
+                    onClick={resetFilters}
+                    className="px-3.5 py-2.5 rounded-xl bg-ios-fill text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-all"
+                  >
+                    <Icon name="x" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Effacer
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* ── Détail des présences de l'événement sélectionné ── */}
-          {selectedEvent && (
-            <div className="card-apple overflow-hidden animate-fade-up">
-              <div className="px-5 py-4 border-b border-ios-hairline flex flex-wrap items-center gap-x-5 gap-y-1">
-                <h3 className="font-bold">{selectedEvent.name}</h3>
-                <span className="text-xs text-ios-text3">{uniqueKids} enfant{uniqueKids > 1 ? 's' : ''} pointé{uniqueKids > 1 ? 's' : ''}</span>
-                <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400">{present} présent{present > 1 ? 's' : ''} en ce moment</span>
-              </div>
-              {loadingAtt ? (
-                <div className="p-6 space-y-3"><div className="skeleton h-10" /><div className="skeleton h-10" /></div>
-              ) : attendances.length === 0 ? (
-                <EmptyState icon="activity" text="Aucun pointage pour cet événement. Ouvrez le scanner pour pointer les présences." action={<Link to="/admin/scan" className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-arina-blue text-white text-sm font-semibold"><Icon name="send" className="w-4 h-4" /> Ouvrir le scanner</Link>} />
+          {/* ── Résumé de la journée ── */}
+          <div className="flex flex-wrap items-center gap-2 animate-fade-up">
+            <span className="px-3 py-1.5 rounded-full bg-ios-fill text-xs font-bold text-ios-text2">
+              <Icon name="users" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{activeChildren.length} enfants actifs
+            </span>
+            <span className="px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+              <Icon name="check" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{onSite} sur place
+            </span>
+            <span className="px-3 py-1.5 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-bold">
+              <Icon name="x" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />{absent} absent{absent > 1 ? 's' : ''}
+            </span>
+            {hourFilter && (
+              <span className="px-3 py-1.5 rounded-full bg-arina-warm text-arina-blue text-xs font-bold">
+                <Icon name="clock" className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />Heure : {hourFilter}
+              </span>
+            )}
+          </div>
+
+          {/* ── Tableau des enfants (CRUD entrées/sorties) ── */}
+          <div className="card-apple overflow-hidden animate-fade-up">
+            <div className="px-5 py-4 border-b border-ios-hairline flex flex-wrap items-center gap-x-5 gap-y-1">
+              <h3 className="font-bold">Feuille de présence — {fmtDate(date)}</h3>
+              <span className="text-xs text-ios-text3">{filtered.length} enfant{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</span>
+              {data?.event ? (
+                <span className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">🌞 Session quotidienne</span>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-ios-fill">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Enfant</th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Entrée</th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Sortie</th>
-                        <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Statut</th>
-                        <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Badge</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-ios-hairline">
-                      {attendances.map((g) => {
-                        const inTime = g.entries[g.entries.length - 1] || null;
-                        const outTime = g.exits[g.exits.length - 1] || null;
-                        const onSite = !!inTime && !outTime;
-                        return (
-                          <tr key={g.id} className="hover:bg-ios-fill transition-colors">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                {g.photo ? (
-                                  <img src={g.photo} alt="" className="w-9 h-9 rounded-full object-cover" />
-                                ) : (
-                                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-arina-blue to-arina-blue-dark text-white flex items-center justify-center text-[11px] font-bold">{initials(`${g.firstName} ${g.lastName}`)}</div>
-                                )}
-                                <div>
-                                  <div className="font-medium">{g.firstName} {g.lastName}</div>
-                                  <div className="text-[11px] text-ios-text3">{g.status === 'active' ? 'Actif' : g.status === 'graduated' ? 'Diplômé' : 'Inactif'}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-ios-text2 tabular">
-                              {inTime ? <span className="text-emerald-600 dark:text-emerald-400 font-semibold">⬇ {new Date(inTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> : '—'}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-ios-text2 tabular">
-                              {outTime ? <span className="text-orange-500 font-semibold">⬆ {new Date(outTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> : '—'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${onSite ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-ios-fill text-ios-text3'}`}>
-                                {onSite ? 'Sur place' : 'Parti'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex justify-end gap-1.5">
-                                <Link to={`/admin/beneficiaire/${g.id}`} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Fiche enfant"><Icon name="eye" className="w-4 h-4" /></Link>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <span className="ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ios-fill text-ios-text3">Aucun pointage ce jour</span>
               )}
             </div>
-          )}
+            {loading && !data ? (
+              <div className="p-6 space-y-3"><div className="skeleton h-10" /><div className="skeleton h-10" /><div className="skeleton h-10" /></div>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon="users"
+                text={hasFilters ? 'Aucun enfant ne correspond aux filtres.' : 'Aucun enfant enregistré. Ajoutez d\'abord des enfants depuis l\'onglet Enfants.'}
+                action={hasFilters ? <button onClick={resetFilters} className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 transition-colors"><Icon name="x" className="w-4 h-4" /> Effacer les filtres</button> : undefined}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-ios-fill">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Enfant</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Entrées</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Sorties</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Statut</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-ios-text3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ios-hairline">
+                    {filtered.map((c) => {
+                      const st = statusOf(c);
+                      const pointage = (p, kind) => (
+                        <span key={p.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold tabular shadow-sm">
+                          <span className={kind === 'entry' ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-500'}>
+                            {kind === 'entry' ? '⬇' : '⬆'} {fmtTime(p.scanned_at)}
+                          </span>
+                          <button
+                            onClick={() => openEdit(p, c)}
+                            className="text-ios-text3 hover:text-arina-blue transition-colors"
+                            title={`Modifier ce ${DIR_LABEL[kind].toLowerCase()}`}
+                          >
+                            <Icon name="edit" className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => removePointage(p, c)}
+                            className="text-ios-text3 hover:text-red-600 transition-colors"
+                            title={`Supprimer ce ${DIR_LABEL[kind].toLowerCase()}`}
+                          >
+                            <Icon name="trash" className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                      return (
+                        <tr key={c.id} className="hover:bg-ios-fill transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {c.photo ? (
+                                <img src={c.photo} alt="" className="w-9 h-9 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-arina-blue to-arina-blue-dark text-white flex items-center justify-center text-[11px] font-bold">{initials(`${c.prenom} ${c.nom}`)}</div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{c.prenom} {c.nom}</div>
+                                <div className="text-[11px] text-ios-text3 truncate">
+                                  {c.statut}
+                                  {c.badgeId ? ` · ${c.badgeId}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {c.entries.length === 0
+                                ? <span className="text-xs text-ios-text3">—</span>
+                                : c.entries.map((p) => pointage(p, 'entry'))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {c.exits.length === 0
+                                ? <span className="text-xs text-ios-text3">—</span>
+                                : c.exits.map((p) => pointage(p, 'exit'))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${st.cls}`}>{st.label}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end items-center gap-1.5">
+                              <button
+                                onClick={() => openAdd(c, 'entry')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition-colors"
+                                title={`Ajouter une entrée pour ${c.prenom} ${c.nom}`}
+                              >
+                                <Icon name="plus" className="w-3 h-3" /> Entrée
+                              </button>
+                              <button
+                                onClick={() => openAdd(c, 'exit')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500 text-white text-[11px] font-bold hover:bg-orange-600 transition-colors"
+                                title={`Ajouter une sortie pour ${c.prenom} ${c.nom}`}
+                              >
+                                <Icon name="plus" className="w-3 h-3" /> Sortie
+                              </button>
+                              <Link
+                                to={`/admin/beneficiaire/${c.id}`}
+                                className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors"
+                                title="Fiche enfant"
+                              >
+                                <Icon name="eye" className="w-4 h-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -374,7 +506,7 @@ export default function PresencesPage() {
           <div className="px-4 py-3 border-b border-ios-hairline flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="relative flex-1 max-w-md">
               <Icon name="search" className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ios-text3 pointer-events-none" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher un enfant…" className={`${inputClass} pl-10`} />
+              <input value={badgeQuery} onChange={(e) => setBadgeQuery(e.target.value)} placeholder="Rechercher un enfant…" className={`${inputClass} pl-10`} />
             </div>
             <div className="flex items-center gap-2 text-xs text-ios-text3">
               <span>{selectedIds.length} sélectionné{selectedIds.length > 1 ? 's' : ''}</span>
@@ -396,7 +528,7 @@ export default function PresencesPage() {
               </button>
             </div>
           </div>
-          {filteredKids.length === 0 ? (
+          {filteredBadgeKids.length === 0 ? (
             <EmptyState icon="users" text="Aucun enfant trouvé." />
           ) : (
             <div className="overflow-x-auto">
@@ -417,7 +549,7 @@ export default function PresencesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ios-hairline">
-                  {filteredKids.map((c) => (
+                  {filteredBadgeKids.map((c) => (
                     <tr key={c.id} className="hover:bg-ios-fill transition-colors">
                       <td className="px-4 py-3">
                         <input
@@ -467,27 +599,95 @@ export default function PresencesPage() {
         </>
       )}
 
-      {/* ═══ Modal — Nouvel événement ═══ */}
-      {showForm && (
+      {/* ═══ Modal — Ajouter un pointage (entrée / sortie) ═══ */}
+      {addModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative w-full max-w-md bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAddModal(null)} />
+          <div className="relative w-full max-w-sm bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
             <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><Icon name="calendar" className="w-5 h-5" /></div>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${addModal.type === 'entry' ? 'bg-emerald-600' : 'bg-orange-500'}`}>
+                <Icon name={addModal.type === 'entry' ? 'chevronDown' : 'chevronUp'} className="w-5 h-5" />
+              </div>
               <div>
-                <h3 className="font-bold">Nouvel événement</h3>
-                <p className="text-xs text-ios-text3">Pour pointer les présences par badge</p>
+                <h3 className="font-bold">Ajouter un pointage</h3>
+                <p className="text-xs text-ios-text3">{addModal.child.prenom} {addModal.child.nom} · {fmtDate(date)}</p>
               </div>
             </div>
-            <div className="p-6 space-y-3">
-              <input placeholder="Nom de l'événement (ex. Atelier menuiserie)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} />
-              <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} className={inputClass} />
-              <input placeholder="Lieu (ex. Centre ARINA)" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className={inputClass} />
-              <textarea placeholder="Description (facultatif)" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputClass} />
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">Type de pointage</label>
+                <div className="flex rounded-xl overflow-hidden border border-ios-hairline bg-ios-fill p-1">
+                  <button
+                    onClick={() => setAddModal({ ...addModal, type: 'entry' })}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addModal.type === 'entry' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25' : 'text-ios-text2 hover:text-ios-text'}`}
+                  >
+                    ⬇ Entrée
+                  </button>
+                  <button
+                    onClick={() => setAddModal({ ...addModal, type: 'exit' })}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addModal.type === 'exit' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25' : 'text-ios-text2 hover:text-ios-text'}`}
+                  >
+                    ⬆ Sortie
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">Heure</label>
+                <input type="time" value={addTime} onChange={(e) => setAddTime(e.target.value)} className={inputClass} />
+              </div>
             </div>
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
-              <button onClick={saveEvent} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors">Créer</button>
+              <button onClick={() => setAddModal(null)} disabled={saving} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
+              <button onClick={saveAdd} disabled={saving} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors disabled:opacity-40">
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Modal — Modifier un pointage ═══ */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditModal(null)} />
+          <div className="relative w-full max-w-sm bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-ios-hairline flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${editModal.pointage.type === 'entry' ? 'bg-emerald-600' : 'bg-orange-500'}`}>
+                <Icon name={editModal.pointage.type === 'entry' ? 'chevronDown' : 'chevronUp'} className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold">Modifier le pointage</h3>
+                <p className="text-xs text-ios-text3">{editModal.child.prenom} {editModal.child.nom} · {fmtDate(date)}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">Type de pointage</label>
+                <div className="flex rounded-xl overflow-hidden border border-ios-hairline bg-ios-fill p-1">
+                  <button
+                    onClick={() => setEditModal({ ...editModal, pointage: { ...editModal.pointage, type: 'entry' } })}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${editModal.pointage.type === 'entry' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25' : 'text-ios-text2 hover:text-ios-text'}`}
+                  >
+                    ⬇ Entrée
+                  </button>
+                  <button
+                    onClick={() => setEditModal({ ...editModal, pointage: { ...editModal.pointage, type: 'exit' } })}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${editModal.pointage.type === 'exit' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25' : 'text-ios-text2 hover:text-ios-text'}`}
+                  >
+                    ⬆ Sortie
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">Heure</label>
+                <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className={inputClass} />
+              </div>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setEditModal(null)} disabled={saving} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Annuler</button>
+              <button onClick={saveEdit} disabled={saving} className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors disabled:opacity-40">
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
             </div>
           </div>
         </div>

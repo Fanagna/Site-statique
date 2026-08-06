@@ -13,14 +13,24 @@ import {
 } from '../../services/api';
 
 /* ═══════════════════════════════════════════
-   Scanner de présences par badge QR
-   États d'écran (voir SPEC) :
+   Scanner de présences par badge QR — entrée/sortie AUTOMATIQUE
+   Le sens du pointage est détecté par le serveur (1er scan → ENTRÉE, puis
+   alternance ENTRÉE ↔ SORTIE). L'écran affiche les heures à l'enfant, qui
+   confirme d'un simple clic sur « ✅ Confirmé ».
+   États d'écran :
    1. Erreur caméra      → « Impossible d'accéder à la caméra » + Réessayer
    2. Badge invalide     → « ❌ Badge non reconnu » + animation shake
    3. Compte désactivé   → « ⛔ Compte désactivé » + contact admin
-   4. Double pointage    → « ✅ Vous êtes déjà pointé(e) ! » + dernier pointage
-   5. Sortie sans entrée → « ❌ Vous devez d'abord scanner l'entrée » + ENTRÉE
-   6. Succès             → « ✅ Pointage enregistré ! » + animation + reset 3 s
+   4. Succès             → enfant + ENTRÉE/SORTIE détectée + heures + « Confirmé »
+   5. Réseau / serveur   → message d'erreur + Fermer
+   Caméra AVANT par défaut (bornes/téléphones), basculable en arrière.
+   ✨ SCAN INTELLIGENT : le QR est lu sur TOUTE la surface de la caméra (le
+   repère plein cadre est indicatif, pas une restriction) — il peut être penché,
+   éloigné, partiellement hors cadre ou affiché sur un écran de téléphone.
+   Détection QR uniquement (formats), plus fréquente (retryDelay), résolution
+   idéale 720p et zoom intégré pour les codes lointains.
+   🔊 MODE SONORE (kiosque) : bip uniquement quand le serveur valide le pointage
+   (son distinct entrée / sortie), buzz sur erreur — activable/désactivable.
    ═══════════════════════════════════════════ */
 
 const fmtTime = (iso) => {
@@ -30,14 +40,63 @@ const fmtTime = (iso) => {
     ? '—'
     : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
-const fmtDateTime = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} à ${fmtTime(iso)}`;
-};
-
 const DIR_LABEL = { entry: 'ENTRÉE', exit: 'SORTIE' };
+// Scan intelligent : les badges ARINA sont 100 % QR — restreindre aux QR accélère
+// la détection (le détecteur ne cherche plus les autres formats de codes).
+const SCAN_FORMATS = ['qr_code'];
+
+/* ── Mode sonore (bip de validation pour le kiosque) ──
+   Bip synthétisé via Web Audio (aucun fichier requis). Le son n'est joué QUE
+   lorsque le serveur a validé le pointage (pas sur une simple détection) :
+   « ding-dong » montant pour une ENTRÉE, deux notes descendantes pour une
+   SORTIE, et un buzz grave pour les erreurs (badge inconnu, réseau…). */
+let audioCtx = null;
+function ensureAudioCtx() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  } catch { return null; }
+}
+function tone(ctx, freq, at, dur, vol = 0.22) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(vol, at + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + dur + 0.05);
+}
+function playSuccessBeep(type = 'entry') {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  if (type === 'exit') {
+    tone(ctx, 784, t0, 0.12);
+    tone(ctx, 587, t0 + 0.14, 0.22);
+  } else {
+    tone(ctx, 880, t0, 0.12);
+    tone(ctx, 1174, t0 + 0.14, 0.2);
+  }
+}
+function playErrorBuzz() {
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 180;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.35);
+}
 
 export default function ScanPage() {
   const { user, logout } = useAuth();
@@ -45,18 +104,39 @@ export default function ScanPage() {
   /* ── Contexte ── */
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
-  const [direction, setDirection] = useState('entry'); // 'entry' | 'exit'
   const [feed, setFeed] = useState([]);
   const [children, setChildren] = useState([]);
   const [manualQuery, setManualQuery] = useState('');
 
   /* ── Overlay (machine à états du scan) ── */
-  const [overlay, setOverlay] = useState(null); // { kind, child?, pointage?, error?, raw? }
-  const [pendingExit, setPendingExit] = useState(null); // badge JSON à rescanner en ENTRÉE
-  const [cameraKey, setCameraKey] = useState(0); // incrémenté → remonte la caméra (Réessayer)
+  const [overlay, setOverlay] = useState(null); // { kind, child?, pointage?, timeline?, error?, raw? }
+  const [cameraKey, setCameraKey] = useState(0); // incrémenté → remonte la caméra (Réessayer / bascule)
+  const [cameraMode, setCameraMode] = useState('user'); // 'user' = caméra avant (défaut) · 'environment' = arrière
   const [paused, setPaused] = useState(false);
   const busyRef = useRef(false);
   const timersRef = useRef([]);
+
+  /* ── Mode sonore (mémorisé entre les sessions) ── */
+  const [soundOn, setSoundOn] = useState(() => {
+    try { return localStorage.getItem('arina_scan_sound') !== 'off'; } catch { return true; }
+  });
+  const toggleSound = useCallback(() => {
+    setSoundOn((s) => {
+      const next = !s;
+      try { localStorage.setItem('arina_scan_sound', next ? 'on' : 'off'); } catch { /* stockage indisponible */ }
+      return next;
+    });
+  }, []);
+  // Politique d'autoplay des navigateurs : déverrouille l'audio dès le 1er geste
+  useEffect(() => {
+    const unlock = () => ensureAudioCtx();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   const clearTimers = () => {
     timersRef.current.forEach(clearTimeout);
@@ -101,7 +181,6 @@ export default function ScanPage() {
     if (eventId) {
       refreshFeed(eventId);
       setOverlay(null);
-      setPendingExit(null);
     } else {
       // Mode « Présence du jour » : on suit la session quotidienne du jour si elle existe
       const daily = events.find((e) => e.is_daily && e.event_date === todayStr);
@@ -113,7 +192,6 @@ export default function ScanPage() {
   const dismissOverlay = useCallback(() => {
     clearTimers();
     setOverlay(null);
-    setPendingExit(null);
     setPaused(false);
     busyRef.current = false;
   }, []);
@@ -128,46 +206,35 @@ export default function ScanPage() {
     timersRef.current.push(t);
   }, []);
 
-  /* ── Cœur du scan : traite un contenu de badge ── */
-  const handleScan = useCallback(async (raw, dirOverride) => {
-    const dir = dirOverride || direction;
+  /* ── Cœur du scan : traite un contenu de badge (sens détecté automatiquement) ── */
+  const handleScan = useCallback(async (raw) => {
     if (busyRef.current) return; // anti double-scan
     busyRef.current = true;
     setPaused(true);
     setOverlay({ kind: 'processing' });
 
-    // eventId vide → « Présence du jour » (session quotidienne auto-créée côté serveur)
-    const res = await scanBadge(raw, eventId || null, dir);
+    // Sans direction : le serveur détecte automatiquement entrée/sortie et renvoie
+    // la timeline des heures (data.timeline) pour l'écran de confirmation.
+    const res = await scanBadge(raw, eventId || null);
     const d = res.data || {};
 
     if (res.ok && d.code === 'OK') {
-      setOverlay({ kind: 'success', child: d.child, pointage: d.pointage, event: d.event, direction: dir });
+      // Bip de validation (kiosque) — uniquement après confirmation du serveur
+      if (soundOn) playSuccessBeep(d.pointage?.type);
+      setOverlay({ kind: 'success', child: d.child, pointage: d.pointage, event: d.event, timeline: d.timeline });
       refreshFeed(eventId);
       refreshEvents();
-      // Succès : animation de validation puis redirection automatique après 3 s
-      const t = window.setTimeout(() => {
-        setOverlay(null);
-        setPaused(false);
-        busyRef.current = false;
-      }, 3000);
-      timersRef.current.push(t);
-      return;
+      return; // l'enfant confirme par le bouton « ✅ Confirmé »
     }
 
+    // Échec (badge inconnu, compte désactivé, événement invalide, réseau) : buzz
+    if (soundOn) playErrorBuzz();
     switch (d.code) {
       case 'BADGE_INVALID':
         showBrief({ kind: 'badge-invalid', error: d.error });
         break;
       case 'BENEFICIARY_DISABLED':
         showBrief({ kind: 'disabled', error: d.error, raw });
-        break;
-      case 'ALREADY_SCANNED':
-        showBrief({ kind: 'already', lastScan: d.lastScan, raw }, 3400);
-        break;
-      case 'EXIT_WITHOUT_ENTRY':
-        setPendingExit(raw);
-        setOverlay({ kind: 'no-entry', error: d.error, raw });
-        // La caméra reste en pause : l'opérateur choisit ENTRÉE ou Fermer
         break;
       case 'EVENT_MISSING':
       case 'EVENT_INVALID':
@@ -182,13 +249,16 @@ export default function ScanPage() {
         });
         break;
     }
-  }, [direction, eventId, refreshFeed, refreshEvents, showBrief]);
+  }, [eventId, refreshFeed, refreshEvents, showBrief, soundOn]);
 
   /* Scanner caméra → JSON du QR → handleScan */
   const onCameraScan = useCallback((codes) => {
     const raw = codes?.[0]?.rawValue;
-    if (raw && !busyRef.current) handleScan(raw);
-  }, [handleScan]);
+    if (raw && !busyRef.current) {
+      if (soundOn) ensureAudioCtx(); // déverrouille l'audio avant le 1er scan (autoplay mobile)
+      handleScan(raw);
+    }
+  }, [handleScan, soundOn]);
 
   const onCameraError = useCallback((err) => {
     const kind = err?.kind || 'unknown';
@@ -203,29 +273,28 @@ export default function ScanPage() {
     setOverlay({ kind: 'camera-error', detail: msg });
   }, []);
 
-  /* Sortie sans entrée : on propose automatiquement de scanner ENTRÉE */
-  const rescanAsEntry = useCallback(async () => {
-    if (!pendingExit) return;
-    busyRef.current = false; // la caméra est en pause : aucune course possible
-    handleScan(pendingExit, 'entry');
-    setPendingExit(null);
-  }, [pendingExit, handleScan]);
+  /* Bascule caméra avant / arrière (Android, tablettes, PC) */
+  const toggleCamera = useCallback(() => {
+    setCameraMode((m) => (m === 'user' ? 'environment' : 'user'));
+    setCameraKey((k) => k + 1); // remonte la caméra avec les nouvelles contraintes
+  }, []);
 
-  /* ── Pointage manuel (secours sans caméra) ── */
-  const manualScan = useCallback(async (child, dirOverride) => {
-    if (!child) return;
+  /* ── Pointage manuel (secours sans caméra) — sens détecté automatiquement ── */
+  const manualScan = useCallback(async (child) => {
+    if (busyRef.current) return;
     let badgeId = child.badgeId;
     if (!badgeId) {
       const gen = await fetchBeneficiaryBadge(child.id);
       if (gen?.ok && gen.data?.badgeId) badgeId = gen.data.badgeId;
     }
     if (!badgeId) {
+      if (soundOn) playErrorBuzz();
       setOverlay({ kind: 'network', error: 'Impossible de générer le badge de cet enfant.' });
       return;
     }
     const payload = JSON.stringify({ id: child.id, badgeId, name: `${child.prenom} ${child.nom}`.trim() });
-    handleScan(payload, dirOverride);
-  }, [handleScan]);
+    handleScan(payload);
+  }, [handleScan, soundOn]);
 
   const filteredKids = children.filter((c) =>
     `${c.prenom} ${c.nom}`.toLowerCase().includes(manualQuery.trim().toLowerCase())
@@ -259,7 +328,7 @@ export default function ScanPage() {
       activeKey="scan"
       onNavigate={() => {}}
       title="Scanner de présence"
-      subtitle="Pointage quotidien par badge QR — ou par événement"
+      subtitle="Entrée / sortie détectées automatiquement par badge QR — caméra avant ou arrière"
       footerNav={[{ key: 'site', label: 'Voir le site', icon: 'globe', to: '/' }]}
       user={user}
       onLogout={logout}
@@ -271,9 +340,9 @@ export default function ScanPage() {
       }
     >
       <div className="space-y-4">
-        {/* ── Barre de configuration (événement + sens) ── */}
+        {/* ── Barre de configuration (session uniquement — sens automatique) ── */}
         <div className="card-apple p-4 animate-fade-up">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-3">
             <div className="flex-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">
                 Session de pointage
@@ -296,52 +365,61 @@ export default function ScanPage() {
                 </p>
               )}
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-ios-text3 mb-1.5">Sens du pointage</label>
-              <div className="flex rounded-xl overflow-hidden border border-ios-hairline bg-ios-fill p-1">
-                <button
-                  onClick={() => setDirection('entry')}
-                  className={`flex-1 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    direction === 'entry' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25' : 'text-ios-text2 hover:text-ios-text'
-                  }`}
-                >
-                  ⬇ ENTRÉE
-                </button>
-                <button
-                  onClick={() => setDirection('exit')}
-                  className={`flex-1 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    direction === 'exit' ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25' : 'text-ios-text2 hover:text-ios-text'
-                  }`}
-                >
-                  ⬆ SORTIE
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSound}
+                className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${soundOn ? 'bg-arina-blue/10 text-arina-blue hover:bg-arina-blue/20' : 'bg-ios-fill text-ios-text3 hover:bg-ios-fill-2'}`}
+                title={soundOn ? 'Désactiver le bip sonore (kiosque)' : 'Activer le bip sonore (kiosque)'}
+              >
+                {soundOn ? '🔊 Son actif' : '🔇 Son coupé'}
+              </button>
+              <button
+                onClick={toggleCamera}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all"
+                title="Basculer entre la caméra avant et la caméra arrière"
+              >
+                <Icon name="refreshCw" className="w-4 h-4" />
+                Caméra {cameraMode === 'user' ? 'avant' : 'arrière'}
+              </button>
+              <Link
+                to="/admin/presences"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all"
+              >
+                <Icon name="calendar" className="w-4 h-4" /> Voir les présences
+              </Link>
             </div>
-            <Link
-              to="/admin/presences"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all mt-auto"
-            >
-              <Icon name="calendar" className="w-4 h-4" /> Gérer les événements
-            </Link>
           </div>
+          <p className="mt-2.5 text-[11px] text-ios-text3">
+            💡 L'entrée et la sortie sont détectées automatiquement : premier scan → ENTRÉE, scan suivant → SORTIE, puis alternance. L'enfant voit ses horaires à l'écran et confirme d'un clic. En cas d'erreur (enfant reparti sans scanner), corrigez le pointage dans la page Présences.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           {/* ── Caméra / scanner ── */}
           <div className="xl:col-span-2 card-apple overflow-hidden animate-fade-up" style={{ animationDelay: '60ms' }}>
             <div className="relative bg-black">
-              {/* Vue caméra — on remonte la caméra quand cameraKey change (Réessayer).
-                  Active par défaut : sans événement choisi, le scan pointe la « Présence du jour ». */}
+              {/* Vue caméra — remontée quand cameraKey change (Réessayer / bascule avant-arrière) */}
               <div key={cameraKey} className="relative h-[340px] sm:h-[420px] overflow-hidden">
                 <Scanner
                   onScan={onCameraScan}
                   onError={onCameraError}
-                  constraints={{ facingMode: 'environment' }}
-                  components={{ finder: true, torch: true }}
+                  constraints={{ facingMode: cameraMode, width: { ideal: 1280 }, height: { ideal: 720 } }}
+                  formats={SCAN_FORMATS}
+                  components={{ finder: false, torch: true, zoom: true }}
                   paused={paused}
                   sound={false}
                   allowMultiple
+                  retryDelay={60}
                 />
+                {/* Repère PLEIN CADRE : toute la zone est scannée, pas seulement le centre */}
+                {!paused && !overlay && (
+                  <div className="absolute inset-4 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                    <span className="absolute top-0 left-0 w-9 h-9 border-t-2 border-l-2 border-white/90 rounded-tl-2xl" />
+                    <span className="absolute top-0 right-0 w-9 h-9 border-t-2 border-r-2 border-white/90 rounded-tr-2xl" />
+                    <span className="absolute bottom-0 left-0 w-9 h-9 border-b-2 border-l-2 border-white/90 rounded-bl-2xl" />
+                    <span className="absolute bottom-0 right-0 w-9 h-9 border-b-2 border-r-2 border-white/90 rounded-br-2xl" />
+                  </div>
+                )}
                 {/* Ligne laser décorative */}
                 {!paused && !overlay && (
                   <div className="absolute left-[12%] right-[12%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_rgba(52,211,153,0.9)] animate-scan-line" />
@@ -351,7 +429,26 @@ export default function ScanPage() {
                   <Icon name="calendar" className="w-3.5 h-3.5" />
                   {selectedEvent && !selectedEvent.is_daily ? selectedEvent.name : '🌞 Présence du jour'}
                 </div>
+                {/* Bascule caméra avant / arrière */}
+                <button
+                  onClick={toggleCamera}
+                  className="absolute top-3 right-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/55 backdrop-blur text-white text-[11px] font-bold shadow-lg hover:bg-black/70 transition-colors"
+                  title="Basculer entre la caméra avant et la caméra arrière"
+                >
+                  <Icon name="refreshCw" className="w-3.5 h-3.5" />
+                  {cameraMode === 'user' ? 'Avant' : 'Arrière'}
+                </button>
               </div>
+            </div>
+
+            {/* Scan intelligent : toute la zone est lue */}
+            <div className="px-4 py-2.5 border-t border-ios-hairline flex items-center gap-2 text-[11px] text-ios-text2 bg-emerald-50/50 dark:bg-emerald-500/5">
+              <Icon name="qrCode" className="w-4 h-4 text-arina-blue flex-shrink-0" />
+              <span>
+                <b className="text-emerald-700 dark:text-emerald-400">Scan intelligent</b> — le QR est détecté sur{' '}
+                <b>toute la zone</b> de la caméra, même penché, éloigné, hors repère ou affiché sur un écran de téléphone.{' '}
+                Le <b>zoom (+/−)</b> aide pour les codes lointains (si disponible sur l'appareil).
+              </span>
             </div>
 
             {/* Infos de l'événement sélectionné */}
@@ -407,7 +504,7 @@ export default function ScanPage() {
             <summary className="cursor-pointer select-none flex items-center gap-2 text-sm font-semibold text-ios-text2 hover:text-arina-blue transition-colors">
               <Icon name="users" className="w-4 h-4" />
               Pointage manuel sans caméra
-              <span className="text-[10px] text-ios-text3 font-normal">(cliquez pour déplier)</span>
+              <span className="text-[10px] text-ios-text3 font-normal">(cliquez pour déplier — entrée/sortie automatique)</span>
             </summary>
             <div className="mt-3 space-y-3">
               <div className="relative max-w-md">
@@ -430,20 +527,12 @@ export default function ScanPage() {
                         <div className="text-[10px] text-ios-text3 truncate">{c.badgeId ? c.badgeId : 'Badge non généré'}</div>
                       </div>
                       <button
-                        onClick={() => manualScan(c, 'entry')}
+                        onClick={() => manualScan(c)}
                         disabled={busyRef.current}
-                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 disabled:opacity-40 transition-colors"
-                        title="Pointer une entrée"
+                        className="px-3 py-1.5 rounded-lg bg-arina-blue text-white text-[11px] font-bold hover:bg-arina-blue-dark disabled:opacity-40 transition-colors"
+                        title="Pointer cet enfant (entrée/sortie automatique)"
                       >
-                        ENTRÉE
-                      </button>
-                      <button
-                        onClick={() => manualScan(c, 'exit')}
-                        disabled={busyRef.current}
-                        className="px-2.5 py-1.5 rounded-lg bg-orange-500 text-white text-[11px] font-bold hover:bg-orange-600 disabled:opacity-40 transition-colors"
-                        title="Pointer une sortie"
-                      >
-                        SORTIE
+                        Pointer
                       </button>
                     </div>
                   ))}
@@ -457,7 +546,10 @@ export default function ScanPage() {
       {/* ═══════════════ OVERLAY de résultat ═══════════════ */}
       {overlay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={() => overlay.kind !== 'processing' && dismissOverlay()} />
+          <div
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+            onClick={() => overlay.kind !== 'processing' && overlay.kind !== 'success' && dismissOverlay()}
+          />
           <div className={`relative w-full max-w-sm bg-ios-card rounded-3xl shadow-2xl p-8 text-center animate-pop ${overlay.kind === 'badge-invalid' ? 'animate-shake' : ''}`}>
             {/* ── 1) Erreur caméra ── */}
             {overlay.kind === 'camera-error' && (
@@ -472,17 +564,15 @@ export default function ScanPage() {
             {/* ── 3) Compte désactivé ── */}
             {overlay.kind === 'disabled' && <ResultDisabled />}
 
-            {/* ── 4) Double pointage ── */}
-            {overlay.kind === 'already' && <ResultAlready lastScan={overlay.lastScan} />}
-
-            {/* ── 5) Sortie sans entrée ── */}
-            {overlay.kind === 'no-entry' && (
-              <ResultNoEntry onEntry={rescanAsEntry} onClose={dismissOverlay} />
-            )}
-
-            {/* ── 6) Succès ── */}
+            {/* ── 4) Succès — l'enfant confirme d'un clic ── */}
             {overlay.kind === 'success' && (
-              <ResultSuccess child={overlay.child} pointage={overlay.pointage} event={overlay.event} direction={overlay.direction} />
+              <ResultSuccess
+                child={overlay.child}
+                pointage={overlay.pointage}
+                event={overlay.event}
+                timeline={overlay.timeline}
+                onConfirm={dismissOverlay}
+              />
             )}
 
             {/* ── Réseau / divers ── */}
@@ -561,48 +651,9 @@ function ResultDisabled() {
   );
 }
 
-/* 4) Double pointage — on affiche le dernier pointage */
-function ResultAlready({ lastScan }) {
-  return (
-    <>
-      <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center animate-check-pop">
-        <Icon name="check" className="w-8 h-8" />
-      </div>
-      <h3 className="mt-4 text-lg font-extrabold">✅ Vous êtes déjà pointé(e) !</h3>
-      <div className="mt-4 mx-auto max-w-[220px] rounded-2xl bg-ios-fill px-4 py-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-ios-text3">Dernier pointage</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${lastScan?.type === 'entry' ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600' : 'bg-orange-100 dark:bg-orange-500/15 text-orange-600'}`}>
-            {DIR_LABEL[lastScan?.type] || '—'}
-          </span>
-        </div>
-        <div className="mt-1 font-bold tabular">{fmtDateTime(lastScan?.scanned_at)}</div>
-      </div>
-    </>
-  );
-}
-
-/* 5) Sortie sans entrée → on propose automatiquement ENTRÉE */
-function ResultNoEntry({ onEntry, onClose }) {
-  return (
-    <>
-      <div className="w-16 h-16 mx-auto rounded-full bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center animate-check-pop">
-        <Icon name="chevronUp" className="w-8 h-8" />
-      </div>
-      <h3 className="mt-4 text-lg font-extrabold">❌ Vous devez d'abord scanner l'entrée</h3>
-      <p className="mt-1.5 text-sm text-ios-text2">Impossible d'enregistrer une sortie sans entrée.</p>
-      <div className="mt-5 space-y-2">
-        <button onClick={onEntry} className="w-full py-3 rounded-2xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-colors">
-          ⬇ Scanner ENTRÉE maintenant
-        </button>
-        <button onClick={onClose} className="w-full py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Fermer</button>
-      </div>
-    </>
-  );
-}
-
-/* 6) Succès — animation de validation + redirection auto après 3 s */
-function ResultSuccess({ child, pointage, event, direction }) {
+/* 4) Succès — ENTRÉE/SORTIE détectée + horaires affichés + bouton « Confirmé » */
+function ResultSuccess({ child, pointage, event, timeline, onConfirm }) {
+  const dir = pointage?.type === 'exit' ? 'exit' : 'entry';
   return (
     <>
       <div className="relative mx-auto w-24 h-24">
@@ -615,29 +666,52 @@ function ResultSuccess({ child, pointage, event, direction }) {
           <circle cx="50" cy="50" r="41" fill="none" stroke="#E8E6EA" strokeWidth="7" />
           <circle
             cx="50" cy="50" r="41" fill="none"
-            stroke={direction === 'entry' ? '#059669' : '#EA580C'}
+            stroke={dir === 'entry' ? '#059669' : '#EA580C'}
             strokeWidth="7" strokeLinecap="round"
             className="animate-ring"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg animate-check-pop ${direction === 'entry' ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-orange-500 shadow-orange-500/40'}`}>
+          <div className={`w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg animate-check-pop ${dir === 'entry' ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-orange-500 shadow-orange-500/40'}`}>
             <Icon name="check" className="w-6 h-6" strokeWidth={3} />
           </div>
         </div>
       </div>
       <h3 className="mt-3 text-lg font-extrabold text-emerald-600 dark:text-emerald-400">✅ Pointage enregistré !</h3>
-      <p className="mt-1 text-base font-bold">{child?.firstName} {child?.lastName}</p>
-      <p className="mt-0.5 text-xs text-ios-text3">
-        {DIR_LABEL[direction]} · {fmtTime(pointage?.scanned_at)} · {event?.name}
-      </p>
-      {/* Barre de redirection automatique (3 s) */}
-      <div className="mt-5">
-        <div className="h-1.5 rounded-full bg-ios-fill overflow-hidden">
-          <div className={`h-full rounded-full animate-countdown ${direction === 'entry' ? 'bg-emerald-500' : 'bg-orange-400'}`} />
-        </div>
-        <p className="mt-1.5 text-[11px] text-ios-text3">Redirection automatique vers le scan suivant…</p>
+      <p className="mt-1 text-lg font-bold">{child?.firstName} {child?.lastName}</p>
+
+      {/* Sens détecté automatiquement + heure */}
+      <div className={`mt-3 mx-auto w-fit inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-white font-extrabold text-lg shadow-lg ${dir === 'entry' ? 'bg-emerald-600 shadow-emerald-600/30' : 'bg-orange-500 shadow-orange-500/30'}`}>
+        <span>{dir === 'entry' ? '⬇' : '⬆'}</span>
+        <span>{DIR_LABEL[dir]}</span>
+        <span className="tabular text-white/90 font-bold">· {fmtTime(pointage?.scanned_at)}</span>
       </div>
+
+      {/* Toutes les heures de la journée */}
+      {Array.isArray(timeline) && timeline.length > 0 && (
+        <div className="mt-4">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-ios-text3 mb-1.5">Vos horaires du jour</p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {timeline.map((t, i) => (
+              <span
+                key={i}
+                className={`px-2.5 py-1 rounded-full text-xs font-bold tabular ${t.type === 'entry' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'}`}
+              >
+                {t.type === 'entry' ? '⬇' : '⬆'} {fmtTime(t.scanned_at)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation par l'enfant — un simple clic */}
+      <button
+        onClick={onConfirm}
+        className="mt-6 w-full py-4 rounded-2xl bg-arina-blue text-white text-base font-extrabold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/25 transition-all active:scale-[0.98]"
+      >
+        ✅ Confirmé — enfant suivant
+      </button>
+      <p className="mt-2 text-[11px] text-ios-text3">{event?.name}</p>
     </>
   );
 }
