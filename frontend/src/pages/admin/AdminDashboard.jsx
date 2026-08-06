@@ -18,6 +18,9 @@ import {
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
 
+// Accès localStorage protégé : une panne de stockage ne doit jamais planter l'app
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
+
 // Rôles & onglets autorisés (source unique : ./roles)
 import { ROLES, ROLE_LABELS, ROLE_TABS } from './roles';
 import { allNews } from '../../data/news';
@@ -144,12 +147,12 @@ export default function AdminDashboard() {
     // la gestion de chaque domaine reste réservée au rôle concerné).
     const bFromApi = await fetchBeneficiaries();
     if (bFromApi !== null) { anyOk = true; if (bFromApi.length) setBenefs(bFromApi); else setBenefs([]); }
-    else { anyFail = true; const s = localStorage.getItem('arina_benefs'); setBenefs(s ? JSON.parse(s) : []); }
+    else { anyFail = true; setBenefs(safeParse(safeGet('arina_benefs'), [])); }
     setBenefsLoading(false);
 
     const fFromApi = await fetchFinances();
     if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
-    else { anyFail = true; const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
+    else { anyFail = true; setFinances(safeParse(safeGet('arina_finances'), [])); }
     setFinancesLoading(false);
 
     // Diagnostic email (Resend) : affiché en bannière dans l'onglet Dons si non configuré
@@ -159,7 +162,7 @@ export default function AdminDashboard() {
     // Donateurs : nécessaires pour l'évaluation (filtre + rapports) et l'onglet dédié
     const dFromApi = await fetchDonors();
     if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonors(dFromApi); }
-    else { anyFail = true; const s = localStorage.getItem('arina_donors'); setDonors(s ? JSON.parse(s) : []); }
+    else { anyFail = true; setDonors(safeParse(safeGet('arina_donors'), [])); }
 
     if (can('actualites')) {
       const nFromApi = await fetchNews();
@@ -170,25 +173,25 @@ export default function AdminDashboard() {
     if (can('messages')) {
       const cFromApi = await fetchContacts();
       if (cFromApi !== null) { anyOk = true; if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
+      else { anyFail = true; setContacts(safeParse(safeGet('arina_contacts'), [])); }
     }
 
     if (can('volunteers')) {
       const vFromApi = await fetchVolunteers();
       if (vFromApi !== null) { anyOk = true; if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+      else { anyFail = true; setVolunteers(safeParse(safeGet('arina_volunteers'), [])); }
     }
 
     if (can('testimonials')) {
       const tFromApi = await fetchTestimonials();
       if (tFromApi !== null) { anyOk = true; if (tFromApi.length) setTestimonials(tFromApi); else setTestimonials([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_testimonials'); setTestimonials(s ? JSON.parse(s) : []); }
+      else { anyFail = true; setTestimonials(safeParse(safeGet('arina_testimonials'), [])); }
     }
 
     if (can('dons')) {
       const dFromApi = await fetchDonations();
       if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonations(dFromApi); }
-      else { anyFail = true; const s = localStorage.getItem('arina_donations'); setDonations(s ? JSON.parse(s) : []); }
+      else { anyFail = true; setDonations(safeParse(safeGet('arina_donations'), [])); }
     }
 
     if (can('comptes')) {
@@ -217,13 +220,23 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { if (benefs.length) localStorage.setItem('arina_benefs', JSON.stringify(benefs)); }, [benefs]);
-  useEffect(() => { if (finances.length) localStorage.setItem('arina_finances', JSON.stringify(finances)); }, [finances]);
-  useEffect(() => { if (donors.length) localStorage.setItem('arina_donors', JSON.stringify(donors)); }, [donors]);
-  useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
-  useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
-  useEffect(() => { if (testimonials.length) localStorage.setItem('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
-  useEffect(() => { if (donations.length) localStorage.setItem('arina_donations', JSON.stringify(donations)); }, [donations]);
+  useEffect(() => {
+    // Cache « léger » : les photos sont des base64 volumineuses — elles feraient
+    // dépasser le quota localStorage (le cache échouerait silencieusement).
+    if (benefs.length) safeSet('arina_benefs', JSON.stringify(benefs.map((b) => ({ ...b, photo: '' }))));
+  }, [benefs]);
+  useEffect(() => { if (finances.length) safeSet('arina_finances', JSON.stringify(finances)); }, [finances]);
+  useEffect(() => { if (donors.length) safeSet('arina_donors', JSON.stringify(donors)); }, [donors]);
+  useEffect(() => {
+    // Cache « léger » : les images base64 (jusqu'à 2 Mo chacune) feraient dépasser
+    // le quota localStorage (~5 Mo) et planteraient l'application (écran d'erreur).
+    if (news !== allNews && news.length) {
+      safeSet('arina_news', JSON.stringify(news.map((n) => ({ ...n, image: '', image_url: '' }))));
+    }
+  }, [news]);
+  useEffect(() => { if (contacts.length) safeSet('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
+  useEffect(() => { if (testimonials.length) safeSet('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
+  useEffect(() => { if (donations.length) safeSet('arina_donations', JSON.stringify(donations)); }, [donations]);
 
   /* ── Encart « Présence du jour » (éducateur / admin) ── */
   const [todayPresence, setTodayPresence] = useState(null); // { event, total, present, late, absent, … }
@@ -543,7 +556,7 @@ export default function AdminDashboard() {
   // (le revenu est enregistré en Ariary). Remettre en attente reste direct.
   const toggleDonation = (d) => {
     if (d.status !== 'received') {
-      setConfirmRate(localStorage.getItem('arina_eur_rate') || '');
+      setConfirmRate(safeGet('arina_eur_rate') || '');
       setConfirmDonation(d);
       return;
     }
@@ -567,7 +580,7 @@ export default function AdminDashboard() {
     const body = { status: 'received' };
     if (rate !== '') {
       body.rate = Number(rate);
-      localStorage.setItem('arina_eur_rate', rate); // taux mémorisé pour la prochaine fois
+      safeSet('arina_eur_rate', rate); // taux mémorisé pour la prochaine fois
     }
     setConfirmSubmitting(true);
     const r = await updateDonation(d.id, body);

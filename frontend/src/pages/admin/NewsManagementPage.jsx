@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchNews, createNews, updateNews, deleteNews } from '../../services/api';
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
 import { allNews, categories } from '../../data/news';
 import { ROLE_TABS } from './roles';
 import AdminLayout from '../../components/admin/AdminLayout';
@@ -77,8 +78,7 @@ export default function NewsManagementPage() {
         setNews(nFromApi.length ? nFromApi : []);
       } else {
         setApiStatus('offline');
-        const s = localStorage.getItem('arina_news');
-        setNews(s ? JSON.parse(s) : allNews);
+        setNews(safeParse(safeGet('arina_news'), allNews));
       }
       setLoading(false);
     })();
@@ -86,7 +86,11 @@ export default function NewsManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (news.length) localStorage.setItem('arina_news', JSON.stringify(news));
+    if (news.length) {
+      // Cache « léger » (images retirées) : les data: URLs base64 dépasseraient le
+      // quota localStorage — l'écriture échouait et faisait planter l'application.
+      safeSet('arina_news', JSON.stringify(news.map((n) => ({ ...n, image: '', image_url: '' }))));
+    }
   }, [news]);
 
   /* Auto-open the creation form when arriving via ?new=1 (quick action) */

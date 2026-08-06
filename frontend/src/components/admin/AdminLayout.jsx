@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './icons';
+import { safeGet, safeSet } from '../../utils/storage';
 
 const ROLE_LABELS = {
   admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
@@ -29,24 +30,24 @@ export default function AdminLayout({
   onLogout,
   children,
 }) {
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('arina_sidebar') === '1');
+  const [collapsed, setCollapsed] = useState(() => safeGet('arina_sidebar') === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(() => {
-    const stored = localStorage.getItem('arina_dark');
+    const stored = safeGet('arina_dark');
     if (stored !== null) return stored === '1';
     return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   const toggleDark = () => {
     setDark((d) => {
-      localStorage.setItem('arina_dark', d ? '0' : '1');
+      safeSet('arina_dark', d ? '0' : '1');
       return !d;
     });
   };
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
-      localStorage.setItem('arina_sidebar', c ? '0' : '1');
+      safeSet('arina_sidebar', c ? '0' : '1');
       return !c;
     });
   };

@@ -4,6 +4,7 @@ import { Camera, Circle, Lock, Printer, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
+import { safeGet, safeSet, safeParse } from '../../utils/storage';
 import AdminLayout from '../../components/admin/AdminLayout';
 import Toast from '../../components/admin/Toast';
 import { useToast } from '../../hooks/useToast';
@@ -77,7 +78,7 @@ export default function BeneficiaryDetailPage() {
         // Base injoignable ou enfant absent : on garde la fiche déjà affichée,
         // sinon on tente le cache local avant la redirection automatique.
         if (initialRef.current) return;
-        const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+        const stored = safeParse(safeGet('arina_benefs'), []);
         const cached = stored.find((x) => x.id === Number(id));
         if (cached) { hydrate(cached); return; }
       } finally {
@@ -216,11 +217,11 @@ export default function BeneficiaryDetailPage() {
       setData(updated);
       setForm({ ...form, photo: base64 });
       // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
-      const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+      const stored = safeParse(safeGet('arina_benefs'), []);
       const idx = stored.findIndex((x) => x.id === Number(id));
       if (idx >= 0) {
         stored[idx].photo = base64;
-        localStorage.setItem('arina_benefs', JSON.stringify(stored));
+        safeSet('arina_benefs', JSON.stringify(stored));
       }
       // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
       const r = await updateBeneficiaryPhoto(id, base64);
@@ -244,11 +245,11 @@ export default function BeneficiaryDetailPage() {
     delete updated.photo;
     setData(updated);
     setForm({ ...form, photo: undefined });
-    const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
+    const stored = safeParse(safeGet('arina_benefs'), []);
     const idx = stored.findIndex((x) => x.id === Number(id));
     if (idx >= 0) {
       delete stored[idx].photo;
-      localStorage.setItem('arina_benefs', JSON.stringify(stored));
+      safeSet('arina_benefs', JSON.stringify(stored));
     }
     showToast('✅ Photo retirée de la base de données');
   };

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiLogin, fetchMe } from '../services/api';
 import { AuthContext } from '../hooks/useAuth';
+import { safeGet, safeSet, safeRemove, pruneOversizedCaches } from '../utils/storage';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -9,7 +10,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const stored = localStorage.getItem('arina_admin');
+      const stored = safeGet('arina_admin');
       if (!stored) {
         if (!cancelled) setLoading(false);
         return;
@@ -21,8 +22,8 @@ export function AuthProvider({ children }) {
       if (me && me.username) {
         setUser({ ...me });
       } else {
-        localStorage.removeItem('arina_admin');
-        localStorage.removeItem('arina_admin_key');
+        safeRemove('arina_admin');
+        safeRemove('arina_admin_key');
       }
       setLoading(false);
     })();
@@ -33,9 +34,13 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const apiResult = await apiLogin(username, password);
     if (apiResult && apiResult.success) {
+      // Purge les caches volumineux (ex. ancien arina_news plein d'images base64) :
+      // sinon le localStorage plein ferait échouer l'écriture de la clé de session
+      // ci-dessous et la nouvelle session ne survivrait pas au refresh.
+      pruneOversizedCaches();
       const userData = { ...apiResult.user, loginAt: new Date().toISOString() };
-      localStorage.setItem('arina_admin', JSON.stringify(userData));
-      if (apiResult.token) localStorage.setItem('arina_admin_key', apiResult.token);
+      safeSet('arina_admin', JSON.stringify(userData));
+      if (apiResult.token) safeSet('arina_admin_key', apiResult.token);
       setUser(userData);
       return { success: true };
     }
@@ -43,8 +48,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(() => {
-    localStorage.removeItem('arina_admin');
-    localStorage.removeItem('arina_admin_key');
+    safeRemove('arina_admin');
+    safeRemove('arina_admin_key');
     setUser(null);
   }, []);
 
