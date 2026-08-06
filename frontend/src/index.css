@@ -501,3 +501,63 @@ textarea:focus-visible,
     max-width: 100%;
   }
 }
+
+/* ═══ SCANNER DE PRÉSENCES : animations ═══ */
+/* Badge non reconnu : secousse horizontale */
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+.animate-shake {
+  animation: shakeX 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Succès : pastille ✓ qui « pop » */
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-check-pop {
+  animation: checkPop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Anneau de validation (cercle qui se dessine) */
+@keyframes ringDraw {
+  from { stroke-dashoffset: 260; }
+  to { stroke-dashoffset: 0; }
+}
+.animate-ring {
+  stroke-dasharray: 260;
+  animation: ringDraw 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Confettis discrets du succès */
+@keyframes confettiFall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(90px) rotate(340deg); opacity: 0; }
+}
+.animate-confetti {
+  animation: confettiFall 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Compte à rebours du scanner (barre qui se vide) */
+@keyframes countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.animate-countdown {
+  transform-origin: left;
+  animation: countdown 3s linear forwards;
+}
+
+/* Cadre de scan : laser qui balaye */
+@keyframes scanSweep {
+  0% { top: 8%; opacity: 0.9; }
+  50% { top: 88%; opacity: 1; }
+  100% { top: 8%; opacity: 0.9; }
+}
+.animate-scan-line {
+  animation: scanSweep 2.4s ease-in-out infinite;
+}

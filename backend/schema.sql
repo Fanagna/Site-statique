@@ -94,6 +94,38 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
 ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS dossier JSONB DEFAULT '{}'::jsonb;
 
+-- Badge QR de chaque bénéficiaire (identifiant imprimé sur le badge — unique)
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS badge_id VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS beneficiaries_badge_id_unique ON beneficiaries (badge_id) WHERE badge_id IS NOT NULL;
+
+-- Événements (ateliers, sorties, cérémonies…) où l'on pointe les présences.
+-- is_daily = TRUE pour la « Présence du jour » créée automatiquement au premier
+-- scan de chaque journée (daily_key = date, unique → une seule session par jour).
+CREATE TABLE IF NOT EXISTS badge_events (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  event_date DATE DEFAULT CURRENT_DATE,
+  location VARCHAR(255),
+  is_daily BOOLEAN DEFAULT FALSE,
+  daily_key DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE badge_events ADD COLUMN IF NOT EXISTS is_daily BOOLEAN DEFAULT FALSE;
+ALTER TABLE badge_events ADD COLUMN IF NOT EXISTS daily_key DATE;
+CREATE UNIQUE INDEX IF NOT EXISTS badge_events_daily_key_unique ON badge_events (daily_key) WHERE daily_key IS NOT NULL;
+
+-- Présences scannées depuis le badge QR (entrée / sortie)
+CREATE TABLE IF NOT EXISTS attendances (
+  id SERIAL PRIMARY KEY,
+  beneficiary_id INTEGER NOT NULL REFERENCES beneficiaries(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES badge_events(id) ON DELETE CASCADE,
+  type VARCHAR(10) NOT NULL CHECK (type IN ('entry', 'exit')),
+  scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS attendances_benef_event_idx ON attendances (beneficiary_id, event_id);
+
 -- Finances (for admin)
 CREATE TABLE IF NOT EXISTS finances (
   id SERIAL PRIMARY KEY,

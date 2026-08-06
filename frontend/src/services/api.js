@@ -370,3 +370,83 @@ export async function deleteTestimonial(id) {
 export async function fetchActivity() {
   return await apiCall('/activity');
 }
+
+/* ── Présences & badges QR (événements + scan) ── */
+export async function fetchEvents() {
+  return await apiCall('/events');
+}
+
+export async function createEvent(data) {
+  return apiCallDetailed('/events', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteEvent(id) {
+  return apiCallDetailed(`/events/${id}`, { method: 'DELETE' });
+}
+
+// Présences d'un événement, groupées par enfant ({ firstName, lastName, photo, entries, exits })
+export async function fetchEventAttendances(id) {
+  return await apiCall(`/events/${id}/attendances`);
+}
+
+// Pointage depuis le contenu JSON du badge QR. Renvoie { ok, status, data } :
+// l'écran de scan s'appuie sur data.code (BADGE_INVALID, BENEFICIARY_DISABLED,
+// ALREADY_SCANNED, EXIT_WITHOUT_ENTRY, OK) pour afficher le bon message.
+export async function scanBadge(badge, eventId, direction) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
+      body: JSON.stringify({ badge, eventId, direction }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data: body };
+  } catch {
+    return { ok: false, status: 0, data: { code: 'NETWORK', error: 'Impossible de joindre le serveur.' } };
+  }
+}
+
+// Génère (ou retrouve) le badge QR d'un enfant → { badgeId, qrCode }
+export async function fetchBeneficiaryBadge(id) {
+  return apiCallDetailed(`/beneficiaries/${id}/badge`, { method: 'POST' });
+}
+
+// PDF d'UN badge → URL Blob téléchargeable, ou null
+export async function fetchBeneficiaryBadgePdf(id) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/beneficiaries/${id}/badge/pdf`, {
+      headers: adminKey ? { 'x-admin-key': adminKey } : {},
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+// Résumé de la « Présence du jour » pour le tableau de bord : { event, total,
+// entered, present (sur place), late (retardataires), absent, entries, exits,
+// lateNames, absentNames, attendanceRate, startTime } — ou null si base injoignable.
+export async function fetchTodayPresence() {
+  return await apiCall('/presences/today');
+}
+
+// PDF multi-badges (format carte de crédit, 4 par page) → URL Blob, ou null
+export async function exportBadgesPdf(ids) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/beneficiaries/badges/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}

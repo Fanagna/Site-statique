@@ -5,6 +5,7 @@ import Toast from '../../components/admin/Toast';
 import { useToast } from '../../hooks/useToast';
 import {
   fetchBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary,
+  fetchBeneficiaryBadge, fetchBeneficiaryBadgePdf,
   fetchFinances, createFinance, updateFinance, deleteFinance,
   fetchDonors, createDonor, updateDonor, deleteDonor,
   fetchDonations, updateDonation, deleteDonation, fetchDonationReceipt, fetchEmailStatus,
@@ -13,6 +14,7 @@ import {
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
   fetchTestimonials, updateTestimonial, deleteTestimonial,
   fetchActivity,
+  fetchTodayPresence,
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
 
@@ -223,6 +225,35 @@ export default function AdminDashboard() {
   useEffect(() => { if (testimonials.length) localStorage.setItem('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
   useEffect(() => { if (donations.length) localStorage.setItem('arina_donations', JSON.stringify(donations)); }, [donations]);
 
+  /* ── Encart « Présence du jour » (éducateur / admin) ── */
+  const [todayPresence, setTodayPresence] = useState(null); // { event, total, present, late, absent, … }
+  const [todayPresenceLoading, setTodayPresenceLoading] = useState(false); // squelette initial
+  const [todayRefreshing, setTodayRefreshing] = useState(false); // spinner du bouton (manuel uniquement)
+  const [hoveredWeekDay, setHoveredWeekDay] = useState(null); // jour de la tendance survolé (infobulle)
+  const todayReqRef = useRef(0); // ignore les réponses périmées (rafraîchissements concurrents)
+
+  const refreshTodayPresence = useCallback(async (manual = false) => {
+    if (!allowedTabs.includes('presences')) return;
+    const reqId = ++todayReqRef.current;
+    if (manual) setTodayRefreshing(true);
+    const p = await fetchTodayPresence();
+    if (reqId !== todayReqRef.current) return; // une demande plus récente a pris la main
+    setTodayPresence(p || null);
+    setHoveredWeekDay(null); // les jours peuvent avoir changé au rafraîchissement
+    setTodayPresenceLoading(false);
+    if (manual) setTodayRefreshing(false);
+  }, [allowedTabs]);
+
+  // Chargement initial + rafraîchissement automatique toutes les 60 s, UNIQUEMENT
+  // sur l'onglet tableau de bord (les scans se font sur une autre page).
+  useEffect(() => {
+    if (!allowedTabs.includes('presences') || tab !== 'dashboard') return;
+    setTodayPresenceLoading(true);
+    refreshTodayPresence();
+    const id = window.setInterval(() => refreshTodayPresence(), 60000);
+    return () => window.clearInterval(id);
+  }, [allowedTabs, tab, refreshTodayPresence]);
+
   /* ── CRUD handlers ── */
   /* Met à jour un champ du dossier (section.module) */
   const setDoss = (section, field) => (e) => {
@@ -308,6 +339,47 @@ export default function AdminDashboard() {
     if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
     setBenefs(benefs.filter((b) => b.id !== id));
     showToast('✅ Bénéficiaire supprimé de la base de données');
+  };
+
+  /* ── Badge QR d'un enfant (QR + PDF) ── */
+  const [badgeModal, setBadgeModal] = useState(null); // { child, badgeId?, qrCode? }
+  const [badgeLoading, setBadgeLoading] = useState(false);
+  const badgeReqRef = useRef(null); // id de l'enfant demandé — ignore les réponses tardives (course)
+
+  // Ouvre la modale badge : génère (ou retrouve) le badgeId + le QR code de l'enfant
+  const openBadgeModal = async (child) => {
+    badgeReqRef.current = child.id;
+    setBadgeModal({ child });
+    setBadgeLoading(true);
+    const r = await fetchBeneficiaryBadge(child.id);
+    if (badgeReqRef.current !== child.id) return; // un autre badge a été demandé entre-temps
+    badgeReqRef.current = null;
+    setBadgeLoading(false);
+    if (!r.ok || !r.data) {
+      setBadgeModal(null);
+      showToast(`❌ Impossible de générer le badge : ${r?.error || 'base injoignable'}`, 'error');
+      return;
+    }
+    // Mémorise le badgeId dans la liste locale (affiché dans la modale)
+    setBenefs((prev) => prev.map((x) => (x.id === child.id ? { ...x, badgeId: r.data.badgeId } : x)));
+    setBadgeModal({ child: { ...child, badgeId: r.data.badgeId }, badgeId: r.data.badgeId, qrCode: r.data.qrCode });
+  };
+
+  // Télécharge le badge PDF complet (logo + photo + QR + identité)
+  const downloadBenefBadge = async (child) => {
+    showToast('⏳ Génération du badge PDF…');
+    const url = await fetchBeneficiaryBadgePdf(child.id);
+    const badgeId = child.badgeId || `ARINA-${String(child.id).padStart(4, '0')}`;
+    if (!url) { showToast('❌ Impossible de générer le PDF (base injoignable ?)', 'error'); return; }
+    const el = document.createElement('a');
+    el.href = url;
+    el.download = `badge-${badgeId}.pdf`;
+    document.body.appendChild(el);
+    el.click();
+    el.remove();
+    // Révocation différée : le téléchargement d'un badge (photo + logo) peut être lent
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    showToast(`✅ Badge de ${child.prenom} ${child.nom} généré`);
   };
 
   /* Ouvre le formulaire : pré-rempli (édition) ou vierge (nouvelle transaction) */
@@ -827,6 +899,8 @@ export default function AdminDashboard() {
   if (allowedTabs.includes('evaluation')) principalItems.push({ key: 'evaluation', label: 'Évaluation', icon: 'calendar' });
   if (allowedTabs.includes('donateurs')) principalItems.push({ key: 'donateurs', label: 'Donateurs', icon: 'handshake' });
   if (allowedTabs.includes('dons')) principalItems.push({ key: 'dons', label: 'Dons', icon: 'heart', badge: () => donations.filter((d) => d.status === 'pledge').length });
+  if (allowedTabs.includes('presences')) principalItems.push({ key: 'presences', label: 'Présences', icon: 'calendar', to: '/admin/presences' });
+  if (allowedTabs.includes('scan')) principalItems.push({ key: 'scan', label: 'Scanner', icon: 'send', to: '/admin/scan' });
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
@@ -870,6 +944,9 @@ export default function AdminDashboard() {
     { icon: 'trendDown', label: 'Dépenses', value: totalDepenses, format: formatMGA, sub: `Ce mois : ${formatMGA(depThis)}`, gradient: 'from-rose-500 to-red-600', delta: depDelta },
     { icon: 'wallet', label: 'Solde', value: solde, format: formatMGA, sub: 'Revenus − dépenses', gradient: 'from-arina-gold to-arina-accent', delta: null },
   ];
+
+  // Dernier jour de la tendance 7 jours (= aujourd'hui côté serveur) — pour surligner la barre
+  const weekLastDate = todayPresence?.week?.length ? todayPresence.week[todayPresence.week.length - 1].date : null;
 
   const quickActions = [
     ...(allowedTabs.includes('actualites') ? [{ label: 'Nouvelle actu', icon: 'file', color: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/25', action: () => navigate('/admin/actualites?new=1') }] : []),
@@ -1062,6 +1139,165 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+
+          {/* ── Encart « Présence du jour » (éducateur / admin) ── */}
+          {allowedTabs.includes('presences') && (
+            <div className="card-apple overflow-hidden animate-fade-up" style={{ animationDelay: '140ms' }}>
+              <div className="px-5 py-4 border-b border-ios-hairline flex flex-wrap items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0">
+                  <Icon name="calendar" className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold flex items-center gap-2">
+                    🌞 Présence du jour
+                    {todayPresence?.event && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold">Quotidien</span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-ios-text3">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} — pointage par badge QR</p>
+                </div>
+                <button
+                  onClick={() => refreshTodayPresence(true)}
+                  className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors"
+                  title="Actualiser"
+                >
+                  <Icon name="refreshCw" className={`w-4 h-4 ${todayRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                <Link to="/admin/scan" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-arina-blue text-white text-xs font-semibold hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all">
+                  <Icon name="send" className="w-3.5 h-3.5" /> Scanner
+                </Link>
+                <Link to="/admin/presences" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-ios-fill text-ios-text2 text-xs font-semibold hover:bg-ios-fill-2 hover:text-arina-blue transition-all">
+                  <Icon name="activity" className="w-3.5 h-3.5" /> Présences
+                </Link>
+              </div>
+
+              {todayPresenceLoading && !todayPresence ? (
+                <div className="p-6 space-y-3"><div className="skeleton h-24" /></div>
+              ) : !todayPresence?.event ? (
+                <div className="px-5 py-6 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <Icon name={apiStatus === 'offline' ? 'alertCircle' : 'activity'} className={`w-8 h-8 flex-shrink-0 ${apiStatus === 'offline' ? 'text-amber-500' : 'text-ios-text3'}`} />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{apiStatus === 'offline' ? 'Compteurs indisponibles' : "Aucun pointage aujourd'hui"}</p>
+                    <p className="text-xs text-ios-text3 mt-0.5">
+                      {apiStatus === 'offline'
+                        ? 'La base de données est injoignable — les présences du jour ne peuvent pas être chargées.'
+                        : "La session « Présence du jour » sera créée automatiquement au premier scan d'un badge."}
+                    </p>
+                  </div>
+                  {apiStatus !== 'offline' && (
+                    <Link to="/admin/scan" className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-arina-blue text-white text-sm font-semibold hover:bg-arina-blue-dark transition-all">
+                      <Icon name="send" className="w-4 h-4" /> Ouvrir le scanner
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-ios-hairline">
+                  {[
+                    { icon: 'check', label: 'Sur place', value: todayPresence.present, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', sub: `${todayPresence.entries} entrée${todayPresence.entries > 1 ? 's' : ''} · ${todayPresence.exits} sortie${todayPresence.exits > 1 ? 's' : ''}` },
+                    { icon: 'clock', label: 'Retardataires', value: todayPresence.late, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10', sub: `entré(e)s après ${todayPresence.startTime}` },
+                    { icon: 'x', label: 'Absents', value: todayPresence.absent, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-500/10', sub: `sur ${todayPresence.total} actif${todayPresence.total > 1 ? 's' : ''}` },
+                    { icon: 'trendUp', label: 'Taux de présence', value: `${todayPresence.attendanceRate}%`, color: 'text-arina-blue', bg: 'bg-arina-warm', sub: `${todayPresence.entered} pointé${todayPresence.entered > 1 ? 's' : ''} / ${todayPresence.total}` },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-ios-card p-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-7 h-7 rounded-lg ${s.bg} ${s.color} flex items-center justify-center`}>
+                          <Icon name={s.icon} className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3">{s.label}</span>
+                      </div>
+                      <div className={`text-[24px] lg:text-[28px] font-bold tracking-tight tabular mt-2 ${s.color}`}>{s.value}</div>
+                      <div className="text-[11px] text-ios-text3 mt-0.5">{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-5 py-3.5 border-t border-ios-hairline">
+                  <div className="flex items-center justify-between text-[11px] text-ios-text3 mb-1.5">
+                    <span>{todayPresence.entered} / {todayPresence.total} enfant{todayPresence.total > 1 ? 's' : ''} pointé{todayPresence.entered > 1 ? 's' : ''} aujourd'hui</span>
+                    <span className="font-bold text-arina-blue">{todayPresence.attendanceRate}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-ios-fill overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-arina-blue" style={{ width: `${Math.min(100, todayPresence.attendanceRate)}%` }} />
+                  </div>
+                  {(todayPresence.lateNames?.length > 0 || todayPresence.absentNames?.length > 0) && (
+                    <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-ios-text3">
+                      {todayPresence.lateNames.length > 0 && (
+                        <span>⏰ Retards : <span className="text-amber-600 dark:text-amber-400 font-medium">{todayPresence.lateNames.join(', ')}{todayPresence.late > todayPresence.lateNames.length ? ` +${todayPresence.late - todayPresence.lateNames.length} autre(s)` : ''}</span></span>
+                      )}
+                      {todayPresence.absentNames.length > 0 && (
+                        <span>🚫 Absents : <span className="text-red-500 font-medium">{todayPresence.absentNames.join(', ')}{todayPresence.absent > todayPresence.absentNames.length ? ` +${todayPresence.absent - todayPresence.absentNames.length} autre(s)` : ''}</span></span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                </>
+              )}
+
+              {/* Tendance 7 derniers jours — visible même sans session aujourd'hui */}
+              {todayPresence?.week?.length > 0 && (
+                <div className="px-5 py-4 border-t border-ios-hairline">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-ios-text3">Tendance 7 derniers jours</span>
+                    <span className="text-[10px] text-ios-text3">taux de présence par jour</span>
+                  </div>
+                  <div className="flex items-stretch gap-1.5 sm:gap-2 h-28">
+                    {todayPresence.week.map((d, i) => {
+                      const isToday = d.date === weekLastDate;
+                      const hasInfo = d.hasSession || d.entered > 0;
+                      return (
+                        <div
+                          key={d.date}
+                          className={`flex-1 min-w-0 flex flex-col items-center gap-1.5 group ${hasInfo ? 'relative' : ''}`}
+                          onMouseEnter={() => hasInfo && setHoveredWeekDay(d.date)}
+                          onMouseLeave={() => hasInfo && setHoveredWeekDay(null)}
+                          title={hasInfo ? undefined : 'Jour sans pointage'}
+                        >
+                          {/* Infobulle : détail retardataires / absents du jour survolé */}
+                          {hasInfo && hoveredWeekDay === d.date && (
+                            <div
+                              className={`absolute z-30 bottom-full mb-2 w-max max-w-[min(260px,72vw)] rounded-xl bg-gray-900/95 dark:bg-gray-800/95 text-white text-[11px] shadow-2xl backdrop-blur-sm pointer-events-none animate-pop ${i === 0 ? 'left-0' : i === todayPresence.week.length - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}
+                            >
+                              <div className="px-3 py-2.5 space-y-1.5 leading-snug">
+                                <div className="font-bold flex items-center justify-between gap-4">
+                                  <span className="capitalize">{d.weekday} {d.date.slice(8)}/{d.date.slice(5, 7)}</span>
+                                  <span className="text-white/70 font-normal tabular">{d.entered}/{d.total} pointé(s) · {d.rate}%</span>
+                                </div>
+                                <div>
+                                  {d.late > 0 ? (
+                                    <span className="text-amber-300">⏰ Retards ({d.late}) : <span className="text-white">{d.lateNames.join(', ')}{d.late > d.lateNames.length ? ` +${d.late - d.lateNames.length} autre(s)` : ''}</span></span>
+                                  ) : (
+                                    <span className="text-emerald-300">⏰ Aucun retard</span>
+                                  )}
+                                </div>
+                                <div>
+                                  {d.absent > 0 ? (
+                                    <span className="text-red-300">🚫 Absents ({d.absent}) : <span className="text-white">{d.absentNames.join(', ')}{d.absent > d.absentNames.length ? ` +${d.absent - d.absentNames.length} autre(s)` : ''}</span></span>
+                                  ) : (
+                                    <span className="text-emerald-300">✅ Tout le monde est là</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex-1 w-full flex items-end justify-center">
+                            {hasInfo ? (
+                              <div
+                                className={`w-full max-w-[24px] rounded-t-md animate-bar transition-all duration-500 group-hover:brightness-110 ${isToday ? 'bg-gradient-to-t from-arina-blue to-arina-accent' : 'bg-gradient-to-t from-emerald-500 to-emerald-400'}`}
+                                style={{ height: `${Math.max(6, d.rate)}%` }}
+                              />
+                            ) : (
+                              <div className="w-1.5 h-1.5 rounded-full bg-ios-fill mb-1" />
+                            )}
+                          </div>
+                          <span className={`text-[10px] truncate ${isToday ? 'font-bold text-arina-blue' : 'text-ios-text3'}`}>{d.weekday}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Charts */}
           <div className="grid lg:grid-cols-3 gap-6">
@@ -1267,6 +1503,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-1.5">
                             <Link to={`/admin/beneficiaire/${b.id}`} state={{ benef: b }} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Fiche détaillée"><Icon name="eye" className="w-4 h-4" /></Link>
+                            <button onClick={() => openBadgeModal(b)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Badge QR + PDF"><Icon name="qrCode" className="w-4 h-4" /></button>
                             <button onClick={() => openBenefForm(b)} className="p-2 rounded-lg text-ios-text3 hover:text-arina-blue hover:bg-arina-warm transition-colors" title="Modifier"><Icon name="edit" className="w-4 h-4" /></button>
                             <button onClick={() => removeBenef(b.id)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer"><Icon name="trash" className="w-4 h-4" /></button>
                           </div>
@@ -2646,6 +2883,49 @@ export default function AdminDashboard() {
                   Fermer
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE — Badge QR d'un enfant ═══════ */}
+      {badgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBadgeModal(null)} />
+          <div className="relative w-full max-w-sm bg-ios-card rounded-3xl shadow-2xl animate-pop overflow-hidden text-center">
+            <div className="px-6 pt-6 pb-2">
+              <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-arina-blue/70 to-arina-blue-dark text-white flex items-center justify-center text-lg font-bold">
+                {initials(`${badgeModal.child.prenom} ${badgeModal.child.nom}`)}
+              </div>
+              <h3 className="mt-3 font-bold">{badgeModal.child.prenom} {badgeModal.child.nom}</h3>
+              <p className="text-xs text-ios-text3">Badge {badgeModal.badgeId || '…'}</p>
+            </div>
+            <div className="p-6">
+              {badgeLoading ? (
+                <div className="h-44 flex flex-col items-center justify-center gap-3">
+                  <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
+                  <span className="text-xs text-ios-text3">Génération du QR code…</span>
+                </div>
+              ) : badgeModal.qrCode ? (
+                <>
+                  <div className="w-44 h-44 mx-auto rounded-2xl bg-white border border-ios-hairline p-2 shadow-inner">
+                    <img src={badgeModal.qrCode} alt={`QR code badge ${badgeModal.badgeId}`} className="w-full h-full object-contain" />
+                  </div>
+                  <p className="mt-3 text-[11px] text-ios-text3">Scannez ce code à l'entrée des événements, ou imprimez le badge PDF complet.</p>
+                </>
+              ) : (
+                <p className="text-sm text-ios-text2 py-8">QR code indisponible.</p>
+              )}
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setBadgeModal(null)} className="flex-1 py-3 rounded-2xl bg-ios-fill font-semibold text-sm hover:bg-ios-fill-2 transition-colors">Fermer</button>
+              <button
+                onClick={() => downloadBenefBadge(badgeModal.child)}
+                disabled={!badgeModal.badgeId}
+                className="flex-1 py-3 rounded-2xl bg-arina-blue text-white font-semibold text-sm hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-colors disabled:opacity-40"
+              >
+                <Icon name="download" className="w-4 h-4 inline -mt-0.5 mr-1" /> Badge PDF
+              </button>
             </div>
           </div>
         </div>

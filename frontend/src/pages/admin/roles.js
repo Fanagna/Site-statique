@@ -14,12 +14,12 @@ export const ROLE_LABELS = {
 //  - président  : tableau de bord, actualités, évaluation mensuelle,
 //                 messages, candidatures, témoignages
 //  - comptable  : tableau de bord, finances, évaluation mensuelle, donateurs
-//  - éducateur  : tableau de bord, enfants (CRUD), évaluation mensuelle (lecture),
-//                 messages, candidatures, témoignages
+//  - éducateur  : tableau de bord, enfants (CRUD), présences (badges QR),
+//                 évaluation mensuelle (lecture), messages, candidatures, témoignages
 export const ROLE_TABS = {
-  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'evaluation', 'donateurs', 'dons', 'messages', 'volunteers', 'testimonials', 'comptes'],
+  admin: ['dashboard', 'actualites', 'enfants', 'finances', 'evaluation', 'donateurs', 'dons', 'presences', 'scan', 'messages', 'volunteers', 'testimonials', 'comptes'],
   president: ['dashboard', 'actualites', 'evaluation', 'messages', 'volunteers', 'testimonials'],
   accountant: ['dashboard', 'finances', 'evaluation', 'donateurs'],
-  educator: ['dashboard', 'enfants', 'evaluation', 'messages', 'volunteers', 'testimonials'],
+  educator: ['dashboard', 'enfants', 'presences', 'scan', 'evaluation', 'messages', 'volunteers', 'testimonials'],
   unknown: ['dashboard'],
 };

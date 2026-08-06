@@ -22,6 +22,8 @@ const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const NewsManagementPage = lazy(() => import('./pages/admin/NewsManagementPage'));
 const BeneficiaryDetailPage = lazy(() => import('./pages/admin/BeneficiaryDetailPage'));
+const ScanPage = lazy(() => import('./pages/admin/ScanPage'));
+const PresencesPage = lazy(() => import('./pages/admin/PresencesPage'));
 
 /* Écran de chargement minimal pendant le téléchargement d'une page admin */
 function PageLoader() {
@@ -92,6 +94,23 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <BeneficiaryDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Présences & badges QR : réservés à l'éducateur et à l'admin */}
+              <Route
+                path="/admin/presences"
+                element={
+                  <ProtectedRoute roles={['educator']}>
+                    <PresencesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/scan"
+                element={
+                  <ProtectedRoute roles={['educator']}>
+                    <ScanPage />
                   </ProtectedRoute>
                 }
               />

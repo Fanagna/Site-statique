@@ -290,6 +290,8 @@ export default function NewsManagementPage() {
       { key: 'actualites', label: 'Actualités', icon: 'file' },
       ...(can('enfants') ? [{ key: 'enfants', label: 'Enfants', icon: 'users', to: '/admin?tab=enfants' }] : []),
       ...(can('finances') ? [{ key: 'finances', label: 'Finances', icon: 'wallet', to: '/admin?tab=finances' }] : []),
+      ...(can('presences') ? [{ key: 'presences', label: 'Présences', icon: 'calendar', to: '/admin/presences' }] : []),
+      ...(can('scan') ? [{ key: 'scan', label: 'Scanner', icon: 'send', to: '/admin/scan' }] : []),
     ] },
     { group: 'Communication', items: [
       ...(can('messages') ? [{ key: 'messages', label: 'Messages', icon: 'mail', to: '/admin?tab=messages' }] : []),

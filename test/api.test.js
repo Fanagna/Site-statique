@@ -43,6 +43,14 @@ const fakePool = makeFakePool({
     // « reçu → à confirmer → reçu » où aucun 2e reçu ne doit partir.
     { id: 2, amount: 30, currency: 'EUR', name: 'Jean', email: 'jean@exemple.mg', message: null, method: 'bank', anonymous: false, status: 'pledge', received_at: null, receipt_number: 'ARINA-2026-0002', receipt_sent_at: '2026-01-15T10:00:00.000Z', created_at: new Date().toISOString() },
   ],
+  // Bénéficiaires (badges QR : l'éducateur scanne les présences)
+  beneficiaries: [
+    { id: 1, first_name: 'Jean', last_name: 'Rakoto', age: 16, entry_date: '2025-01-10', status: 'active', training: 'Menuiserie', photo_url: null, badge_id: 'ARINA-0001-AB12', dossier: {}, created_at: new Date().toISOString() },
+    { id: 2, first_name: 'Lova', last_name: 'Rasoa', age: 17, entry_date: '2025-03-02', status: 'inactive', training: 'Cuisine', photo_url: null, badge_id: 'ARINA-0002-CD34', dossier: {}, created_at: new Date().toISOString() },
+  ],
+  events: [
+    { id: 1, name: 'Atelier Menuiserie', description: 'Atelier du samedi', event_date: '2026-08-10', location: 'Centre ARINA', created_at: new Date().toISOString() },
+  ],
 });
 
 const app = require('../api/index.js');
@@ -496,6 +504,317 @@ test('DELETE /api/donations/:id → 200', async () => {
   const r = await send('DELETE', '/api/donations/1', undefined, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.deleted, true);
+});
+
+/* ═══ PRÉSENCES : ÉVÉNEMENTS ═══ */
+test('GET /api/events sans clé → 401', async () => {
+  const r = await get('/api/events');
+  assert.equal(r.status, 401);
+});
+
+test('GET /api/events avec clé éducateur → 200, événement seedé présent', async () => {
+  const r = await get('/api/events', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  assert.equal(r.body.length, 1);
+  assert.equal(r.body[0].name, 'Atelier Menuiserie');
+});
+
+test('POST /api/events avec clé éducateur → 201', async () => {
+  const r = await post('/api/events', { name: 'Cérémonie de remise', event_date: '2026-12-20' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.name, 'Cérémonie de remise');
+});
+
+test('POST /api/events sans nom → 400', async () => {
+  const r = await post('/api/events', { name: '  ' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('DELETE /api/events/1 avec clé éducateur → 200, événement réellement supprimé', async () => {
+  const r = await send('DELETE', '/api/events/1', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+  const list = await get('/api/events', { 'x-admin-key': 'test-educator-key' });
+  assert.ok(!(list.body || []).some((e) => e.id === 1), 'l\'événement supprimé ne doit plus apparaître');
+});
+
+/* ═══ PRÉSENCES : SCAN DU BADGE QR ═══ */
+test('POST /api/scan sans clé → 401', async () => {
+  const r = await post('/api/scan', { badge: '{}', eventId: 1, direction: 'entry' });
+  assert.equal(r.status, 401);
+});
+
+test('POST /api/scan : badge non JSON → 404 BADGE_INVALID', async () => {
+  const r = await post('/api/scan', { badge: 'pas-un-json', eventId: 1, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+  assert.equal(r.body.code, 'BADGE_INVALID');
+});
+
+test('POST /api/scan : badge inconnu → 404 BADGE_INVALID', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 999, badgeId: 'ARINA-9999-ZZ99', name: 'X' }), eventId: 1, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+  assert.equal(r.body.code, 'BADGE_INVALID');
+});
+
+test('POST /api/scan sans événement → 201, la « Présence du jour » est créée automatiquement', async () => {
+  const before = fakePool.state.events.filter((e) => e.is_daily).length;
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  assert.ok(r.body.event.id, 'l\'événement du jour doit être renvoyé');
+  const dailies = fakePool.state.events.filter((e) => e.is_daily);
+  assert.equal(dailies.length, before + 1, 'une seule session du jour créée');
+  const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
+  assert.equal(stored.event_id, r.body.event.id, 'la présence doit être rattachée à la session du jour');
+  // La session du jour apparaît bien dans la liste des événements (marquée is_daily)
+  const list = await get('/api/events', { 'x-admin-key': 'test-educator-key' });
+  const daily = (list.body || []).find((e) => e.id === r.body.event.id);
+  assert.ok(daily, 'la session du jour doit apparaître dans /api/events');
+  assert.equal(daily.is_daily, true);
+});
+
+test('POST /api/scan sans événement (2e scan du même jour) → même session du jour, pas de doublon', async () => {
+  const r1 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), direction: 'exit' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r1.status, 201);
+  const r2 = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r2.status, 201);
+  assert.equal(r2.body.event.id, r1.body.event.id, 'le même événement du jour doit être réutilisé');
+  const dailies = fakePool.state.events.filter((e) => e.is_daily);
+  assert.equal(dailies.length, 1, 'pas de seconde session du jour');
+});
+
+test('POST /api/scan : badge d\'un compte désactivé → 403 BENEFICIARY_DISABLED', async () => {
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 2, badgeId: 'ARINA-0002-CD34' }), eventId: 1, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.code, 'BENEFICIARY_DISABLED');
+});
+
+test('POST /api/scan : entrée valide → 201, pointage enregistré', async () => {
+  // Événement dédié : l'événement seedé (id 1) est supprimé par un test précédent
+  const evt = await post('/api/events', { name: 'Atelier entrée' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12', name: 'Jean Rakoto' }), eventId: evtId, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.pointage.type, 'entry');
+  assert.ok(r.body.pointage.scanned_at);
+  assert.equal(r.body.child.firstName, 'Jean');
+  assert.equal(r.body.event.name, 'Atelier entrée');
+  const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'la présence doit être en base');
+  assert.equal(stored.type, 'entry');
+});
+
+test('POST /api/scan : double entrée → 409 ALREADY_SCANNED + dernier pointage', async () => {
+  // Événement dédié : 1er scan = entrée valide, 2e scan = double pointage
+  const evt = await post('/api/events', { name: 'Atelier double' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const premier = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(premier.status, 201);
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'ALREADY_SCANNED');
+  assert.equal(r.body.lastScan.type, 'entry');
+  assert.ok(r.body.lastScan.scanned_at, 'le dernier pointage doit être affiché');
+});
+
+test('POST /api/scan : sortie sans entrée → 422 EXIT_WITHOUT_ENTRY + suggestion entrée', async () => {
+  // Lova (id 2) est désactivé → on utilise un événement neuf : créer un 2e événement
+  const evt = await post('/api/events', { name: 'Sortie pédagogique' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const r = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'exit' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 422);
+  assert.equal(r.body.code, 'EXIT_WITHOUT_ENTRY');
+  assert.equal(r.body.suggest, 'entry');
+});
+
+test('POST /api/scan : entrée puis sortie → 201 (cycle complet)', async () => {
+  const evt = await post('/api/events', { name: 'Remise des diplômes' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const entree = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(entree.status, 201);
+  const sortie = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'exit' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(sortie.status, 201);
+  assert.equal(sortie.body.pointage.type, 'exit');
+  // Une sortie après la sortie → double pointage
+  const doubleSortie = await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'exit' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(doubleSortie.status, 409);
+  assert.equal(doubleSortie.body.code, 'ALREADY_SCANNED');
+});
+
+test('GET /api/events/:id/attendances → listé groupé par enfant', async () => {
+  const evt = await post('/api/events', { name: 'Galette' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  await post('/api/scan', { badge: JSON.stringify({ id: 1, badgeId: 'ARINA-0001-AB12' }), eventId: evtId, direction: 'exit' }, { 'x-admin-key': 'test-educator-key' });
+  const r = await get(`/api/events/${evtId}/attendances`, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.length, 1);
+  assert.equal(r.body[0].firstName, 'Jean');
+  assert.equal(r.body[0].entries.length, 1);
+  assert.equal(r.body[0].exits.length, 1);
+});
+
+/* ═══ BADGES : attribués automatiquement à l'inscription ═══ */
+test('POST /api/beneficiaries → badge_id généré automatiquement', async () => {
+  const r = await post('/api/beneficiaries', {
+    prenom: 'Nouveau', nom: 'Enfant', age: 12, statut: 'Actif',
+    dateEntree: '2026-08-01', formation: 'Cuisine', photo: '', dossier: {},
+  }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.match(r.body.badgeId || '', /^ARINA-/);
+  const stored = fakePool.state.beneficiaries.find((b) => b.id === r.body.id);
+  assert.ok(stored && stored.badge_id, 'le badge_id doit être mémorisé en base');
+});
+
+/* ═══ BADGES QR : GÉNÉRATION + PDF ═══ */
+test('POST /api/beneficiaries/:id/badge → badgeId + QR base64', async () => {
+  const r = await post('/api/beneficiaries/1/badge', {}, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.badgeId, 'ARINA-0001-AB12'); // badgeId déjà attribué : stable
+  assert.match(r.body.qrCode, /^data:image\/png;base64,/);
+  assert.ok(r.body.qrCode.length > 500, 'le QR doit contenir une image');
+});
+
+test('GET /api/beneficiaries/:id/badge/pdf → PDF valide (logo + QR)', async () => {
+  const res = await fetch(`${base}/api/beneficiaries/1/badge/pdf`, { headers: { 'x-admin-key': 'test-educator-key' } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.ok(buf.length > 1000, 'le PDF du badge doit contenir du contenu');
+});
+
+test('POST /api/beneficiaries/badges/export → PDF multi-badges (4 par page)', async () => {
+  const res = await fetch(`${base}/api/beneficiaries/badges/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-key': 'test-educator-key' },
+    body: JSON.stringify({ ids: [1, 2] }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.ok(buf.length > 1500, 'le PDF multi-badges doit contenir du contenu');
+});
+
+test('POST /api/beneficiaries/badges/export sans ids → 400', async () => {
+  const r = await post('/api/beneficiaries/badges/export', {}, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('GET /api/beneficiaries/:id/badge/pdf avec clé comptable → 403 (hors périmètre)', async () => {
+  const r = await get('/api/beneficiaries/1/badge/pdf', { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 403);
+});
+
+/* ═══ PRÉSENCE DU JOUR : résumé du tableau de bord ═══ */
+// Date locale Antananarivo (même convention que le serveur localToday())
+function testLocalToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Indian/Antananarivo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+test('GET /api/presences/today → 200, aucune session du jour → compteurs à zéro', async () => {
+  fakePool.state.events = fakePool.state.events.filter((e) => !e.is_daily);
+  fakePool.state.attendances = [];
+  const r = await get('/api/presences/today', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event, null);
+  assert.equal(r.body.present, 0);
+  assert.equal(r.body.late, 0);
+  assert.equal(r.body.absent, 0);
+  // Tendance 7 jours : toujours présente, 7 jours, aucun avec session ni pointage
+  assert.equal(r.body.week.length, 7);
+  assert.ok(r.body.week.every((d) => d.hasSession === false && d.rate === 0 && d.entered === 0));
+  assert.ok(r.body.week.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date)));
+  // Détail par jour : jour sans session → aucun retard ni absent à signaler
+  assert.ok(r.body.week.every((d) => d.late === 0 && d.absent === 0));
+  assert.ok(r.body.week.every((d) => d.lateNames.length === 0 && d.absentNames.length === 0));
+});
+
+test('GET /api/presences/today → présents / retardataires / absents calculés sur la session du jour', async () => {
+  const todayStr = testLocalToday();
+  // Réinitialise l'état : uniquement la session du jour créée pour ce test
+  fakePool.state.events = fakePool.state.events.filter((e) => !e.is_daily);
+  fakePool.state.attendances = [];
+  // Enfants actifs : Jean (1, actif), « Nouveau Enfant » (3, actif, créé par un test badge),
+  // + Faly (50, actif). Lova (2) reste inactif → exclu du total.
+  fakePool.state.beneficiaries = fakePool.state.beneficiaries.filter((b) => b.id !== 50);
+  fakePool.state.beneficiaries.push({
+    id: 50, first_name: 'Faly', last_name: 'Rabe', age: 14, status: 'active',
+    entry_date: '2026-01-01', training: 'Couture', photo_url: null, badge_id: null, dossier: {}, created_at: new Date().toISOString(),
+  });
+  fakePool.state.events.push({
+    id: 99, name: 'Présence du jour', is_daily: true, daily_key: todayStr, event_date: todayStr,
+    description: null, location: null, created_at: new Date().toISOString(),
+  });
+  // Session il y a 2 jours : Jean + « Nouveau » pointés (multi-jour → chemin multi-événements)
+  const p2 = new Intl.DateTimeFormat('en-CA', { timeZone: 'Indian/Antananarivo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.now() - 2 * 86400000));
+  const get2 = (t) => (p2.find((x) => x.type === t) || {}).value;
+  const pastStr = `${get2('year')}-${get2('month')}-${get2('day')}`;
+  fakePool.state.events.push({
+    id: 98, name: 'Présence du jour', is_daily: true, daily_key: pastStr, event_date: pastStr,
+    description: null, location: null, created_at: new Date().toISOString(),
+  });
+  fakePool.state.attendances.push(
+    { id: 905, beneficiary_id: 1, event_id: 98, type: 'entry', scanned_at: '2026-08-04T04:00:00.000Z', created_at: '2026-08-04T04:00:00.000Z' },
+    { id: 906, beneficiary_id: 3, event_id: 98, type: 'entry', scanned_at: '2026-08-04T04:30:00.000Z', created_at: '2026-08-04T04:30:00.000Z' },
+  );
+  // Jean entre à 07h30 locales (à l'heure), sort à 11h00 puis RENTRE à 13h00 (déjeuner) :
+  // toujours sur place (entrées 2 > sorties 1, même compteur que la session quotidienne).
+  // « Nouveau » entre à 08h45 (retard) puis sort à 12h00 ; Faly absent.
+  fakePool.state.attendances.push(
+    { id: 900, beneficiary_id: 1, event_id: 99, type: 'entry', scanned_at: '2026-08-06T04:30:00.000Z', created_at: '2026-08-06T04:30:00.000Z' }, // 07h30 Tana
+    { id: 901, beneficiary_id: 3, event_id: 99, type: 'entry', scanned_at: '2026-08-06T05:45:00.000Z', created_at: '2026-08-06T05:45:00.000Z' }, // 08h45 Tana (retard)
+    { id: 902, beneficiary_id: 1, event_id: 99, type: 'exit', scanned_at: '2026-08-06T08:00:00.000Z', created_at: '2026-08-06T08:00:00.000Z' }, // 11h00 Tana
+    { id: 903, beneficiary_id: 3, event_id: 99, type: 'exit', scanned_at: '2026-08-06T09:00:00.000Z', created_at: '2026-08-06T09:00:00.000Z' }, // 12h00 Tana
+    { id: 904, beneficiary_id: 1, event_id: 99, type: 'entry', scanned_at: '2026-08-06T10:00:00.000Z', created_at: '2026-08-06T10:00:00.000Z' }, // 13h00 Tana
+  );
+  const r = await get('/api/presences/today', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  assert.equal(r.body.total, 3);
+  assert.equal(r.body.entered, 2);
+  assert.equal(r.body.present, 1); // Jean est ressorti puis rentré : toujours sur place
+  assert.equal(r.body.late, 1); // « Nouveau » entré après 08:00
+  assert.equal(r.body.absent, 1); // Faly
+  assert.equal(r.body.entries, 3);
+  assert.equal(r.body.exits, 2);
+  assert.equal(r.body.attendanceRate, Math.round((2 / 3) * 100));
+  assert.deepEqual(r.body.lateNames, ['Nouveau Enfant']);
+  assert.deepEqual(r.body.absentNames, ['Faly Rabe']);
+  // Tendance 7 jours : session d'aujourd'hui + session il y a 2 jours
+  assert.equal(r.body.week.length, 7);
+  const last = r.body.week[r.body.week.length - 1];
+  assert.equal(last.date, todayStr);
+  assert.equal(last.hasSession, true);
+  assert.equal(last.entered, 2);
+  assert.equal(last.rate, Math.round((2 / 3) * 100));
+  const past = r.body.week.find((d) => d.date === pastStr);
+  assert.ok(past, 'le jour passé doit apparaître dans la tendance');
+  assert.equal(past.hasSession, true);
+  assert.equal(past.entered, 2);
+  assert.equal(past.rate, Math.round((2 / 3) * 100));
+  assert.ok(r.body.week.filter((d) => d.date !== todayStr && d.date !== pastStr).every((d) => d.hasSession === false && d.rate === 0));
+  // Détail retardataires / absents par jour
+  assert.equal(last.late, 1); // « Nouveau » entré à 08h45
+  assert.deepEqual(last.lateNames, ['Nouveau Enfant']);
+  assert.equal(last.absent, 1); // Faly
+  assert.deepEqual(last.absentNames, ['Faly Rabe']);
+  assert.equal(past.late, 0); // Jean (07h00) et « Nouveau » (07h30) à l'heure
+  assert.equal(past.absent, 1);
+  assert.deepEqual(past.absentNames, ['Faly Rabe']);
+});
+
+test('GET /api/presences/today → 401 sans clé, 403 pour le président', async () => {
+  const anon = await get('/api/presences/today');
+  assert.equal(anon.status, 401);
+  const pres = await get('/api/presences/today', { 'x-admin-key': 'test-president-key' });
+  assert.equal(pres.status, 403);
 });
 
 /* ═══ STATS RÉELLES ═══ */

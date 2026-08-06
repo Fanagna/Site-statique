@@ -111,6 +111,7 @@ const paths = {
   chevronDown: <path d="m6 9 6 6 6-6" />,
   chevronLeft: <path d="m15 18-6-6 6-6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,
+  chevronUp: <path d="m18 15-6-6-6 6" />,
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   trendUp: (
     <>
@@ -207,11 +208,41 @@ const paths = {
       <path d="M12 15V3" />
     </>
   ),
+  qrCode: (
+    <>
+      <rect x="3" y="3" width="5" height="5" rx="1" />
+      <rect x="16" y="3" width="5" height="5" rx="1" />
+      <rect x="3" y="16" width="5" height="5" rx="1" />
+      <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+      <path d="M21 21v.01" />
+      <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+      <path d="M3 12h.01" />
+      <path d="M12 3h.01" />
+      <path d="M12 16v.01" />
+      <path d="M16 12h1" />
+      <path d="M21 12v.01" />
+      <path d="M12 21v-1" />
+    </>
+  ),
   upload: (
     <>
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <path d="m17 8-5-5-5 5" />
       <path d="M12 3v12" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </>
+  ),
+  refreshCw: (
+    <>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
     </>
   ),
 };

@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { put, del } = require('@vercel/blob');
 const { buildReceiptPdf } = require('./receipt');
+const { generateQRCode, generateBadgePDF, exportMultipleBadges } = require('./badges');
 
 // Pièces jointes candidatures : formats et taille max (sous la limite Vercel Blob de 5 Mo/upload direct)
 const ALLOWED_ATTACH_EXT = /\.(pdf|doc|docx)$/i;
@@ -418,6 +419,30 @@ function ensureSchema() {
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS photo_url TEXT`,
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS dossier JSONB DEFAULT '{}'::jsonb`,
     `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS notes TEXT`,
+    `ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS badge_id VARCHAR(64)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS beneficiaries_badge_id_unique ON beneficiaries (badge_id) WHERE badge_id IS NOT NULL`,
+    `CREATE TABLE IF NOT EXISTS badge_events (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      event_date DATE DEFAULT CURRENT_DATE,
+      location VARCHAR(255),
+      is_daily BOOLEAN DEFAULT FALSE,
+      daily_key DATE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE badge_events ADD COLUMN IF NOT EXISTS is_daily BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE badge_events ADD COLUMN IF NOT EXISTS daily_key DATE`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS badge_events_daily_key_unique ON badge_events (daily_key) WHERE daily_key IS NOT NULL`,
+    `CREATE TABLE IF NOT EXISTS attendances (
+      id SERIAL PRIMARY KEY,
+      beneficiary_id INTEGER NOT NULL,
+      event_id INTEGER NOT NULL,
+      type VARCHAR(10) NOT NULL CHECK (type IN ('entry', 'exit')),
+      scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS attendances_benef_event_idx ON attendances (beneficiary_id, event_id)`,
     `CREATE TABLE IF NOT EXISTS donations (
       id SERIAL PRIMARY KEY,
       amount NUMERIC(12,2) NOT NULL,
@@ -586,6 +611,7 @@ function normalizeBenef(r) {
     dateEntree: r.entry_date ? new Date(r.entry_date).toISOString().split('T')[0] : '',
     formation: r.training || '—',
     photo: r.photo_url || '',
+    badgeId: r.badge_id || '',
     dossier,
   };
 }
@@ -607,7 +633,10 @@ app.post('/api/beneficiaries', requireRole(ROLES.educator), async (req, res) => 
       'INSERT INTO beneficiaries (first_name, last_name, age, status, entry_date, training, photo_url, dossier) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
       [prenom, nom, Number(age) || 0, statusMap[statut] || 'active', dateEntree, formation, photo || null, dossier || {}]
     );
-    res.status(201).json(normalizeBenef(result.rows[0]));
+    const created = result.rows[0];
+    // Chaque enfant inscrit a IMMÉDIATEMENT son badge QR personnel (badge_id stable)
+    const badgeId = await ensureBenefBadge(created);
+    res.status(201).json(normalizeBenef({ ...created, badge_id: badgeId }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1381,6 +1410,402 @@ app.get('/api/activity', requireRole(), async (req, res) => {
     items.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json(items.slice(0, 12));
   } catch (err) { res.json([]); }
+});
+
+// ═══ PRÉSENCES & BADGES QR (événements + pointages scannés) ═══
+// Le badge QR encode { id, badgeId, name }. Au scan, l'API retrouve l'enfant
+// par badgeId, valide son statut puis enregistre l'entrée/la sortie.
+
+/* Génère (et mémorise) le badgeId d'un bénéficiaire — stable entre deux exports.
+   NB : deux exports simultanés d'un enfant sans badge pourraient générer deux
+   identifiants (le dernier enregistré gagne) — scénario improbable en usage
+   réel, l'index UNIQUE bénéficie d'un second essai par l'éducateur. */
+async function ensureBenefBadge(benef) {
+  if (benef.badge_id) return benef.badge_id;
+  const badgeId = `ARINA-${String(benef.id).padStart(4, '0')}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  await pool.query('UPDATE beneficiaries SET badge_id = $1 WHERE id = $2', [badgeId, benef.id]);
+  return badgeId;
+}
+
+const roleBadge = (status) => (status === 'graduated' ? 'Diplômé' : status === 'inactive' ? 'Ancien bénéficiaire' : 'Bénéficiaire');
+
+// GET événements (tous les rôles authentifiés) — avec compteurs entrées/sorties
+app.get('/api/events', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT e.*,
+        (SELECT COUNT(*) FROM attendances a WHERE a.event_id = e.id AND a.type = 'entry') AS entries,
+        (SELECT COUNT(*) FROM attendances a WHERE a.event_id = e.id AND a.type = 'exit') AS exits
+      FROM badge_events e ORDER BY e.event_date DESC, e.id DESC`);
+    res.json(r.rows.map((x) => ({
+      id: x.id, name: x.name, description: x.description || '',
+      event_date: x.event_date ? new Date(x.event_date).toISOString().split('T')[0] : '',
+      location: x.location || '',
+      is_daily: !!x.is_daily,
+      entries: Number(x.entries) || 0, exits: Number(x.exits) || 0,
+      created_at: x.created_at,
+    })));
+  } catch (err) { res.json([]); }
+});
+
+// POST événement (éducateur ou admin)
+app.post('/api/events', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const { name, description, event_date, location } = req.body || {};
+    if (!String(name || '').trim()) return res.status(400).json({ error: "Le nom de l'événement est requis" });
+    const r = await pool.query(
+      'INSERT INTO badge_events (name, description, event_date, location) VALUES ($1,$2,$3,$4) RETURNING *',
+      [String(name).trim(), String(description || '').trim() || null, event_date || null, String(location || '').trim() || null]
+    );
+    const x = r.rows[0];
+    res.status(201).json({
+      id: x.id, name: x.name, description: x.description || '',
+      event_date: x.event_date ? new Date(x.event_date).toISOString().split('T')[0] : '',
+      location: x.location || '', is_daily: false, entries: 0, exits: 0, created_at: x.created_at,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE événement (éducateur ou admin) — les présences liées sont supprimées (cascade)
+app.delete('/api/events/:id', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM badge_events WHERE id = $1 RETURNING *', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Événement introuvable' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET présences d'un événement — groupées par enfant (entrées + sorties horodatées)
+app.get('/api/events/:id/attendances', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT a.id, a.type, a.scanned_at, b.id AS beneficiary_id, b.first_name, b.last_name, b.photo_url, b.status
+      FROM attendances a JOIN beneficiaries b ON b.id = a.beneficiary_id
+      WHERE a.event_id = $1 ORDER BY a.id ASC`,
+      [req.params.id]);
+    const map = new Map();
+    for (const row of r.rows) {
+      let g = map.get(row.beneficiary_id);
+      if (!g) {
+        g = {
+          id: row.beneficiary_id, firstName: row.first_name, lastName: row.last_name,
+          photo: row.photo_url || '', status: row.status, entries: [], exits: [], lastScan: null,
+        };
+        map.set(row.beneficiary_id, g);
+      }
+      const stamp = row.scanned_at ? new Date(row.scanned_at).toISOString() : null;
+      if (row.type === 'entry') g.entries.push(stamp); else g.exits.push(stamp);
+      g.lastScan = stamp;
+    }
+    res.json([...map.values()]);
+  } catch (err) { res.json([]); }
+});
+
+// POST /api/scan — pointage entrée/sortie depuis le QR du badge.
+// Cas d'erreur (codes utilisés par l'écran de scan) :
+//   BADGE_INVALID        → 400/404 « Badge non reconnu »
+//   BENEFICIARY_DISABLED → 403 « Compte désactivé »
+//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
+// Date locale du centre (Indian/Antananarivo, UTC+3) au format YYYY-MM-DD : la
+// « journée » de pointage bascule à minuit heure locale (pas à minuit UTC, qui
+// tomberait à 21 h locales). Le frontend utilise la même convention côté client.
+// Date locale Antananarivo formatée (utilisée par localToday() et la tendance 7 jours)
+function localDateStr(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Indian/Antananarivo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+function localToday() {
+  return localDateStr();
+}
+
+// POST /api/scan — pointage entrée/sortie depuis le QR du badge.
+// Cas d'erreur (codes utilisés par l'écran de scan) :
+//   BADGE_INVALID        → 400/404 « Badge non reconnu »
+//   BENEFICIARY_DISABLED → 403 « Compte désactivé »
+//   ALREADY_SCANNED      → 409 « Vous êtes déjà pointé(e) ! » (+ dernier pointage)
+//   EXIT_WITHOUT_ENTRY   → 422 « Vous devez d'abord scanner l'entrée » (+ suggestion)
+// Sans eventId, le pointage est rattaché à la « Présence du jour » (session
+// quotidienne créée automatiquement au premier scan valide — une seule par jour).
+app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const { badge, eventId, direction } = req.body || {};
+    let parsed = null;
+    if (typeof badge === 'string' && badge.trim()) {
+      try { parsed = JSON.parse(badge); } catch { /* badge illisible */ }
+    }
+    const dir = direction === 'exit' ? 'exit' : 'entry';
+
+    // 1) Badge inconnu / mal formé — on ne crée PAS de session du jour pour un mauvais badge
+    if (!parsed || !parsed.id) {
+      return res.status(404).json({ code: 'BADGE_INVALID', error: 'Badge non reconnu' });
+    }
+    const badgeId = String(parsed.badgeId || '');
+    const rows = badgeId
+      ? await pool.query('SELECT * FROM beneficiaries WHERE badge_id = $1', [badgeId])
+      : await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [Number(parsed.id)]);
+    const benef = rows.rows[0];
+    if (!benef) return res.status(404).json({ code: 'BADGE_INVALID', error: 'Badge non reconnu' });
+
+    // 2) Compte désactivé (statut ≠ actif → badge refusé)
+    if (benef.status !== 'active') {
+      return res.status(403).json({ code: 'BENEFICIARY_DISABLED', error: 'Compte désactivé — contactez l\'administrateur.' });
+    }
+
+    // 3) Événement : explicitement choisi, ou « Présence du jour » (session quotidienne
+    //    créée automatiquement au premier scan valide — une seule par jour, minuit local).
+    let evtId = Number(eventId);
+    if (!evtId || !Number.isFinite(evtId)) {
+      const todayStr = localToday();
+      let dR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+      if (dR.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO badge_events (name, event_date, is_daily, daily_key) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (daily_key) WHERE daily_key IS NOT NULL DO NOTHING`,
+          ['Présence du jour', todayStr, true, todayStr]
+        );
+        dR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+      }
+      if (dR.rows.length === 0) return res.status(500).json({ error: 'Impossible de créer la présence du jour' });
+      evtId = dR.rows[0].id;
+    }
+    const evtR = await pool.query('SELECT id, name FROM badge_events WHERE id = $1', [evtId]);
+    if (evtR.rows.length === 0) {
+      return res.status(404).json({ code: 'EVENT_INVALID', error: 'Événement introuvable' });
+    }
+
+    // 4) Dernier pointage de l'enfant pour cet événement
+    const lastR = await pool.query(
+      'SELECT id, type, scanned_at FROM attendances WHERE beneficiary_id = $1 AND event_id = $2 ORDER BY id DESC LIMIT 1',
+      [benef.id, evtId]
+    );
+    const prev = lastR.rows[0];
+
+    // 5) Double pointage : on rescanner le MÊME sens que le dernier scan
+    if (prev && prev.type === dir) {
+      return res.status(409).json({
+        code: 'ALREADY_SCANNED',
+        error: 'Vous êtes déjà pointé(e) !',
+        lastScan: { type: prev.type, scanned_at: prev.scanned_at },
+      });
+    }
+
+    // 6) Sortie sans entrée : on propose automatiquement une entrée
+    //    (le cas « double sortie » est déjà intercepté par le contrôle 5)
+    if (dir === 'exit' && !prev) {
+      return res.status(422).json({
+        code: 'EXIT_WITHOUT_ENTRY',
+        error: 'Vous devez d\'abord scanner l\'entrée',
+        suggest: 'entry',
+      });
+    }
+
+    // 7) Pointage valide → enregistré en base
+    const ins = await pool.query(
+      'INSERT INTO attendances (beneficiary_id, event_id, type) VALUES ($1,$2,$3) RETURNING id, type, scanned_at',
+      [benef.id, evtId, dir]
+    );
+    const p = ins.rows[0];
+    res.status(201).json({
+      success: true, code: 'OK',
+      pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
+      child: { id: benef.id, badgeId: benef.badge_id, firstName: benef.first_name, lastName: benef.last_name },
+      event: { id: evtId, name: evtR.rows[0].name },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST badge — génère (ou retrouve) le badgeId + le QR code base64 de l'enfant
+app.post('/api/beneficiaries/:id/badge', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
+    const b = r.rows[0];
+    const badgeId = await ensureBenefBadge(b);
+    const qr = await generateQRCode(b.id, badgeId, `${b.first_name} ${b.last_name}`.trim());
+    res.json({ badgeId, qrCode: `data:image/png;base64,${qr}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET PDF d'UN badge (logo + photo + QR + identité)
+app.get('/api/beneficiaries/:id/badge/pdf', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
+    const b = r.rows[0];
+    const badgeId = await ensureBenefBadge(b);
+    const pdf = await generateBadgePDF({
+      id: b.id, badgeId, firstName: b.first_name, lastName: b.last_name,
+      role: roleBadge(b.status), photo: b.photo_url,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="badge-${badgeId}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST export — PDF de plusieurs badges (format carte de crédit, 4 par page)
+app.post('/api/beneficiaries/badges/export', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(Number).filter((n) => n > 0))] : [];
+    if (ids.length === 0) return res.status(400).json({ error: 'Sélectionnez au moins un bénéficiaire' });
+    const r = await pool.query('SELECT * FROM beneficiaries WHERE id = ANY($1)', [ids]);
+    const byId = new Map(r.rows.map((x) => [x.id, x]));
+    const users = [];
+    for (const id of ids) {
+      const b = byId.get(id);
+      if (!b) continue;
+      const badgeId = await ensureBenefBadge(b);
+      users.push({ id: b.id, badgeId, firstName: b.first_name, lastName: b.last_name, role: roleBadge(b.status), photo: b.photo_url });
+    }
+    if (users.length === 0) return res.status(404).json({ error: 'Aucun bénéficiaire trouvé' });
+    const pdf = await exportMultipleBadges(users);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="badges-arina.pdf"');
+    res.send(Buffer.from(pdf));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ PRÉSENCE DU JOUR : résumé pour le tableau de bord ═══
+// Compteurs de la session quotidienne du jour (mêmes données que le scanner) :
+// présents sur place, retardataires (1re entrée après l'heure de début) et
+// absents (bénéficiaires actifs jamais pointés aujourd'hui).
+const DAILY_START_TIME = '08:00'; // heure de début de la journée — retard = 1re entrée après
+
+// Heure locale (Antananarivo) d'un horodatage au format HH:MM — même fuseau que localToday()
+function localTimeHHMM(iso) {
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Indian/Antananarivo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get('hour')}:${get('minute')}`;
+}
+const toMin = (hhmm) => {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  return (Number(h) || 0) * 60 + (Number(m) || 0);
+};
+
+app.get('/api/presences/today', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const todayStr = localToday();
+
+    // ── Tendance 7 derniers jours (taux de présence quotidien) ──
+    // Toujours calculée (même sans session aujourd'hui) : l'encart montre la tendance.
+    const days = [];
+    for (let i = 6; i >= 0; i--) days.push(localDateStr(new Date(Date.now() - i * 86400000)));
+    const [weekEvtsR, weekAttR, activeR] = await Promise.all([
+      pool.query('SELECT * FROM badge_events WHERE is_daily = TRUE AND daily_key >= $1 AND daily_key <= $2 ORDER BY daily_key', [days[0], days[6]]),
+      pool.query('SELECT a.event_id, a.beneficiary_id, a.type, a.scanned_at FROM attendances a JOIN badge_events e ON e.id = a.event_id WHERE e.is_daily = TRUE AND e.daily_key >= $1 AND e.daily_key <= $2', [days[0], days[6]]),
+      pool.query('SELECT id, first_name, last_name FROM beneficiaries WHERE status = $1 ORDER BY first_name', ['active']),
+    ]);
+    const activeRows = activeR.rows; // liste complète des actifs (réutilisée pour « aujourd'hui »)
+    const weekTotal = activeRows.length;
+    // event_id → enfant → { firstEntry, entries } : heure de la 1re entrée (retard) + pointage
+    const scansByEvt = new Map();
+    for (const row of weekAttR.rows) {
+      let byChild = scansByEvt.get(row.event_id);
+      if (!byChild) { byChild = new Map(); scansByEvt.set(row.event_id, byChild); }
+      let g = byChild.get(row.beneficiary_id);
+      if (!g) { g = { firstEntry: null, entries: 0 }; byChild.set(row.beneficiary_id, g); }
+      const t = row.scanned_at ? new Date(row.scanned_at) : null;
+      if (row.type === 'entry') {
+        g.entries++;
+        if (t && (!g.firstEntry || t < g.firstEntry)) g.firstEntry = t;
+      }
+    }
+    const evtByKey = new Map(weekEvtsR.rows.map((e) => [String(e.daily_key), e]));
+    const startMin = toMin(DAILY_START_TIME);
+    // NB : le dénominateur est le nombre d'actifs ACTUEL — approximation acceptable
+    // pour les jours passés (si des enfants sont entrés/sortis en cours de semaine).
+    const week = days.map((date) => {
+      const weekday = new Date(`${date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' });
+      const evt = evtByKey.get(date);
+      // Jour sans session : aucun pointage possible → pas de retardataire ni d'absent affiché
+      if (!evt) {
+        return { date, weekday, entered: 0, total: weekTotal, rate: 0, hasSession: false, late: 0, absent: 0, lateNames: [], absentNames: [] };
+      }
+      const scans = scansByEvt.get(evt.id) || new Map();
+      const entered = [...scans.values()].filter((g) => g.entries > 0).length;
+      let late = 0;
+      const lateNames = [];
+      const absentNames = [];
+      for (const b of activeRows) {
+        const g = scans.get(b.id);
+        const name = `${b.first_name || ''} ${b.last_name || ''}`.trim();
+        if (!g || g.entries === 0) { if (name && absentNames.length < 12) absentNames.push(name); continue; }
+        if (g.firstEntry && toMin(localTimeHHMM(g.firstEntry)) > startMin) { late++; if (name && lateNames.length < 12) lateNames.push(name); }
+      }
+      return {
+        date, weekday,
+        entered,
+        total: weekTotal,
+        rate: weekTotal > 0 ? Math.round((entered / weekTotal) * 100) : 0,
+        hasSession: true,
+        late,
+        absent: Math.max(0, weekTotal - entered),
+        lateNames,
+        absentNames,
+      };
+    });
+
+    const evtR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+    const evt = evtR.rows[0];
+    if (!evt) {
+      return res.json({
+        event: null, startTime: DAILY_START_TIME,
+        total: weekTotal, entered: 0, present: 0, late: 0, absent: 0, entries: 0, exits: 0,
+        lateNames: [], absentNames: [], attendanceRate: 0, week,
+      });
+    }
+
+    const attR = await pool.query(
+      'SELECT a.beneficiary_id, a.type, a.scanned_at FROM attendances a JOIN beneficiaries b ON b.id = a.beneficiary_id WHERE a.event_id = $1 ORDER BY a.scanned_at ASC, a.id ASC',
+      [evt.id]
+    );
+
+    // Compteurs entrées/sorties par enfant — « Sur place » = entrées > sorties (même
+    // logique que le compteur de la session quotidienne : un enfant qui ressort puis
+    // rentre — ex. déjeuner — reste présent).
+    const byChild = new Map();
+    let entries = 0;
+    let exits = 0;
+    for (const row of attR.rows) {
+      const id = row.beneficiary_id;
+      if (row.type === 'entry') entries++;
+      else exits++;
+      let g = byChild.get(id);
+      if (!g) { g = { entries: 0, exits: 0 }; byChild.set(id, g); }
+      if (row.type === 'entry') g.entries++;
+      else g.exits++;
+    }
+
+    const active = activeRows; // même liste que la tendance semaine (bénéficiaires actifs)
+    const total = active.length;
+    let present = 0;
+    for (const g of byChild.values()) if (g.entries > g.exits) present++;
+
+    // Le dernier jour de la tendance EST aujourd'hui : on réutilise ses pointés,
+    // retardataires et absents (calcul unique, une seule source de vérité) — seul
+    // « présent » a besoin des sorties, d'où la requête attR dédiée.
+    const todayWeek = week[week.length - 1];
+
+    res.json({
+      event: { id: evt.id, name: evt.name, event_date: evt.event_date ? new Date(evt.event_date).toISOString().split('T')[0] : todayStr },
+      startTime: DAILY_START_TIME,
+      total,
+      entered: todayWeek.entered,
+      present,
+      late: todayWeek.late,
+      absent: todayWeek.absent,
+      entries, exits,
+      lateNames: todayWeek.lateNames,
+      absentNames: todayWeek.absentNames,
+      attendanceRate: total > 0 ? Math.round((todayWeek.entered / total) * 100) : 0,
+      week,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = app;
