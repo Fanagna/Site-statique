@@ -5,31 +5,39 @@
     <link rel="icon" type="image/jpeg" href="/logo-arina.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#7A2C3E" />
-    <title>ARINA - Association pour la Réinsertion et l'Insertion des Nouveaux Adultes</title>
-    <meta name="description" content="L'Association ARINA accompagne la réinsertion sociale et professionnelle des mineurs sortant des établissements pénitentiaires." />
-    <link rel="canonical" href="https://arina-site.vercel.app/" />
+    <title>ARINA — Réinsertion des mineurs et des jeunes vulnérables à Madagascar</title>
+    <meta name="description" content="ARINA accompagne la réinsertion des mineurs et des jeunes vulnérables à Madagascar : enfants orphelins, jeunes sortant de prison, soutien psychosocial, formation professionnelle et insertion. Faites un don à Mahajanga." />
+    <meta name="keywords" content="ARINA, association, réinsertion, mineurs, prison, enfants orphelins, jeunes vulnérables, Madagascar, Mahajanga, formation professionnelle, insertion sociale, don" />
+    <!-- Domaine de production : remplacé au build par VITE_SITE_URL (voir .env.example) -->
+    <link rel="canonical" href="__SITE_URL__/" />
     <!-- Open Graph (Facebook, WhatsApp, LinkedIn…) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="ARINA" />
-    <meta property="og:title" content="ARINA - Réinsertion des jeunes vulnérables à Madagascar" />
-    <meta property="og:description" content="Hébergement, soutien psychosocial, formation professionnelle et insertion : ARINA accompagne les jeunes vulnérables de Mahajanga, Madagascar." />
-    <meta property="og:image" content="/logo-arina.jpg" />
+    <meta property="og:title" content="ARINA — Réinsertion des mineurs et des jeunes vulnérables à Madagascar" />
+    <meta property="og:description" content="ARINA accompagne la réinsertion des mineurs et des jeunes vulnérables à Madagascar : enfants orphelins, jeunes sortant de prison, formation professionnelle et insertion. Faites un don." />
+    <meta property="og:image" content="__SITE_URL__/logo-arina.jpg" />
+    <meta property="og:url" content="__SITE_URL__/" />
     <meta property="og:locale" content="fr_FR" />
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="ARINA - Réinsertion des jeunes vulnérables à Madagascar" />
-    <meta name="twitter:description" content="Hébergement, soutien psychosocial, formation professionnelle et insertion des jeunes vulnérables à Madagascar." />
-    <meta name="twitter:image" content="/logo-arina.jpg" />
+    <meta name="twitter:title" content="ARINA — Réinsertion des mineurs et des jeunes vulnérables à Madagascar" />
+    <meta name="twitter:description" content="Hébergement, soutien psychosocial, formation professionnelle et insertion des mineurs et jeunes vulnérables à Madagascar." />
+    <meta name="twitter:image" content="__SITE_URL__/logo-arina.jpg" />
     <!-- Données structurées (schema.org — visibilité Google) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "NGO",
+      "@id": "__SITE_URL__/#organisation",
       "name": "ARINA",
       "alternateName": "Association pour la Réinsertion et l'Insertion des Nouveaux Adultes",
-      "description": "Accompagne la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar : hébergement, soutien psychosocial, formation professionnelle et insertion.",
-      "url": "https://arina-site.vercel.app/",
-      "logo": "/logo-arina.jpg",
+      "description": "Accompagne la réinsertion sociale et professionnelle des mineurs et des jeunes vulnérables à Madagascar : enfants orphelins, jeunes sortant de prison, hébergement, soutien psychosocial, formation professionnelle et insertion.",
+      "url": "__SITE_URL__/",
+      "logo": "__SITE_URL__/logo-arina.jpg",
+      "image": "__SITE_URL__/logo-arina.jpg",
+      "keywords": "réinsertion, mineurs, prison, enfants orphelins, jeunes vulnérables, Madagascar",
+      "foundingDate": "2024",
+      "areaServed": "Madagascar",
       "address": {
         "@type": "PostalAddress",
         "streetAddress": "Fokontany Tsaramandroso Ambony",
@@ -44,6 +52,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Préchargement de la 1re image du hero (LCP) : le premier écran démarre
+         son téléchargement dès le HTML reçu, avant même le JavaScript. -->
+    <link rel="preload" as="image" href="/images/arina.jpg" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>

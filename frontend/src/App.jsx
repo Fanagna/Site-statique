@@ -5,19 +5,20 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
-import NewsPage from './pages/NewsPage';
-import ArticlePage from './pages/ArticlePage';
-import TestimonialsPage from './pages/TestimonialsPage';
-import ContactPage from './pages/ContactPage';
-import ActionsPage from './pages/ActionsPage';
-import PillarPage from './pages/PillarPage';
-import SoutenirPage from './pages/SoutenirPage';
-import PrivacyPage from './pages/PrivacyPage';
-import NotFoundPage from './pages/NotFoundPage';
 
-/* Pages admin chargées à la demande : l'espace admin (et la bibliothèque xlsx
-   des exports Excel) n'est téléchargé que lorsqu'on y accède — le site public
-   reste ainsi rapide et léger. */
+/* Pages chargées à la demande : seul le code nécessaire est téléchargé. L'accueil
+   reste dans le bundle initial (premier écran = LCP rapide) ; toutes les autres
+   pages publiques et l'ensemble de l'espace admin (dont la bibliothèque xlsx des
+   exports Excel) n'arrivent qu'à la demande — le site public reste léger et rapide. */
+const NewsPage = lazy(() => import('./pages/NewsPage'));
+const ArticlePage = lazy(() => import('./pages/ArticlePage'));
+const TestimonialsPage = lazy(() => import('./pages/TestimonialsPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ActionsPage = lazy(() => import('./pages/ActionsPage'));
+const PillarPage = lazy(() => import('./pages/PillarPage'));
+const SoutenirPage = lazy(() => import('./pages/SoutenirPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const NewsManagementPage = lazy(() => import('./pages/admin/NewsManagementPage'));
@@ -25,10 +26,10 @@ const BeneficiaryDetailPage = lazy(() => import('./pages/admin/BeneficiaryDetail
 const ScanPage = lazy(() => import('./pages/admin/ScanPage'));
 const PresencesPage = lazy(() => import('./pages/admin/PresencesPage'));
 
-/* Écran de chargement minimal pendant le téléchargement d'une page admin */
+/* Écran de chargement minimal pendant le téléchargement d'une page */
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-ios-bg flex items-center justify-center">
+    <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="animate-spin w-9 h-9 border-3 border-arina-blue border-t-transparent rounded-full" />
     </div>
   );
