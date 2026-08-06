@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import AppIcon from '../components/icons';
 import FileDropzone from '../components/FileDropzone';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { paymentMethods, ONLINE_DONATION_URL } from '../data/donations';
 import { getVolunteerUploadUrl, submitDonation, submitVolunteer } from '../services/api';
 import usePageMeta from '../hooks/usePageMeta';
@@ -611,11 +612,11 @@ export default function SoutenirPage() {
                   key={i}
                   className="group relative rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover cursor-pointer"
                 >
-                  <img
+                  <ResponsiveImage
                     src={img.src}
                     alt={img.caption}
                     className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
+                    sizes="(min-width: 640px) 33vw, 100vw"
                   />
                   <figcaption className="absolute inset-x-0 bottom-0 px-4 py-3 bg-gradient-to-t from-black/50 to-transparent text-white text-sm font-semibold">
                     {img.caption}

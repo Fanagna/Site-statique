@@ -28,7 +28,7 @@ import {
   inputClass, CountUp, EmptyState, Th,
 } from '../../components/admin/ui';
 import {
-  formatMGA, today, fmtDate, timeAgo, initials, donorColor,
+  formatMGA, today, fmtDate, timeAgo, initials, donorColor, readCache, writeCache, optimizeImage, readFileAsDataURL,
 } from '../../components/admin/utils';
 import { exportEvaluationXlsx } from '../../components/admin/ExcelTools';
 import {
@@ -144,12 +144,12 @@ export default function AdminDashboard() {
     // la gestion de chaque domaine reste réservée au rôle concerné).
     const bFromApi = await fetchBeneficiaries();
     if (bFromApi !== null) { anyOk = true; if (bFromApi.length) setBenefs(bFromApi); else setBenefs([]); }
-    else { anyFail = true; const s = localStorage.getItem('arina_benefs'); setBenefs(s ? JSON.parse(s) : []); }
+    else { anyFail = true; const cached = readCache('arina_benefs', []); setBenefs(Array.isArray(cached) ? cached : []); }
     setBenefsLoading(false);
 
     const fFromApi = await fetchFinances();
     if (fFromApi !== null) { anyOk = true; if (fFromApi.length) setFinances(fFromApi); else setFinances([]); }
-    else { anyFail = true; const s = localStorage.getItem('arina_finances'); setFinances(s ? JSON.parse(s) : []); }
+    else { anyFail = true; const cached = readCache('arina_finances', []); setFinances(Array.isArray(cached) ? cached : []); }
     setFinancesLoading(false);
 
     // Diagnostic email (Resend) : affiché en bannière dans l'onglet Dons si non configuré
@@ -159,7 +159,7 @@ export default function AdminDashboard() {
     // Donateurs : nécessaires pour l'évaluation (filtre + rapports) et l'onglet dédié
     const dFromApi = await fetchDonors();
     if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonors(dFromApi); }
-    else { anyFail = true; const s = localStorage.getItem('arina_donors'); setDonors(s ? JSON.parse(s) : []); }
+    else { anyFail = true; const cached = readCache('arina_donors', []); setDonors(Array.isArray(cached) ? cached : []); }
 
     if (can('actualites')) {
       const nFromApi = await fetchNews();
@@ -170,25 +170,25 @@ export default function AdminDashboard() {
     if (can('messages')) {
       const cFromApi = await fetchContacts();
       if (cFromApi !== null) { anyOk = true; if (cFromApi.length) setContacts(cFromApi); else setContacts([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_contacts'); setContacts(s ? JSON.parse(s) : []); }
+      else { anyFail = true; const cached = readCache('arina_contacts', []); setContacts(Array.isArray(cached) ? cached : []); }
     }
 
     if (can('volunteers')) {
       const vFromApi = await fetchVolunteers();
       if (vFromApi !== null) { anyOk = true; if (vFromApi.length) setVolunteers(vFromApi); else setVolunteers([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_volunteers'); setVolunteers(s ? JSON.parse(s) : []); }
+      else { anyFail = true; const cached = readCache('arina_volunteers', []); setVolunteers(Array.isArray(cached) ? cached : []); }
     }
 
     if (can('testimonials')) {
       const tFromApi = await fetchTestimonials();
       if (tFromApi !== null) { anyOk = true; if (tFromApi.length) setTestimonials(tFromApi); else setTestimonials([]); }
-      else { anyFail = true; const s = localStorage.getItem('arina_testimonials'); setTestimonials(s ? JSON.parse(s) : []); }
+      else { anyFail = true; const cached = readCache('arina_testimonials', []); setTestimonials(Array.isArray(cached) ? cached : []); }
     }
 
     if (can('dons')) {
       const dFromApi = await fetchDonations();
       if (dFromApi !== null && Array.isArray(dFromApi)) { anyOk = true; setDonations(dFromApi); }
-      else { anyFail = true; const s = localStorage.getItem('arina_donations'); setDonations(s ? JSON.parse(s) : []); }
+      else { anyFail = true; const cached = readCache('arina_donations', []); setDonations(Array.isArray(cached) ? cached : []); }
     }
 
     if (can('comptes')) {
@@ -217,13 +217,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { if (benefs.length) localStorage.setItem('arina_benefs', JSON.stringify(benefs)); }, [benefs]);
-  useEffect(() => { if (finances.length) localStorage.setItem('arina_finances', JSON.stringify(finances)); }, [finances]);
-  useEffect(() => { if (donors.length) localStorage.setItem('arina_donors', JSON.stringify(donors)); }, [donors]);
-  useEffect(() => { if (news !== allNews && news.length) localStorage.setItem('arina_news', JSON.stringify(news)); }, [news]);
-  useEffect(() => { if (contacts.length) localStorage.setItem('arina_contacts', JSON.stringify(contacts)); }, [contacts]);
-  useEffect(() => { if (testimonials.length) localStorage.setItem('arina_testimonials', JSON.stringify(testimonials)); }, [testimonials]);
-  useEffect(() => { if (donations.length) localStorage.setItem('arina_donations', JSON.stringify(donations)); }, [donations]);
+  useEffect(() => { if (benefs.length) writeCache('arina_benefs', benefs); }, [benefs]);
+  useEffect(() => { if (finances.length) writeCache('arina_finances', finances); }, [finances]);
+  useEffect(() => { if (donors.length) writeCache('arina_donors', donors); }, [donors]);
+  useEffect(() => { if (news !== allNews && news.length) writeCache('arina_news', news); }, [news]);
+  useEffect(() => { if (contacts.length) writeCache('arina_contacts', contacts); }, [contacts]);
+  useEffect(() => { if (testimonials.length) writeCache('arina_testimonials', testimonials); }, [testimonials]);
+  useEffect(() => { if (donations.length) writeCache('arina_donations', donations); }, [donations]);
 
   /* ── Encart « Présence du jour » (éducateur / admin) ── */
   const [todayPresence, setTodayPresence] = useState(null); // { event, total, present, late, absent, … }
@@ -264,16 +264,17 @@ export default function AdminDashboard() {
     }));
   };
 
-  /* Upload photo (base64) avec aperçu */
-  const onBenefPhoto = (e) => {
+  /* Upload photo (base64) avec aperçu — redimensionnée + WebP pour rester nette et légère */
+  const onBenefPhoto = async (e) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) { alert('Format non accepté — utilisez JPG, PNG, WebP ou GIF.'); return; }
-    if (f.size > 3 * 1024 * 1024) { alert('Photo trop volumineuse (maximum 3 Mo).'); return; }
-    const reader = new FileReader();
-    reader.onload = () => setBenefForm((prev) => ({ ...prev, photo: String(reader.result) }));
-    reader.readAsDataURL(f);
+    if (f.size > 15 * 1024 * 1024) { alert('Photo trop volumineuse (maximum 15 Mo).'); return; }
+    const optimized = await optimizeImage(f, { maxDim: 1200, quality: 0.9 });
+    if (optimized) { setBenefForm((prev) => ({ ...prev, photo: optimized })); return; }
+    const raw = await readFileAsDataURL(f);
+    setBenefForm((prev) => ({ ...prev, photo: raw }));
   };
 
   const openBenefForm = (b) => {

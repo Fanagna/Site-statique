@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './icons';
+import { cleanupCaches } from './utils';
 
 const ROLE_LABELS = {
   admin: 'Administrateur', president: 'Président', accountant: 'Comptable', educator: 'Éducateur',
@@ -29,6 +30,15 @@ export default function AdminLayout({
   onLogout,
   children,
 }) {
+  /* Purge des caches localStorage corrompus ou trop volumineux : exécutée une
+     seule fois par session (flag), avant le premier rendu complet des pages
+     admin — empêche les crashes JSON.parse / QuotaExceededError au chargement. */
+  useEffect(() => {
+    if (sessionStorage.getItem('arina_cache_cleaned') === '1') return;
+    cleanupCaches();
+    try { sessionStorage.setItem('arina_cache_cleaned', '1'); } catch { /* optionnel */ }
+  }, []);
+
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('arina_sidebar') === '1');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(() => {

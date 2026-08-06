@@ -3,6 +3,7 @@ import { Calendar, Eye, ImageIcon, Newspaper, Tag } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import UpdatedBadge from './UpdatedBadge';
 import EditNewsButton from './EditNewsButton';
+import ResponsiveImage from './ResponsiveImage';
 
 export default function NewsSection() {
   const { news } = useNews();
@@ -35,10 +36,12 @@ export default function NewsSection() {
           <div className="flex flex-col lg:flex-row">
             <div className="lg:w-1/2">
               {featured.image ? (
-                <img
+                <ResponsiveImage
                   src={featured.image}
                   alt={featured.title}
                   className="w-full h-64 lg:h-full object-cover"
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  priority
                 />
               ) : (
                 <div className="w-full h-64 lg:h-full bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
@@ -63,7 +66,7 @@ export default function NewsSection() {
                 <UpdatedBadge updatedAt={featured.updatedAt} createdDate={featured.created_at} />
               </div>
               <div className="flex flex-wrap items-center gap-4 mt-6">
-                <Link to={`/actualites/${featured.slug}`} className="inline-flex items-center gap-2 text-arina-gold font-semibold hover:text-arina-accent-dark transition-colors group">
+                <Link to={`/actualites/${featured.slug}`} state={{ article: featured }} className="inline-flex items-center gap-2 text-arina-gold font-semibold hover:text-arina-accent-dark transition-colors group">
                   Lire la suite
                   <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -81,12 +84,13 @@ export default function NewsSection() {
             <article key={i} className="group bg-arina-cream rounded-2xl overflow-hidden shadow-soft border border-arina-warm card-hover">
               <div className="relative overflow-hidden">
                 {item.image ? (
-                  <img
+                  <ResponsiveImage
                     src={item.image}
                     alt={item.title}
                     className="w-full h-52 object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
+                  sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), 100vw"
+                />
+              ) : (
                   <div className="w-full h-52 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
                     <ImageIcon className="w-10 h-10 text-white/30" />
                   </div>
@@ -108,7 +112,7 @@ export default function NewsSection() {
                   {item.excerpt}
                 </p>
                 <div className="flex items-center justify-between">
-                  <Link to={`/actualites/${item.slug}`} className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all">
+                  <Link to={`/actualites/${item.slug}`} state={{ article: item }} className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all">
                     Lire plus
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />

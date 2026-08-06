@@ -4,6 +4,7 @@ import { Calendar, Eye, ImageIcon, Search, Tag, X } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import UpdatedBadge from '../components/UpdatedBadge';
 import EditNewsButton from '../components/EditNewsButton';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { categories, months, categoryColors } from '../data/news';
 import usePageMeta from '../hooks/usePageMeta';
 
@@ -231,11 +232,11 @@ export default function NewsPage() {
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     {item.image ? (
-                      <img
+                      <ResponsiveImage
                         src={item.image}
                         alt={item.title}
                         className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
+                        sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), 100vw"
                       />
                     ) : (
                       <div className="w-full h-56 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
@@ -265,6 +266,7 @@ export default function NewsPage() {
                     <div className="flex items-center justify-between mt-auto">
                       <Link
                         to={`/actualites/${item.slug}`}
+                        state={{ article: item }}
                         className="inline-flex items-center gap-1 text-arina-blue font-semibold text-sm group-hover:gap-2 transition-all"
                       >
                         Lire plus

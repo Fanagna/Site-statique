@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { heroImages } from '../data/siteImages';
+import { buildImageSet } from '../utils/imageSrc';
 
 const slides = [
   {
@@ -47,13 +48,14 @@ export default function HeroSlider() {
 
   return (
     <section className="relative h-[85vh] min-h-[600px] overflow-hidden">
-      {/* Background images */}
+      {/* Background images — image-set multi-tailles (Vercel) : le navigateur
+          charge la bonne résolution selon l'écran, comme sur les grands sites */}
       {slides.map((s, i) => (
         <div
           key={i}
           className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
           style={{
-            backgroundImage: `url(${s.bg})`,
+            backgroundImage: buildImageSet(s.bg, [768, 1280, 1920, 2560]),
             opacity: i === current ? 1 : 0,
             transform: `scale(${i === current ? 1 : 1.1})`,
             transition: 'opacity 1s ease, transform 6s ease',

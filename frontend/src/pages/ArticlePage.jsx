@@ -1,19 +1,51 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Eye, FileText, Heart, Handshake, ImageIcon } from 'lucide-react';
 import useNews from '../hooks/useNews';
 import { incrementNewsViews } from '../services/api';
 import UpdatedBadge from '../components/UpdatedBadge';
 import EditNewsButton from '../components/EditNewsButton';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { categoryColors } from '../data/news';
 import ContentBlock from '../components/ContentBlock';
 import usePageMeta from '../hooks/usePageMeta';
 
+/* Résout l'article demandé, même si le slug de l'URL ne correspond pas au format
+   exact des données : l'API suffixe les slugs avec l'id (« titre-2024-1 ») alors
+   que les données statiques de secours n'ont pas ce suffixe (« titre-2024 »).
+   On essaie donc : slug exact → slug API en base → slug sans suffixe → id. */
+function resolveArticle(news, slug) {
+  if (!slug) return undefined;
+  const exact = news.find((n) => n.slug === slug);
+  if (exact) return exact;
+  // Slug statique (« titre-2024 ») alors que les données utilisent le format API
+  // (« titre-2024-1 ») : on cherche un article dont le slug commence par celui-ci.
+  const prefixed = news.find((n) => n.slug && n.slug.startsWith(`${slug}-`));
+  if (prefixed) return prefixed;
+  // Slug API (« titre-2024-1 ») alors que les données sont statiques : on retire
+  // le suffixe numérique et on cherche la base, sinon on cherche par id.
+  const base = slug.replace(/-\d+$/, '');
+  if (base !== slug) {
+    const byBase = news.find((n) => n.slug === base);
+    if (byBase) return byBase;
+  }
+  const idMatch = String(slug).match(/(\d+)$/);
+  if (idMatch) {
+    const byId = news.find((n) => String(n.id) === idMatch[1]);
+    if (byId) return byId;
+  }
+  return undefined;
+}
+
 export default function ArticlePage() {
   const { slug } = useParams();
   const location = useLocation();
-  const { news } = useNews();
-  const article = news.find((n) => n.slug === slug);
+  const { news, loading } = useNews();
+  /* Article déjà transmis par le clic « Lire plus » (state) : affichage IMMÉDIAT,
+     sans attendre le rechargement des actualités ni écran « introuvable ». */
+  const stateArticle = location.state?.article;
+
+  const article = useMemo(() => resolveArticle(news, slug) || stateArticle, [news, slug, stateArticle]);
   usePageMeta(article ? article.title : 'Actualités', article?.excerpt);
 
   // Compte la consultation (alimente le tri « Plus populaires » côté public)
@@ -34,6 +66,17 @@ export default function ArticlePage() {
     }
     return <p className="text-lg text-gray-700 leading-relaxed mb-6">{a.excerpt}</p>;
   };
+
+  if (loading && !article) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin w-9 h-9 border-3 border-arina-blue border-t-transparent rounded-full" />
+          <p className="text-sm text-arina-gray font-medium">Chargement de l'article…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!article) {
     return (
@@ -69,10 +112,12 @@ export default function ArticlePage() {
       {/* Hero Image (ou dégradé si l'article n'a pas d'image) */}
       <div className="relative h-[50vh] min-h-[400px] overflow-hidden">
         {article.image ? (
-          <img
+          <ResponsiveImage
             src={article.image}
             alt={article.title}
             className="w-full h-full object-cover"
+            sizes="100vw"
+            priority
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">
@@ -253,15 +298,16 @@ export default function ArticlePage() {
                   <Link
                     key={item.id}
                     to={`/actualites/${item.slug}`}
+                    state={{ article: item }}
                     className="group bg-arina-cream rounded-2xl overflow-hidden shadow-md border border-arina-warm card-hover"
                   >
                     <div className="relative overflow-hidden">
                       {item.image ? (
-                        <img
+                        <ResponsiveImage
                           src={item.image}
                           alt={item.title}
                           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
-                          loading="lazy"
+                          sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) 50vw, 100vw"
                         />
                       ) : (
                         <div className="w-full h-48 bg-gradient-to-br from-arina-accent via-arina-blue to-arina-gold flex items-center justify-center">

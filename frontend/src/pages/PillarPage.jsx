@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ClipboardList, Heart, Search } from 'lucide-react';
 import AppIcon from '../components/icons';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { pillars } from '../data/actions';
 import ContentBlock from '../components/ContentBlock';
 import usePageMeta from '../hooks/usePageMeta';
@@ -131,7 +132,12 @@ export default function PillarPage() {
                 className="group bg-arina-cream rounded-2xl shadow-md border border-arina-warm card-hover overflow-hidden"
               >
                 <div className="relative h-40 overflow-hidden">
-                  <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <ResponsiveImage
+                    src={p.image}
+                    alt={p.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), 100vw"
+                  />
                   <div className={`absolute inset-0 bg-gradient-to-t ${p.gradient} opacity-10`} />
                   <div className="absolute bottom-4 left-4 text-white"><AppIcon name={p.icon} className="w-8 h-8" /></div>
                 </div>

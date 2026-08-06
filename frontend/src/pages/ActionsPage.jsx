@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Target } from 'lucide-react';
 import AppIcon from '../components/icons';
+import ResponsiveImage from '../components/ResponsiveImage';
 import { pillars } from '../data/actions';
 import usePageMeta from '../hooks/usePageMeta';
 
@@ -52,11 +53,11 @@ export default function ActionsPage() {
                 <div className={`flex flex-col ${i % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'}`}>
                   {/* Image side */}
                   <div className="lg:w-2/5 relative overflow-hidden">
-                    <img
+                    <ResponsiveImage
                       src={pillar.image}
                       alt={pillar.title}
                       className="w-full h-64 lg:h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                      loading="lazy"
+                      sizes="(min-width: 1024px) 40vw, 100vw"
                     />
                     <div className={`absolute inset-0 bg-gradient-to-t ${pillar.gradient} opacity-10`} />
                     <div className="absolute bottom-6 left-6 text-white">

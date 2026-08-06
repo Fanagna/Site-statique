@@ -1,5 +1,5 @@
-import { Component, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Component, Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -62,10 +62,22 @@ class RouteErrorBoundary extends Component {
   }
 }
 
+/* Remonte automatiquement en haut de page à chaque changement de route.
+   Sans cela, cliquer « Lire plus » dans une liste défilée ouvrait l'article
+   au milieu de la page — d'où l'impression de devoir « actualiser ». */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [pathname]);
+  return null;
+}
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <div className="min-h-screen bg-white">
           <RouteErrorBoundary>
             <Suspense fallback={<PageLoader />}>

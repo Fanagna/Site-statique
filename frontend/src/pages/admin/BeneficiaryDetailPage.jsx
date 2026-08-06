@@ -9,6 +9,7 @@ import Toast from '../../components/admin/Toast';
 import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
+import { readCache, writeCache, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
 
 /* Met en forme une ligne bénéficiaire (dossier JSON) en fiche détaillée exploitable. */
 function shapeDetail(b) {
@@ -77,8 +78,8 @@ export default function BeneficiaryDetailPage() {
         // Base injoignable ou enfant absent : on garde la fiche déjà affichée,
         // sinon on tente le cache local avant la redirection automatique.
         if (initialRef.current) return;
-        const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-        const cached = stored.find((x) => x.id === Number(id));
+        const stored = readCache('arina_benefs', []);
+        const cached = (Array.isArray(stored) ? stored : []).find((x) => x.id === Number(id));
         if (cached) { hydrate(cached); return; }
       } finally {
         if (!cancelled) setLoading(false);
@@ -201,37 +202,37 @@ export default function BeneficiaryDetailPage() {
     fileInputRef.current?.click();
   };
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image trop volumineuse (max 5MB)');
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Image trop volumineuse (max 15 Mo)');
       return;
     }
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result;
-      const updated = { ...data, photo: base64 };
-      setData(updated);
-      setForm({ ...form, photo: base64 });
-      // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
-      const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-      const idx = stored.findIndex((x) => x.id === Number(id));
-      if (idx >= 0) {
-        stored[idx].photo = base64;
-        localStorage.setItem('arina_benefs', JSON.stringify(stored));
-      }
-      // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
-      const r = await updateBeneficiaryPhoto(id, base64);
-      setUploading(false);
-      if (!r.ok) {
-        showToast(`❌ Photo NON enregistrée dans la base : ${r.error}`, 'error');
-        return;
-      }
-      showToast('✅ Photo enregistrée dans la base de données');
-    };
-    reader.readAsDataURL(file);
+    // Optimisée (1200 px max, WebP) : nette à l'affichage, légère pour la base
+    const optimized = await optimizeImage(file, { maxDim: 1200, quality: 0.9 });
+    let base64 = optimized;
+    if (!base64) base64 = await readFileAsDataURL(file);
+    const updated = { ...data, photo: base64 };
+    setData(updated);
+    setForm({ ...form, photo: base64 });
+    // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
+    const stored = readCache('arina_benefs', []);
+    const list = Array.isArray(stored) ? stored : [];
+    const idx = list.findIndex((x) => x.id === Number(id));
+    if (idx >= 0) {
+      list[idx].photo = base64;
+      writeCache('arina_benefs', list);
+    }
+    // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
+    const r = await updateBeneficiaryPhoto(id, base64);
+    setUploading(false);
+    if (!r.ok) {
+      showToast(`❌ Photo NON enregistrée dans la base : ${r.error}`, 'error');
+      return;
+    }
+    showToast('✅ Photo enregistrée dans la base de données');
   };
 
   const removePhoto = async () => {
@@ -244,11 +245,12 @@ export default function BeneficiaryDetailPage() {
     delete updated.photo;
     setData(updated);
     setForm({ ...form, photo: undefined });
-    const stored = JSON.parse(localStorage.getItem('arina_benefs') || '[]');
-    const idx = stored.findIndex((x) => x.id === Number(id));
+    const stored = readCache('arina_benefs', []);
+    const list = Array.isArray(stored) ? stored : [];
+    const idx = list.findIndex((x) => x.id === Number(id));
     if (idx >= 0) {
-      delete stored[idx].photo;
-      localStorage.setItem('arina_benefs', JSON.stringify(stored));
+      delete list[idx].photo;
+      writeCache('arina_benefs', list);
     }
     showToast('✅ Photo retirée de la base de données');
   };

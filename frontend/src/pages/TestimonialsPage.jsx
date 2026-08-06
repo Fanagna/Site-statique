@@ -7,6 +7,7 @@ import {
 import { testimonials } from '../data/testimonials';
 import { submitTestimonial, fetchPublishedTestimonials } from '../services/api';
 import usePageMeta from '../hooks/usePageMeta';
+import ResponsiveImage from '../components/ResponsiveImage';
 
 const initialForm = { name: '', age: '', location: '', role: '', quote: '', story: '' };
 
@@ -148,11 +149,11 @@ export default function TestimonialsPage() {
                   <div className={`flex flex-col ${expanded ? 'lg:flex-row' : ''}`}>
                     {/* Image */}
                     <div className={`relative ${expanded ? 'lg:w-2/5' : ''}`}>
-                      <img
+                      <ResponsiveImage
                         src={t.image}
                         alt={t.name}
                         className={`w-full object-cover ${expanded ? 'h-80 lg:h-full' : 'h-56'}`}
-                        loading="lazy"
+                        sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), 100vw"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                       <div className="absolute bottom-4 left-4 right-4 text-white">
@@ -221,11 +222,11 @@ export default function TestimonialsPage() {
                     <div className={`flex flex-col ${expanded ? 'lg:flex-row' : ''}`}>
                       <div className={`relative ${expanded ? 'lg:w-1/3' : ''}`}>
                         {t.image ? (
-                          <img
+                          <ResponsiveImage
                             src={t.image}
                             alt={t.name}
                             className={`w-full object-cover ${expanded ? 'h-64 lg:h-full' : 'h-48'}`}
-                            loading="lazy"
+                            sizes="(min-width: 1024px) calc((100vw - 96px) / 3), (min-width: 640px) calc((100vw - 56px) / 2), 100vw"
                           />
                         ) : (
                           <div className={`w-full flex items-center justify-center bg-gradient-to-br from-arina-blue to-arina-accent text-white font-bold ${expanded ? 'h-64 lg:h-full' : 'h-48'}`}>

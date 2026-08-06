@@ -10,7 +10,7 @@ import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import UpdatedBadge from '../../components/UpdatedBadge';
 import { inputClass, EmptyState, Th } from '../../components/admin/ui';
-import { fmtDate, timeAgo } from '../../components/admin/utils';
+import { fmtDate, timeAgo, readCache, writeCache, optimizeImage, readFileAsDataURL } from '../../components/admin/utils';
 
 const PAGE_SIZE = 8;
 
@@ -77,8 +77,9 @@ export default function NewsManagementPage() {
         setNews(nFromApi.length ? nFromApi : []);
       } else {
         setApiStatus('offline');
-        const s = localStorage.getItem('arina_news');
-        setNews(s ? JSON.parse(s) : allNews);
+        // Cache local SÛR : un JSON corrompu ne doit jamais bloquer la page
+        const cached = readCache('arina_news', null);
+        setNews(Array.isArray(cached) ? cached : allNews);
       }
       setLoading(false);
     })();
@@ -86,7 +87,9 @@ export default function NewsManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (news.length) localStorage.setItem('arina_news', JSON.stringify(news));
+    // Écriture SÛRE : les images base64 (data: URLs) peuvent dépasser le quota
+    // localStorage (QuotaExceededError) — writeCache n'écrit jamais en erreur.
+    if (news.length) writeCache('arina_news', news);
   }, [news]);
 
   /* Auto-open the creation form when arriving via ?new=1 (quick action) */
@@ -145,19 +148,26 @@ export default function NewsManagementPage() {
     setShowForm(true);
   };
 
-  const applyImageFile = (f) => {
+  const applyImageFile = async (f) => {
     if (!f) return;
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) {
       alert('Format non accepté — utilisez JPG, PNG, WebP ou GIF.');
       return;
     }
-    if (f.size > 2 * 1024 * 1024) {
-      alert('Image trop volumineuse (maximum 2 Mo).');
+    if (f.size > 15 * 1024 * 1024) {
+      alert('Image trop volumineuse (maximum 15 Mo).');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setForm((prev) => ({ ...prev, image_url: String(reader.result) }));
-    reader.readAsDataURL(f);
+    // Optimisation : redimensionnée à 2400 px max et réencodée en WebP — nette
+    // partout (héro, cartes, retina) et légère pour la base et les caches.
+    const optimized = await optimizeImage(f, { maxDim: 2400, quality: 0.92 });
+    if (optimized) {
+      setForm((prev) => ({ ...prev, image_url: optimized }));
+      return;
+    }
+    // Repli : si l'optimisation échoue (navigateur exotique), on garde le fichier brut
+    const raw = await readFileAsDataURL(f);
+    setForm((prev) => ({ ...prev, image_url: raw }));
   };
 
   const handleImageChange = (e) => {
@@ -597,7 +607,7 @@ export default function NewsManagementPage() {
                     <div className={`flex flex-col items-center gap-2 py-10 ${imageDragOver ? 'text-arina-accent' : 'text-ios-text3'}`}>
                       <Icon name="camera" className="w-6 h-6" />
                       <span className="text-sm font-medium">{imageDragOver ? 'Déposez l\'image ici' : 'Cliquez ou glissez-déposez une image'}</span>
-                      <span className="text-xs">JPG, PNG, WebP, GIF — max 2 Mo</span>
+                      <span className="text-xs">JPG, PNG, WebP, GIF — max 15 Mo (optimisée en WebP HD)</span>
                     </div>
                   )}
                 </label>

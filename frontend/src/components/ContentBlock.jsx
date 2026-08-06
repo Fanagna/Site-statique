@@ -1,3 +1,5 @@
+import ResponsiveImage from './ResponsiveImage';
+
 export default function ContentBlock({ block }) {
   switch (block.type) {
     case 'paragraph':
@@ -18,7 +20,12 @@ export default function ContentBlock({ block }) {
     case 'image':
       return (
         <figure className="my-8">
-          <img src={block.src} alt={block.caption || ''} className="w-full rounded-2xl shadow-md" loading="lazy" />
+          <ResponsiveImage
+            src={block.src}
+            alt={block.caption || ''}
+            className="w-full rounded-2xl shadow-md"
+            sizes="(min-width: 896px) 896px, 100vw"
+          />
           {block.caption && (
             <figcaption className="text-center text-sm text-arina-gray mt-3 italic">{block.caption}</figcaption>
           )}
