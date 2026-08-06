@@ -18,7 +18,7 @@ function shapeDetail(b) {
   return {
     ...b, code: `AR-${String(b.id).padStart(3, '0')}`,
     assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
-    formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
+    formations: dossier.formations || [], suivis: dossier.suivis || [], notes: dossier.notes || '',
     dossier,
   };
 }
@@ -42,6 +42,8 @@ export default function BeneficiaryDetailPage() {
   const [form, setForm] = useState(initial ? { ...initial } : {});
   const [suivis, setSuivis] = useState(initial ? initial.suivis || [] : []);
   const [newSuivi, setNewSuivi] = useState('');
+  const [formations, setFormations] = useState(initial ? initial.formations || [] : []);
+  const [newFormation, setNewFormation] = useState({ nom: '', statut: 'En cours', progression: '', icon: 'book' });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
   const { toast, showToast, closeToast } = useToast();
@@ -53,6 +55,7 @@ export default function BeneficiaryDetailPage() {
       setData(detail);
       setForm({ ...detail });
       setSuivis(detail.suivis || []);
+      setFormations(detail.formations || []);
     };
 
     (async () => {
@@ -65,6 +68,7 @@ export default function BeneficiaryDetailPage() {
         setData(null);
         setForm({});
         setSuivis([]);
+        setFormations([]);
         setLoading(true);
       }
       try {
@@ -220,6 +224,39 @@ export default function BeneficiaryDetailPage() {
       setSuivis(nextSuivis);
       setNewSuivi('');
     }
+  };
+
+  /* ── Formations : ajout / suppression (stockées dans dossier.formations) ── */
+  const addFormation = async () => {
+    if (!newFormation.nom.trim()) { showToast('❌ Le nom de la formation est requis', 'error'); return; }
+    const entry = {
+      nom: newFormation.nom.trim(),
+      statut: newFormation.statut || 'En cours',
+      progression: Math.min(100, Math.max(0, Number(newFormation.progression) || 0)),
+      icon: newFormation.icon || 'book',
+    };
+    const next = [...formations, entry];
+    const saved = await persistBenef({
+      ...data,
+      formations: next,
+      dossier: { ...(data.dossier || {}), formations: next },
+    });
+    if (saved) {
+      setFormations(next);
+      setNewFormation({ nom: '', statut: 'En cours', progression: '', icon: 'book' });
+      showToast(`✅ Formation « ${entry.nom} » ajoutée`);
+    }
+  };
+
+  const removeFormation = async (i) => {
+    if (!confirm('Supprimer cette formation ?')) return;
+    const next = formations.filter((_, x) => x !== i);
+    const saved = await persistBenef({
+      ...data,
+      formations: next,
+      dossier: { ...(data.dossier || {}), formations: next },
+    });
+    if (saved) setFormations(next);
   };
 
   const handlePhotoClick = () => {
@@ -648,25 +685,68 @@ export default function BeneficiaryDetailPage() {
 
         {/* ── FORMATIONS TAB ── */}
         {tab === 'formations' && (
-          <div className="card-apple p-6 animate-fade-up">
-            {cardTitle('file', 'Formations')}
-            <div className="space-y-4">
-              {(data.formations || []).map((f, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <span className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center"><AppIcon name={f.icon} className="w-5 h-5" /></span>
-                    <div>
-                      <div className="font-semibold text-ios-text">{f.nom}</div>
-                      <div className="text-sm text-ios-text3">{f.statut}</div>
+          <div className="space-y-6">
+            {/* Ajouter une formation */}
+            <div className="card-apple p-6 animate-fade-up">
+              {cardTitle('plus', 'Ajouter une formation')}
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Nom de la formation *</span>
+                  <input value={newFormation.nom} onChange={(e) => setNewFormation({ ...newFormation, nom: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && addFormation()} placeholder="Ex. Menuiserie" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Statut</span>
+                  <select value={newFormation.statut} onChange={(e) => setNewFormation({ ...newFormation, statut: e.target.value })} className={inputClass}>
+                    <option>En cours</option>
+                    <option>Terminée</option>
+                    <option>En pause</option>
+                    <option>En attente</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Progression (%)</span>
+                  <input type="number" min="0" max="100" value={newFormation.progression} onChange={(e) => setNewFormation({ ...newFormation, progression: e.target.value })} placeholder="0-100" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ios-text3 mb-1">Icône</span>
+                  <select value={newFormation.icon} onChange={(e) => setNewFormation({ ...newFormation, icon: e.target.value })} className={inputClass}>
+                    {['book', 'brain', 'wrench', 'hammer', 'cooking-pot', 'play', 'star', 'user', 'handshake'].map((ic) => (
+                      <option key={ic} value={ic}>{ic}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex justify-end mt-3">
+                <button onClick={addFormation} className="px-6 py-2.5 bg-arina-blue text-white text-sm font-semibold rounded-xl hover:bg-arina-blue-dark transition-colors inline-flex items-center gap-1.5">
+                  <Icon name="plus" className="w-4 h-4" /> Ajouter la formation
+                </button>
+              </div>
+            </div>
+
+            {/* Liste des formations */}
+            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
+              {cardTitle('file', `Formations de ${data.prenom}`)}
+              <div className="space-y-3">
+                {formations.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-ios-fill rounded-2xl">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className="w-10 h-10 rounded-xl bg-arina-warm text-arina-blue flex items-center justify-center flex-shrink-0"><AppIcon name={f.icon} className="w-5 h-5" /></span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-ios-text truncate">{f.nom}</div>
+                        <div className="text-sm text-ios-text3">{f.statut}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 h-2 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
+                        <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
+                      </div>
+                      <button onClick={() => removeFormation(i)} className="p-2 rounded-lg text-ios-text3 hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Supprimer la formation"><Icon name="trash" className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-24 h-2 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full" style={{ width: `${f.progression}%` }} /></div>
-                    <span className="text-sm font-bold text-ios-text tabular">{f.progression}%</span>
-                  </div>
-                </div>
-              ))}
-              {(data.formations || []).length === 0 && <p className="text-ios-text3 text-sm">Aucune formation enregistrée</p>}
+                ))}
+                {formations.length === 0 && <p className="text-ios-text3 text-sm">Aucune formation enregistrée — ajoutez la première ci-dessus.</p>}
+              </div>
             </div>
           </div>
         )}
