@@ -1028,7 +1028,8 @@ app.post('/api/volunteers', rateLimit('volunteers', 5, 10 * 60 * 1000), async (r
 
 // GET admin — liste SANS les données base64 (sinon la réponse dépasse la limite Vercel).
 // Les pièces jointes sont accessibles via file_url / cv_url, ou via l'endpoint legacy ci-dessous.
-app.get('/api/volunteers', requireRole(ROLES.president), async (req, res) => {
+// Accès : président + éducateur (l'éducateur suit aussi les candidatures).
+app.get('/api/volunteers', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('SELECT id, name, email, phone, skills, availability, motivation, file_name, file_type, file_size, file_url, cv_name, cv_type, cv_size, cv_url, created_at FROM volunteers ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
@@ -1036,7 +1037,7 @@ app.get('/api/volunteers', requireRole(ROLES.president), async (req, res) => {
 });
 
 // GET admin — renvoie une pièce jointe stockée en base64 (candidatures antérieures à Blob)
-app.get('/api/volunteers/:id/attachment', requireRole(ROLES.president), async (req, res) => {
+app.get('/api/volunteers/:id/attachment', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const kind = req.query.kind === 'cv' ? 'cv' : 'file';
     const result = await pool.query(
@@ -1055,7 +1056,7 @@ app.get('/api/volunteers/:id/attachment', requireRole(ROLES.president), async (r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/volunteers/:id', requireRole(ROLES.president), async (req, res) => {
+app.delete('/api/volunteers/:id', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM volunteers WHERE id=$1 RETURNING file_url, cv_url', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -1099,8 +1100,9 @@ app.get('/api/testimonials/published', async (req, res) => {
   } catch (err) { res.json([]); }
 });
 
-// GET admin — tous les témoignages (en attente + publiés), du plus récent au plus ancien
-app.get('/api/testimonials', requireRole(ROLES.president), async (req, res) => {
+// GET admin — tous les témoignages (en attente + publiés), du plus récent au plus ancien.
+// Accès : président + éducateur (l'éducateur participe à la modération).
+app.get('/api/testimonials', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('SELECT id, name, age, location, role, quote, story, status, created_at FROM testimonials ORDER BY created_at DESC LIMIT 200');
     res.json(result.rows);
@@ -1108,7 +1110,7 @@ app.get('/api/testimonials', requireRole(ROLES.president), async (req, res) => {
 });
 
 // PATCH admin — publier / remettre en attente (modération)
-app.patch('/api/testimonials/:id', requireRole(ROLES.president), async (req, res) => {
+app.patch('/api/testimonials/:id', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const { status } = req.body || {};
     if (!['pending', 'published'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
@@ -1119,7 +1121,7 @@ app.patch('/api/testimonials/:id', requireRole(ROLES.president), async (req, res
 });
 
 // DELETE admin
-app.delete('/api/testimonials/:id', requireRole(ROLES.president), async (req, res) => {
+app.delete('/api/testimonials/:id', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM testimonials WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -1160,16 +1162,17 @@ app.post('/api/donations', rateLimit('donations', 10, 10 * 60 * 1000), async (re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET admin — toutes les promesses de don (président, comptable ou admin)
-app.get('/api/donations', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+// GET admin — toutes les promesses de don (ADMIN UNIQUEMENT — la confirmation d'un
+// don crée une ligne de revenu dans les finances, la manipulation est réservée à l'admin)
+app.get('/api/donations', requireRole(), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM donations ORDER BY created_at DESC LIMIT 200');
     res.json(result.rows.map((r) => ({ ...r, amount: Number(r.amount) })));
   } catch (err) { res.json([]); }
 });
 
-// PATCH admin — marquer « reçu » / remettre en attente
-app.patch('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+// PATCH admin — marquer « reçu » / remettre en attente (ADMIN UNIQUEMENT)
+app.patch('/api/donations/:id', requireRole(), async (req, res) => {
   try {
     const { status, rate } = req.body || {};
     if (!['pledge', 'received'].includes(status)) return res.status(400).json({ error: 'Statut invalide' });
@@ -1307,7 +1310,7 @@ app.get('/api/email-status', requireAuth, async (req, res) => {
 
 // GET admin — APERÇU du reçu PDF (avant confirmation/envoi). Génère le MÊME PDF
 // que celui envoyé par email : l'équipe vérifie le reçu avant de confirmer le don.
-app.get('/api/donations/:id/receipt', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+app.get('/api/donations/:id/receipt', requireRole(), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM donations WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -1322,7 +1325,7 @@ app.get('/api/donations/:id/receipt', requireRole(ROLES.president, ROLES.account
 });
 
 // DELETE admin
-app.delete('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant), async (req, res) => {
+app.delete('/api/donations/:id', requireRole(), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM donations WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -1331,14 +1334,15 @@ app.delete('/api/donations/:id', requireRole(ROLES.president, ROLES.accountant),
 });
 
 // ═══ CONTACTS (ADMIN) ═══
-app.get('/api/contacts', requireRole(ROLES.president), async (req, res) => {
+// Messages du formulaire de contact — accès : président + éducateur
+app.get('/api/contacts', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM contacts ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (err) { res.json([]); }
 });
 
-app.delete('/api/contacts/:id', requireRole(ROLES.president), async (req, res) => {
+app.delete('/api/contacts/:id', requireRole(ROLES.president, ROLES.educator), async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM contacts WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });

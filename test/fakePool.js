@@ -5,7 +5,11 @@ function makeFakePool(opts = {}) {
   const state = {
     users: opts.users || [],
     donations: opts.donations || [],
-    contacts: [],
+    contacts: opts.contacts || [],
+    volunteers: opts.volunteers || [],
+    testimonials: opts.testimonials || [],
+    news: opts.news || [],
+    donors: opts.donors || [],
     financeRows: [],
     inserts: [],
   };
@@ -85,6 +89,37 @@ function makeFakePool(opts = {}) {
       state.contacts.push(row);
       return { rows: [row] };
     }
+    if (/SELECT .*FROM contacts/i.test(s)) return { rows: [...state.contacts] };
+    if (/DELETE FROM contacts/i.test(s)) {
+      const idx = state.contacts.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.contacts.splice(idx, 1);
+      return { rows: [removed] };
+    }
+
+    // Candidatures bénévoles (contrôle d'accès : président + éducateur)
+    if (/SELECT .*FROM volunteers/i.test(s)) return { rows: [...state.volunteers] };
+    if (/DELETE FROM volunteers/i.test(s)) {
+      const idx = state.volunteers.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.volunteers.splice(idx, 1);
+      return { rows: [removed] };
+    }
+
+    // Témoignages (modération : président + éducateur)
+    if (/SELECT .*FROM testimonials/i.test(s)) return { rows: [...state.testimonials] };
+    if (/UPDATE testimonials SET status/i.test(s)) {
+      const t = state.testimonials.find((x) => x.id === Number(params[1]));
+      if (!t) return { rows: [] };
+      t.status = params[0];
+      return { rows: [{ id: t.id, status: t.status }] };
+    }
+    if (/DELETE FROM testimonials/i.test(s)) {
+      const idx = state.testimonials.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.testimonials.splice(idx, 1);
+      return { rows: [removed] };
+    }
 
     // Finances — revenu automatique lié à un don confirmé (donation_id)
     if (/INSERT INTO finances .*donation_id/i.test(s)) {
@@ -117,6 +152,12 @@ function makeFakePool(opts = {}) {
       state.financeRows.push(row);
       return { rows: [row] };
     }
+    // Donateurs (GET requireAuth — données de l'évaluation mensuelle)
+    if (/SELECT \* FROM donors/i.test(s)) return { rows: [...state.donors] };
+
+    // Actualités (GET public — test du contrôle d'accès)
+    if (/FROM news/i.test(s)) return { rows: [...state.news] };
+
     if (/id, name, need, budget FROM donors/i.test(s)) return { rows: [] }; // pas de budget → pas d'alerte
 
     // Stats (valeurs factices)

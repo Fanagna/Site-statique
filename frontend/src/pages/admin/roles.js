@@ -9,10 +9,17 @@ export const ROLE_LABELS = {
 };
 // Onglets autorisés par rôle — utilisés pour filtrer le menu latéral et charger
 // les données. Rôle inconnu → onglets restreints (fail-closed : jamais l'accès admin complet).
+// Politique d'accès :
+//  - admin      : tout (gestion des comptes et des dons comprise)
+//  - président  : tableau de bord, actualités, évaluation mensuelle,
+//                 messages, candidatures, témoignages
+//  - comptable  : tableau de bord, finances, évaluation mensuelle, donateurs
+//  - éducateur  : tableau de bord, enfants (CRUD), évaluation mensuelle (lecture),
+//                 messages, candidatures, témoignages
 export const ROLE_TABS = {
   admin: ['dashboard', 'actualites', 'enfants', 'finances', 'evaluation', 'donateurs', 'dons', 'messages', 'volunteers', 'testimonials', 'comptes'],
-  president: ['dashboard', 'actualites', 'dons', 'messages', 'volunteers', 'testimonials'],
-  accountant: ['dashboard', 'finances', 'evaluation', 'donateurs', 'dons'],
-  educator: ['dashboard', 'enfants'],
+  president: ['dashboard', 'actualites', 'evaluation', 'messages', 'volunteers', 'testimonials'],
+  accountant: ['dashboard', 'finances', 'evaluation', 'donateurs'],
+  educator: ['dashboard', 'enfants', 'evaluation', 'messages', 'volunteers', 'testimonials'],
   unknown: ['dashboard'],
 };

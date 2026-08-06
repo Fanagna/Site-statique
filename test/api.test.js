@@ -25,6 +25,17 @@ const fakePool = makeFakePool({
   users: [
     { id: 1, username: 'admin', role: 'admin', api_key: 'test-admin-key', password_hash: ADMIN_HASH },
     { id: 2, username: 'comptable', role: 'accountant', api_key: 'test-accountant-key', password_hash: hashPassword('Compta2026!') },
+    { id: 3, username: 'president', role: 'president', api_key: 'test-president-key', password_hash: hashPassword('Pres2026!') },
+    { id: 4, username: 'educateur', role: 'educator', api_key: 'test-educator-key', password_hash: hashPassword('Educ2026!') },
+  ],
+  contacts: [
+    { id: 1, name: 'Alice', email: 'alice@exemple.mg', subject: 'Visite du centre', message: 'Bonjour, je souhaite visiter le centre.', created_at: new Date().toISOString() },
+  ],
+  volunteers: [
+    { id: 1, name: 'Bob', email: 'bob@exemple.mg', phone: '0340000000', skills: 'Cuisine', availability: 'Week-end', motivation: 'Aider les enfants', file_name: 'lettre.pdf', file_type: 'application/pdf', file_size: 1024, file_url: null, cv_name: 'cv.pdf', cv_type: 'application/pdf', cv_size: 2048, cv_url: null, created_at: new Date().toISOString() },
+  ],
+  testimonials: [
+    { id: 1, name: 'Cara', age: 18, location: 'Antananarivo', role: 'Bénévole', quote: 'Une expérience incroyable avec l\'équipe du centre ARINA.', story: null, status: 'pending', created_at: new Date().toISOString() },
   ],
   donations: [
     { id: 1, amount: 50, currency: 'EUR', name: 'Marie', email: 'marie@exemple.mg', message: null, method: 'orange', anonymous: false, status: 'pledge', received_at: null, created_at: new Date().toISOString() },
@@ -115,6 +126,133 @@ test('login compte de secours avec mauvais mot de passe → 401', async () => {
   assert.equal(r.status, 401);
 });
 
+/* ═══ CONTRÔLE D'ACCÈS PAR RÔLE (matrice de permissions) ═══ */
+test('login éducateur → 200, rôle educator', async () => {
+  const r = await post('/api/auth/login', { username: 'educateur', password: 'Educ2026!' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.user.role, 'educator');
+  assert.equal(r.body.token, 'test-educator-key');
+});
+
+test('login président → 200, rôle president', async () => {
+  const r = await post('/api/auth/login', { username: 'president', password: 'Pres2026!' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.role, 'president');
+});
+
+// ── Éducateur : messages, candidatures, témoignages (lecture + modération) ──
+test('GET /api/contacts avec clé éducateur → 200 (messages accessibles)', async () => {
+  const r = await get('/api/contacts', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  assert.equal(r.body.length, 1);
+  assert.equal(r.body[0].name, 'Alice');
+});
+
+test('DELETE /api/contacts/1 avec clé éducateur → 200', async () => {
+  const r = await send('DELETE', '/api/contacts/1', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+});
+
+test('GET /api/volunteers avec clé éducateur → 200 (candidatures accessibles)', async () => {
+  const r = await get('/api/volunteers', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  assert.equal(r.body.length, 1);
+  assert.equal(r.body[0].name, 'Bob');
+});
+
+test('DELETE /api/volunteers/1 avec clé éducateur → 200', async () => {
+  const r = await send('DELETE', '/api/volunteers/1', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+});
+
+test('GET /api/testimonials avec clé éducateur → 200 (modération accessible)', async () => {
+  const r = await get('/api/testimonials', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  assert.equal(r.body.length, 1);
+  assert.equal(r.body[0].name, 'Cara');
+});
+
+test('PATCH /api/testimonials/1 (publier) avec clé éducateur → 200', async () => {
+  const r = await send('PATCH', '/api/testimonials/1', { status: 'published' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'published');
+});
+
+test('DELETE /api/testimonials/1 avec clé éducateur → 200', async () => {
+  const r = await send('DELETE', '/api/testimonials/1', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+});
+
+// ── Évaluation mensuelle : données en lecture pour président ET éducateur ──
+test('GET /api/finances avec clé président → 200 (évaluation mensuelle visible)', async () => {
+  const r = await get('/api/finances', { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+});
+
+test('GET /api/finances avec clé éducateur → 200 (évaluation mensuelle visible)', async () => {
+  const r = await get('/api/finances', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+});
+
+test('GET /api/donors avec clé éducateur → 200 (filtre donateur de l\'évaluation)', async () => {
+  const r = await get('/api/donors', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+});
+
+// ── Séparation stricte : l'éducateur ne gère NI finances, NI comptes, NI dons ──
+test('POST /api/finances avec clé éducateur → 403 (hors périmètre)', async () => {
+  const r = await post('/api/finances', {
+    type: 'Dépense', categorie: 'Alimentation', montant: 1000, date: '2026-01-15', donor: 'Ravinala',
+  }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+});
+
+test('GET /api/users avec clé éducateur → 403 (comptes réservés à l\'admin)', async () => {
+  const r = await get('/api/users', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+});
+
+test('GET /api/donations avec clé éducateur → 403 (hors périmètre)', async () => {
+  const r = await get('/api/donations', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+});
+
+// ── Dons : réservés à l'admin (ni président, ni comptable, ni éducateur) ──
+test('GET /api/donations avec clé président → 403 (hors périmètre)', async () => {
+  const r = await get('/api/donations', { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 403);
+});
+
+test('GET /api/donations avec clé comptable → 403 (hors périmètre)', async () => {
+  const r = await get('/api/donations', { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 403);
+});
+
+test('PATCH /api/donations/1 avec clé comptable → 403 (hors périmètre)', async () => {
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 403);
+});
+
+test('GET /api/donations/1/receipt avec clé comptable → 403 (hors périmètre)', async () => {
+  const r = await get('/api/donations/1/receipt', { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 403);
+});
+
+test('GET /api/news avec clé éducateur → 200 (public, l\'éducateur peut lire les actualités)', async () => {
+  const r = await get('/api/news', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+});
+
 /* ═══ SÉCURITÉ : honeypot anti-bots ═══ */
 test('formulaire public rempli par un bot (champ caché website) → succès simulé, rien en base', async () => {
   const before = fakePool.state.contacts.length;
@@ -175,7 +313,7 @@ test('GET /api/donations avec clé admin → liste', async () => {
 });
 
 test('PATCH /api/donations/:id → marquer reçu (numéro de reçu généré)', async () => {
-  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'received');
   assert.ok(r.body.received_at);
@@ -186,7 +324,7 @@ test('PATCH /api/donations/:id → marquer reçu (numéro de reçu généré)', 
 });
 
 test('PATCH /api/donations/:id → remise en attente (pas de nouveau reçu)', async () => {
-  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'pledge');
   assert.equal(r.body.received_at, null);
@@ -195,7 +333,7 @@ test('PATCH /api/donations/:id → remise en attente (pas de nouveau reçu)', as
 test('PATCH /api/donations/:id → re-confirmation après reçu déjà envoyé : AUCUN 2e envoi', async () => {
   // Don 2 : reçu déjà envoyé (receipt_sent_at posé). Le re-confirmer ne doit
   // NI renvoyer d'email NI écraser l'horodatage d'envoi ni le numéro de reçu.
-  const r = await send('PATCH', '/api/donations/2', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/2', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'received');
   assert.equal(r.body.receiptEmailSent, false); // aucun nouvel email
@@ -206,7 +344,7 @@ test('PATCH /api/donations/:id → re-confirmation après reçu déjà envoyé :
 /* ═══ REVENUS AUTOMATIQUES (don confirmé → ligne de revenu) ═══ */
 test('PATCH /api/donations/:id → « reçu » : revenu créé automatiquement dans les finances', async () => {
   // Le don 1 est en « pledge » (remis en attente par un test précédent)
-  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.incomeCreated, true);
   const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
@@ -217,7 +355,7 @@ test('PATCH /api/donations/:id → « reçu » : revenu créé automatiquement d
 });
 
 test('PATCH /api/donations/:id → « à confirmer » : le revenu est retiré des finances', async () => {
-  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.incomeRemoved, true);
   const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
@@ -226,9 +364,9 @@ test('PATCH /api/donations/:id → « à confirmer » : le revenu est retiré de
 
 test('PATCH /api/donations/:id → re-confirmation « reçu » : aucun doublon de revenu', async () => {
   // Confirmer une 2e fois un don déjà « reçu » ne doit pas créer une 2e ligne
-  const r1 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  const r1 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r1.body.incomeCreated, true);
-  const r2 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  const r2 = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r2.status, 200);
   assert.equal(r2.body.incomeCreated, false); // déjà enregistré
   const fin = await get('/api/finances', { 'x-admin-key': 'test-admin-key' });
@@ -238,8 +376,8 @@ test('PATCH /api/donations/:id → re-confirmation « reçu » : aucun doublon d
 
 test('PATCH /api/donations/:id → « reçu » avec taux : revenu converti en Ariary', async () => {
   // Remise en attente puis confirmation avec taux 5000 → 50 EUR = 250 000 Ar
-  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
-  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: 5000 }, { 'x-admin-key': 'test-accountant-key' });
+  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: 5000 }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.incomeCreated, true);
   assert.equal(r.body.incomeAmount, 250000); // 50 EUR × 5000
@@ -252,7 +390,7 @@ test('PATCH /api/donations/:id → « reçu » avec taux : revenu converti en Ar
 });
 
 test('PATCH /api/donations/:id → taux invalide → 400', async () => {
-  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: -5 }, { 'x-admin-key': 'test-accountant-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received', rate: -5 }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 400);
   assert.match(r.body.error || '', /taux/i);
 });
@@ -271,8 +409,8 @@ test('GET /api/email-status → non configuré sans SMTP ni Resend', async () =>
 test('PATCH /api/donations/:id → « reçu » sans email configuré : raison explicite', async () => {
   // Le don 1 est « reçu » avec un revenu existant ; on le repasse en attente puis on
   // re-confirme : l'email ne part pas (pas de clé) et la réponse doit l'expliquer.
-  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-accountant-key' });
-  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-accountant-key' });
+  await send('PATCH', '/api/donations/1', { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
+  const r = await send('PATCH', '/api/donations/1', { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
   assert.equal(r.status, 200);
   assert.equal(r.body.receiptEmailSent, false);
   assert.match(r.body.receiptEmailReason || '', /SMTP|Resend|SMTP_HOST/);
