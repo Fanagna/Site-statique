@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Camera, Circle, Lock, Printer, Trash2, User } from 'lucide-react';
+import { Camera, Lock, Printer, Trash2, User } from 'lucide-react';
 import AppIcon from '../../components/icons';
 import { useAuth } from '../../hooks/useAuth';
-import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto } from '../../services/api';
+import { fetchBeneficiaries, updateBeneficiary, updateBeneficiaryPhoto, deleteBeneficiary } from '../../services/api';
 import { safeGet, safeSet, safeParse } from '../../utils/storage';
 import AdminLayout from '../../components/admin/AdminLayout';
 import Toast from '../../components/admin/Toast';
 import { useToast } from '../../hooks/useToast';
 import { Icon } from '../../components/admin/icons';
 import { inputClass } from '../../components/admin/ui';
+import { fmtDate } from '../../components/admin/utils';
 
 /* Met en forme une ligne bénéficiaire (dossier JSON) en fiche détaillée exploitable. */
 function shapeDetail(b) {
   const dossier = b.dossier || {};
   return {
-    ...b, code: `AR-${String(b.id).padStart(3, '0')}`, genre: '', telephone: '', region: '', niveauScolaire: '',
-    situationFamiliale: '', parent: '', freresSoeurs: 0, educateur: '', motif: '', objectifs: '',
+    ...b, code: `AR-${String(b.id).padStart(3, '0')}`,
     assiduite: dossier.assiduite || 0, progression: dossier.progression || 0,
     formations: [], suivis: dossier.suivis || [], notes: dossier.notes || '',
     dossier,
@@ -168,6 +168,19 @@ export default function BeneficiaryDetailPage() {
     return true;
   };
 
+  /* Suppression DÉFINITIVE : appel réel à l'API. (Avant, le bouton « Supprimer »
+     ne faisait que naviguer — aucun enregistrement n'était supprimé en base.) */
+  const removeBenef = async () => {
+    if (!confirm(`Supprimer définitivement ${data.prenom} ${data.nom} ? Cette action est irréversible.`)) return;
+    const r = await deleteBeneficiary(id);
+    if (!r.ok) { showToast(`❌ Suppression NON effectuée dans la base : ${r.error}`, 'error'); return; }
+    // Cache local : on retire l'enfant pour rester cohérent (lecture hors-ligne)
+    const stored = safeParse(safeGet('arina_benefs'), []);
+    safeSet('arina_benefs', JSON.stringify(stored.filter((x) => String(x.id) !== String(id))));
+    showToast(`✅ ${data.prenom} ${data.nom} supprimé de la base de données`);
+    navigate('/admin');
+  };
+
   const saveNotes = async (value) => {
     setData((d) => ({ ...d, notes: value }));
     const ok = await persistBenef({ ...data, notes: value, dossier: { ...(data.dossier || {}), notes: value } });
@@ -216,13 +229,8 @@ export default function BeneficiaryDetailPage() {
       const updated = { ...data, photo: base64 };
       setData(updated);
       setForm({ ...form, photo: base64 });
-      // Cache local (lecture hors-ligne) — mais la sauvegarde réelle passe par l'API
-      const stored = safeParse(safeGet('arina_benefs'), []);
-      const idx = stored.findIndex((x) => x.id === Number(id));
-      if (idx >= 0) {
-        stored[idx].photo = base64;
-        safeSet('arina_benefs', JSON.stringify(stored));
-      }
+      // NB : le cache local reste volontairement SANS photo (base64 volumineuse →
+      // quota localStorage). La photo est chargée depuis l'API à chaque visite.
       // Sauvegarde STRICTE : la photo ne compte que si elle a atteint la base
       const r = await updateBeneficiaryPhoto(id, base64);
       setUploading(false);
@@ -291,7 +299,7 @@ export default function BeneficiaryDetailPage() {
             {editing ? 'Annuler' : 'Modifier'}
           </button>
           <button onClick={() => setTab('suivi')} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all">Suivi</button>
-          <button onClick={() => { if (confirm('Supprimer ce bénéficiaire ?')) navigate('/admin'); }} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
+          <button onClick={removeBenef} className="no-print px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-all">Supprimer</button>
         </>
       }
     >
@@ -302,12 +310,26 @@ export default function BeneficiaryDetailPage() {
             {/* Filigrane logo ARINA en fond */}
             <img src="/logo-arina.jpg" alt="" className="absolute right-4 top-4 w-14 h-14 rounded-xl object-contain bg-white/90 p-1 opacity-90 shadow-lg" />
 
-            {/* Photo — tout en haut, au-dessus des écritures */}
-            <div className="w-36 h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 flex items-center justify-center mx-auto shadow-2xl">
-              {data.photo ? (
+            {/* Photo — tout en haut, au-dessus des écritures (UNIQUE : plus de
+                 deuxième photo dupliquée dans l'onglet Détail) */}
+            <div className="relative w-36 h-36 lg:w-40 lg:h-40 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 flex items-center justify-center mx-auto shadow-2xl">
+              {uploading ? (
+                <div className="animate-spin w-10 h-10 border-3 border-white border-t-transparent rounded-full" />
+              ) : data.photo ? (
                 <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-16 h-16 text-white/80" />
+              )}
+            </div>
+            {/* Contrôles photo — discrets, non imprimés */}
+            <div className="no-print flex items-center justify-center gap-2 mt-3">
+              <button onClick={handlePhotoClick} className="px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/30 border border-white/30 text-xs font-semibold inline-flex items-center gap-1.5 transition-all">
+                <Camera className="w-3.5 h-3.5" /> {data.photo ? 'Changer la photo' : 'Ajouter une photo'}
+              </button>
+              {data.photo && (
+                <button onClick={removePhoto} className="px-3.5 py-1.5 rounded-full bg-red-500/25 hover:bg-red-500/40 border border-red-300/40 text-xs font-semibold inline-flex items-center gap-1.5 transition-all">
+                  <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                </button>
               )}
             </div>
 
@@ -326,117 +348,88 @@ export default function BeneficiaryDetailPage() {
           </div>
         </div>
 
+        {/* Champ d'upload photo — TOUJOURS monté (les boutons de l'en-tête sont
+             visibles sur tous les onglets : Détail, Suivi, Formations) */}
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden no-print" />
+
         {/* ── DÉTAIL TAB ── */}
         {tab === 'detail' && (
           <>
             <div className="grid lg:grid-cols-3 gap-6 animate-fade-up">
-              {/* Photo card */}
-              <div className="card-apple p-6 text-center">
-                <div
-                  onClick={handlePhotoClick}
-                  className={`w-28 h-28 mx-auto rounded-full flex items-center justify-center text-4xl mb-3 cursor-pointer transition-all border-2 border-dashed hover:border-arina-blue group relative overflow-hidden ${data.photo ? 'border-arina-blue/30' : 'border-ios-hairline bg-ios-fill'}`}
-                >
-                  {uploading ? (
-                    <div className="animate-spin w-8 h-8 border-3 border-arina-blue border-t-transparent rounded-full" />
-                  ) : data.photo ? (
-                    <img src={data.photo} alt="Photo" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <User className="w-10 h-10 text-gray-400 group-hover:text-arina-blue transition-colors" />
-                      <span className="text-[10px] text-ios-text3 group-hover:text-arina-blue transition-colors font-medium">Cliquer</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-full transition-all flex items-center justify-center">
-                    <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-bold transition-opacity flex items-center gap-1"><Camera className="w-4 h-4" /> Modifier</span>
-                  </div>
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                <p className="text-sm text-ios-text3 mb-1">Photo confidentielle</p>
-                {data.photo && (
-                  <button onClick={removePhoto} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Supprimer la photo</button>
-                )}
-              </div>
-
-              {/* Info card */}
+              {/* Fiche de renseignements */}
               <div className="lg:col-span-2 card-apple p-6">
-                {cardTitle('users', 'Informations personnelles')}
+                {cardTitle('users', 'Fiche de renseignements')}
                 {editing ? (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {['prenom', 'nom', 'age', 'genre', 'telephone', 'region', 'niveauScolaire'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
+                    {[
+                      { k: 'prenom', label: 'Prénom' },
+                      { k: 'nom', label: 'Nom' },
+                      { k: 'age', label: 'Âge', type: 'number' },
+                      { k: 'dateEntree', label: "Date d'entrée", type: 'date' },
+                      { k: 'formation', label: 'Formation au centre' },
+                    ].map((f) => (
+                      <label key={f.k} className="block">
+                        <span className="block text-xs font-semibold text-ios-text3 mb-1">{f.label}</span>
+                        <input type={f.type || 'text'} value={form[f.k] || ''} onChange={(e) => setForm({ ...form, [f.k]: e.target.value })} className={inputClass} />
+                      </label>
                     ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Statut</span>
+                      <select value={form.statut || 'Actif'} onChange={(e) => setForm({ ...form, statut: e.target.value })} className={inputClass}>
+                        <option>Actif</option>
+                        <option>Diplômé</option>
+                        <option>Inactif</option>
+                      </select>
+                    </label>
+                    <div className="col-span-2 flex justify-end gap-2 mt-2">
+                      <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-ios-fill text-ios-text hover:bg-ios-fill-2 transition-all">Annuler</button>
+                      <button onClick={saveEdit} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark transition-all">Enregistrer</button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Nom', v: `${data.prenom} ${data.nom}` }, { l: 'Âge', v: `${data.age} ans` }, { l: 'Genre', v: data.genre }, { l: 'Téléphone', v: data.telephone }, { l: 'Région', v: data.region }, { l: 'Niveau scolaire', v: data.niveauScolaire }].map((r, i) => (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    {[
+                      { l: 'Prénom', v: data.prenom },
+                      { l: 'Nom', v: data.nom },
+                      { l: 'Âge', v: `${data.age} ans` },
+                      { l: 'Statut', v: data.statut },
+                      { l: "Date d'entrée", v: fmtDate(data.dateEntree) },
+                      { l: 'Formation', v: data.formation },
+                    ].map((r, i) => (
                       <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="grid lg:grid-cols-2 gap-6 animate-fade-up" style={{ animationDelay: '80ms' }}>
-              {/* Situation familiale */}
+              {/* Progression */}
               <div className="card-apple p-6">
-                {cardTitle('users', 'Situation familiale')}
+                {cardTitle('activity', 'Progression')}
                 {editing ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {['situationFamiliale', 'parent', 'freresSoeurs'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
-                    ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Assiduité (%)</span>
+                      <input type="number" min="0" max="100" value={form.assiduite || ''} onChange={(e) => setForm({ ...form, assiduite: e.target.value })} className={inputClass} />
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-semibold text-ios-text3 mb-1">Score de progression (%)</span>
+                      <input type="number" min="0" max="100" value={form.progression || ''} onChange={(e) => setForm({ ...form, progression: e.target.value })} className={inputClass} />
+                    </label>
+                    <button onClick={saveEdit} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark transition-all">Enregistrer</button>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Situation', v: data.situationFamiliale }, { l: 'Parent/Tuteur', v: data.parent }, { l: 'Frères/sœurs', v: data.freresSoeurs }].map((r, i) => (
-                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                    ))}
+                  <div className="space-y-5">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Assiduité</span><span className="font-bold text-ios-text">{data.assiduite}%</span></div>
+                      <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Progression</span><span className="font-bold text-ios-text">{data.progression}%</span></div>
+                      <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Suivi ARINA */}
-              <div className="card-apple p-6">
-                {cardTitle('activity', 'Suivi ARINA')}
-                {editing ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {['educateur', 'dateEntree', 'motif', 'objectifs', 'statut'].map((k) => (
-                      <input key={k} placeholder={k} value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className={inputClass} />
-                    ))}
-                    <button onClick={saveEdit} className="col-span-2 mt-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                  </div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                    {[{ l: 'Éducateur référent', v: data.educateur }, { l: "Date d'entrée", v: data.dateEntree }, { l: 'Motif', v: data.motif }, { l: 'Objectifs', v: data.objectifs }, { l: 'Statut', v: data.statut, color: data.statut === 'Actif' ? 'text-green-600 dark:text-green-400' : '' }].map((r, i) => (
-                      <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className={`font-medium ${r.color || 'text-ios-text'}`}>{r.statut === 'Actif' && <Circle className="w-2.5 h-2.5 inline-block fill-current text-green-500 mr-1" />}{r.v || '—'}</span></div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Progression */}
-            <div className="card-apple p-6 animate-fade-up" style={{ animationDelay: '160ms' }}>
-              {cardTitle('activity', 'Progression')}
-              <div className="grid sm:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Taux d'assiduité</span><span className="font-bold text-ios-text">{editing ? form.assiduite || data.assiduite : data.assiduite}%</span></div>
-                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${data.assiduite}%` }} /></div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1"><span className="text-ios-text3">Score de progression</span><span className="font-bold text-ios-text">{editing ? form.progression || data.progression : data.progression}%</span></div>
-                  <div className="w-full h-3 bg-ios-fill rounded-full overflow-hidden"><div className="h-full bg-arina-blue rounded-full transition-all" style={{ width: `${data.progression}%` }} /></div>
-                </div>
-              </div>
-              {editing && (
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <input type="number" placeholder="Assiduité %" value={form.assiduite || ''} onChange={(e) => setForm({ ...form, assiduite: e.target.value })} className={inputClass} />
-                  <input type="number" placeholder="Progression %" value={form.progression || ''} onChange={(e) => setForm({ ...form, progression: e.target.value })} className={inputClass} />
-                  <button onClick={saveEdit} className="col-span-2 py-2.5 bg-arina-blue text-white font-semibold rounded-xl">Enregistrer</button>
-                </div>
-              )}
             </div>
 
             {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes */}
