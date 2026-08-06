@@ -459,6 +459,46 @@ test('PATCH /api/donations/:id → taux invalide → 400', async () => {
   assert.match(r.body.error || '', /taux/i);
 });
 
+/* ═══ DONATEURS : inscription AUTOMATIQUE à la validation du don ═══ */
+test('PATCH /api/donations/:id → « reçu » : le nom du donateur est ajouté à la liste Donateurs', async () => {
+  // Promesse de don depuis le site public
+  const created = await post('/api/donations', { amount: 40, currency: 'EUR', name: 'Donateur En Ligne', email: 'enligne@exemple.mg', method: 'mvola', anonymous: false });
+  assert.equal(created.status, 201);
+  // Validation par l'admin
+  const r = await send('PATCH', `/api/donations/${created.body.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'received');
+  // Le nom apparaît dans la liste Donateurs de l'espace privé
+  const list = await get('/api/donors', { 'x-admin-key': 'test-admin-key' });
+  const donor = (list.body || []).find((d) => d.name === 'Donateur En Ligne');
+  assert.ok(donor, 'le donateur validé doit apparaître dans /api/donors');
+  assert.equal(donor.need, 'Don en ligne');
+});
+
+test('PATCH /api/donations/:id → « reçu » : don ANONYME → aucun donateur ajouté', async () => {
+  const created = await post('/api/donations', { amount: 15, currency: 'EUR', name: 'Anonyme X', email: 'anon@exemple.mg', anonymous: true });
+  assert.equal(created.status, 201);
+  const before = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body.length;
+  const r = await send('PATCH', `/api/donations/${created.body.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'received');
+  const after = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body.length;
+  assert.equal(after, before, 'un don anonyme ne doit pas créer de donateur');
+});
+
+test('PATCH /api/donations/:id → re-confirmation : aucun donateur en double', async () => {
+  // Le don « Donateur En Ligne » a déjà été validé (test précédent) : le repasser
+  // en attente puis le re-confirmer ne doit pas créer un 2e donateur identique.
+  const d = fakePool.state.donations.find((x) => x.name === 'Donateur En Ligne');
+  assert.ok(d, 'le don doit exister en base');
+  await send('PATCH', `/api/donations/${d.id}`, { status: 'pledge' }, { 'x-admin-key': 'test-admin-key' });
+  const r = await send('PATCH', `/api/donations/${d.id}`, { status: 'received' }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  const list = (await get('/api/donors', { 'x-admin-key': 'test-admin-key' })).body;
+  const count = list.filter((x) => x.name === 'Donateur En Ligne').length;
+  assert.equal(count, 1, 'le donateur ne doit exister qu\'une seule fois');
+});
+
 /* ═══ DIAGNOSTIC EMAIL ═══ */
 test('GET /api/email-status → non configuré sans SMTP ni Resend', async () => {
   const r = await get('/api/email-status', { 'x-admin-key': 'test-admin-key' });

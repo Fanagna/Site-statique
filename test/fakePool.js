@@ -305,6 +305,14 @@ function makeFakePool(opts = {}) {
       state.financeRows.push(row);
       return { rows: [row] };
     }
+    // Donateurs — insertion automatique à la validation d'un don (ON CONFLICT DO NOTHING)
+    if (/INSERT INTO donors/i.test(s)) {
+      const name = String(params[0] || '').trim();
+      if (name && !state.donors.some((d) => String(d.name).toLowerCase() === name.toLowerCase())) {
+        state.donors.push({ id: state.donors.length + 1, name, need: params[1] || 'Don en ligne', budget: 0, created_at: new Date().toISOString() });
+      }
+      return { rows: [] };
+    }
     // Donateurs (GET requireAuth — données de l'évaluation mensuelle)
     if (/SELECT \* FROM donors/i.test(s)) return { rows: [...state.donors] };
 

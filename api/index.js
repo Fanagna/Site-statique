@@ -1279,6 +1279,28 @@ app.patch('/api/donations/:id', requireRole(), async (req, res) => {
       }
     }
 
+    // 🧑‍🤝‍🧑 Donateur inscrit AUTOMATIQUEMENT dans la liste « Donateurs » : à la
+    // validation (don non anonyme), le nom du visiteur est ajouté à la table
+    // donors — il apparaît dans l'onglet Donateurs de l'espace privé et ses
+    // revenus sont comptabilisés dans les stats par donateur. Idempotent
+    // (ON CONFLICT DO NOTHING) : une re-confirmation ne crée jamais de doublon.
+    // NB : un retour en « à confirmer » retire le revenu des finances mais laisse
+    // le nom dans la liste Donateurs (choix : la personne s'est engagée à donner).
+    if (status === 'received' && !r.anonymous) {
+      const donorName = String(r.name || '').trim().slice(0, 255);
+      if (donorName) {
+        try {
+          await pool.query(
+            `INSERT INTO donors (name, need) VALUES ($1, 'Don en ligne') ON CONFLICT (name) DO NOTHING`,
+            [donorName]
+          );
+        } catch (err) {
+          // La confirmation du don reste valide même si l'inscription du donateur échoue
+          console.error('⚠️ Donateur non ajouté à la liste :', err.message);
+        }
+      }
+    }
+
     // 💰 Revenus automatiques : un don confirmé « reçu » crée automatiquement une
     // ligne de revenu (type income, catégorie Don) liée au don (donation_id). Le
     // tableau de bord, l'Évaluation et les exports Excel se mettent à jour aussitôt.
