@@ -5,9 +5,9 @@ import { useEffect } from 'react';
    partageable (Facebook, LinkedIn, WhatsApp…). */
 export default function usePageMeta(title, description) {
   useEffect(() => {
-    const SITE = 'ARINA — Association de réinsertion des jeunes vulnérables à Madagascar';
+    const SITE = 'ARINA — Réinsertion des mineurs et des jeunes vulnérables à Madagascar';
     const finalTitle = title ? `${title} · ARINA` : SITE;
-    const finalDesc = description || "L'Association ARINA accompagne la réinsertion sociale et professionnelle des jeunes vulnérables à Madagascar : hébergement, soutien psychosocial, formation professionnelle et insertion.";
+    const finalDesc = description || "ARINA accompagne la réinsertion des mineurs et des jeunes vulnérables à Madagascar : enfants orphelins, jeunes sortant de prison, hébergement, soutien psychosocial, formation professionnelle et insertion. Faites un don à Mahajanga.";
 
     document.title = finalTitle;
     const setMeta = (selector, attr, value) => {
