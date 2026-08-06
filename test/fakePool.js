@@ -156,7 +156,43 @@ function makeFakePool(opts = {}) {
     if (/SELECT \* FROM donors/i.test(s)) return { rows: [...state.donors] };
 
     // Actualités (GET public — test du contrôle d'accès)
+    if (/DELETE FROM news/i.test(s)) {
+      const idx = state.news.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.news.splice(idx, 1);
+      return { rows: [removed] };
+    }
     if (/FROM news/i.test(s)) return { rows: [...state.news] };
+    if (/UPDATE news SET views/i.test(s)) {
+      // Compteur de vues : [id]
+      const n = state.news.find((x) => x.id === Number(params[0]));
+      if (!n) return { rows: [] };
+      n.views = (n.views || 0) + 1;
+      return { rows: [{ views: n.views }] };
+    }
+    if (/INSERT INTO news/i.test(s)) {
+      // Params : [title, excerpt, category, image_url, status, content, featured]
+      const row = {
+        id: state.news.length + 1,
+        title: params[0], excerpt: params[1], category: params[2],
+        image_url: params[3], status: params[4] || 'published',
+        content: params[5], featured: !!params[6], views: 0,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      state.news.push(row);
+      return { rows: [row] };
+    }
+    if (/UPDATE news SET/i.test(s)) {
+      // Params : [title, excerpt, category, image_url, status, content, featured, id]
+      const n = state.news.find((x) => x.id === Number(params[7]));
+      if (!n) return { rows: [] };
+      n.title = params[0]; n.excerpt = params[1]; n.category = params[2]; n.image_url = params[3];
+      if (params[4] != null) n.status = params[4];
+      if (params[5] != null) n.content = params[5];
+      if (params[6] != null) n.featured = !!params[6];
+      n.updated_at = new Date().toISOString();
+      return { rows: [n] };
+    }
 
     if (/id, name, need, budget FROM donors/i.test(s)) return { rows: [] }; // pas de budget → pas d'alerte
 

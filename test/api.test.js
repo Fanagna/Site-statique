@@ -253,6 +253,62 @@ test('GET /api/news avec clé éducateur → 200 (public, l\'éducateur peut lir
   assert.equal(r.status, 200);
 });
 
+/* ═══ ACTUALITÉS : image longue (base64 uploadée) — régression VARCHAR(500) ═══ */
+// L'admin peut uploader une image (convertie en data: URL base64) : sa longueur
+// dépasse largement les 500 caractères de l'ancienne colonne image_url VARCHAR(500).
+// La migration vers TEXT doit permettre d'enregistrer ces actualités sans erreur.
+test('POST /api/news avec image base64 > 500 caractères → 201, image intégralement en base', async () => {
+  const longImage = 'data:image/png;base64,' + 'A'.repeat(2000); // 2028 caractères
+  const r = await post('/api/news', {
+    title: 'Ouverture d\'un nouvel atelier',
+    excerpt: 'Résumé',
+    category: 'Projet',
+    image_url: longImage,
+    status: 'published',
+    content: 'Contenu de l\'article',
+    featured: false,
+  }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.image_url, longImage, 'l\'image longue doit être renvoyée par l\'API');
+  const stored = fakePool.state.news.find((n) => n.id === r.body.id);
+  assert.ok(stored, 'l\'actualité doit être en base');
+  assert.equal(stored.image_url.length, longImage.length, 'la colonne doit accepter le texte long (TEXT)');
+});
+
+test('PUT /api/news/:id avec une image encore plus longue → 200, modification enregistrée', async () => {
+  const created = fakePool.state.news[0]; // créée par le test précédent
+  assert.ok(created, 'une actualité doit avoir été créée par le test précédent');
+  const longImage = 'data:image/png;base64,' + 'B'.repeat(5000); // 5028 caractères
+  const r = await send('PUT', `/api/news/${created.id}`, {
+    title: 'Atelier rénové',
+    excerpt: 'Résumé modifié',
+    category: 'Événement',
+    image_url: longImage,
+    status: 'published',
+    content: 'Contenu modifié',
+    featured: true,
+  }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.image_url, longImage);
+  const stored = fakePool.state.news.find((n) => n.id === created.id);
+  assert.equal(stored.image_url.length, longImage.length);
+  assert.equal(stored.title, 'Atelier rénové');
+});
+
+test('POST /api/news sans image → 201 (image_url NULL ou vide)', async () => {
+  const r = await post('/api/news', {
+    title: 'Sans image',
+    excerpt: '',
+    category: 'Rapport',
+    image_url: '',
+    status: 'draft',
+    content: '',
+    featured: false,
+  }, { 'x-admin-key': 'test-admin-key' });
+  assert.equal(r.status, 201);
+  assert.ok(r.body.id);
+});
+
 /* ═══ SÉCURITÉ : honeypot anti-bots ═══ */
 test('formulaire public rempli par un bot (champ caché website) → succès simulé, rien en base', async () => {
   const before = fakePool.state.contacts.length;

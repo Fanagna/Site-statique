@@ -339,6 +339,10 @@ function ensureSchema() {
     )`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'published'`,
     `ALTER TABLE news ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`,
+    // Les images uploadées deviennent des data: URLs base64 qui dépassent
+    // largement 500 caractères : VARCHAR(500) faisait échouer l'enregistrement
+    // (« value too long for type character varying(500) »). Passage en TEXT.
+    `ALTER TABLE news ALTER COLUMN image_url TYPE TEXT`,
     `CREATE TABLE IF NOT EXISTS testimonials (
       id SERIAL PRIMARY KEY,
       name VARCHAR(120) NOT NULL,
