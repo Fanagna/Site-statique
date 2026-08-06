@@ -236,14 +236,34 @@ function makeFakePool(opts = {}) {
       return { rows: found.length ? [{ ...found[found.length - 1] }] : [] };
     }
     if (/INSERT INTO attendances/i.test(s)) {
+      // Params : [beneficiary_id, event_id, type] (scan) ou + [scanned_at] (CRUD présences)
       const row = {
         id: state.attendances.length + 1,
         beneficiary_id: params[0], event_id: params[1], type: params[2],
-        scanned_at: new Date().toISOString(), created_at: new Date().toISOString(),
+        scanned_at: params[3] || new Date().toISOString(), created_at: new Date().toISOString(),
       };
       state.attendances.push(row);
       state.inserts.push({ table: 'attendances', row });
       return { rows: [row] };
+    }
+    // CRUD présences : lecture du pointage (édition — conserve sa date d'origine)
+    if (/SELECT scanned_at FROM attendances WHERE id/i.test(s)) {
+      const a = state.attendances.find((x) => x.id === Number(params[0]));
+      return { rows: a ? [{ ...a }] : [] };
+    }
+    if (/UPDATE attendances SET/i.test(s)) {
+      // Params : [type (nullable), scanned_at, id]
+      const a = state.attendances.find((x) => x.id === Number(params[2]));
+      if (!a) return { rows: [] };
+      if (params[0] != null) a.type = params[0];
+      if (params[1] != null) a.scanned_at = params[1];
+      return { rows: [{ ...a }] };
+    }
+    if (/DELETE FROM attendances/i.test(s)) {
+      const idx = state.attendances.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.attendances.splice(idx, 1);
+      return { rows: [removed] };
     }
 
     // Finances — revenu automatique lié à un don confirmé (donation_id)

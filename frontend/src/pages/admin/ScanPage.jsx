@@ -321,7 +321,7 @@ export default function ScanPage() {
               to="/admin/presences"
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all mt-auto"
             >
-              <Icon name="calendar" className="w-4 h-4" /> Gérer les événements
+              <Icon name="calendar" className="w-4 h-4" /> Voir les présences
             </Link>
           </div>
         </div>

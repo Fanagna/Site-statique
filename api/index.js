@@ -1808,6 +1808,159 @@ app.get('/api/presences/today', requireRole(ROLES.educator), async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══ PRÉSENCES : CRUD des pointages (page Présences — liste des enfants) ═══
+// La « Présence du jour » est une session quotidienne par date (badge_events
+// is_daily + daily_key). Ces routes permettent de consulter et de CORRIGER les
+// entrées/sorties de tous les enfants pour une date donnée, sans passer par le
+// scanner : ajout manuel d'un pointage, modification de son heure, suppression.
+
+// Valide une date YYYY-MM-DD
+function isValidDateStr(s) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(String(s)));
+}
+
+// Construit le timestamp ISO UTC correspondant à (date, HH:MM) en heure locale
+// d'Antananarivo (UTC+3) — même fuseau que tout le reste du pointage.
+function tanaTimestamp(dateStr, hhmm) {
+  const d = new Date(`${dateStr}T${String(hhmm || '00:00').padStart(5, '0')}:00+03:00`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// Date (fuseau Antananarivo) d'un horodatage ISO — conserve la date d'un pointage
+// existant quand on ne fournit pas de nouvelle date en modification.
+function tanaDateOf(iso) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Indian/Antananarivo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(iso));
+  const get = (t) => (parts.find((p) => p.type === t) || {}).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+// Retrouve (ou crée) la session quotidienne d'une date — même logique que le scan
+async function getOrCreateDailyEvent(dateStr) {
+  let r = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]);
+  if (r.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO badge_events (name, event_date, is_daily, daily_key) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (daily_key) WHERE daily_key IS NOT NULL DO NOTHING`,
+      ['Présence du jour', dateStr, true, dateStr]
+    );
+    r = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]);
+  }
+  return r.rows[0] || null;
+}
+
+// GET /api/presences/:date — TOUS les enfants + leurs entrées/sorties de la date.
+// Lecture seule (aucune création de session) : une date sans session renvoie les
+// enfants avec des pointages vides (l'interface affiche les absents).
+app.get('/api/presences/:date', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const [benefR, evtR] = await Promise.all([
+      pool.query('SELECT * FROM beneficiaries ORDER BY first_name, last_name'),
+      pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]),
+    ]);
+    const evt = evtR.rows[0] || null;
+    let attRows = [];
+    if (evt) {
+      const attR = await pool.query(
+        `SELECT a.id, a.type, a.scanned_at, b.id AS beneficiary_id, b.first_name, b.last_name, b.photo_url, b.status
+         FROM attendances a JOIN beneficiaries b ON b.id = a.beneficiary_id
+         WHERE a.event_id = $1 ORDER BY a.scanned_at ASC, a.id ASC`,
+        [evt.id]
+      );
+      attRows = attR.rows;
+    }
+    // Groupement par enfant : chaque pointage expose son id (édition/suppression)
+    const byChild = new Map();
+    for (const row of attRows) {
+      let g = byChild.get(row.beneficiary_id);
+      if (!g) { g = { entries: [], exits: [] }; byChild.set(row.beneficiary_id, g); }
+      const p = { id: row.id, scanned_at: row.scanned_at ? new Date(row.scanned_at).toISOString() : null };
+      (row.type === 'entry' ? g.entries : g.exits).push(p);
+    }
+    const children = benefR.rows.map((b) => {
+      const g = byChild.get(b.id) || { entries: [], exits: [] };
+      return { ...normalizeBenef(b), entries: g.entries, exits: g.exits };
+    });
+    res.json({
+      date: dateStr,
+      event: evt ? { id: evt.id, name: evt.name, event_date: evt.event_date } : null,
+      children,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/presences/:date/pointages — ajoute une entrée ou une sortie manuelle.
+// Le corps : { beneficiaryId, type: 'entry'|'exit', time?: 'HH:MM' } (heure locale
+// facultative — l'heure courante est utilisée par défaut).
+app.post('/api/presences/:date/pointages', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const { beneficiaryId, type, time } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (!dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const id = Number(beneficiaryId);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'Bénéficiaire requis' });
+    const bR = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [id]);
+    if (bR.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(dateStr, hhmm) : new Date().toISOString();
+    const evt = await getOrCreateDailyEvent(dateStr);
+    if (!evt) return res.status(500).json({ error: 'Impossible de créer la présence du jour' });
+    const ins = await pool.query(
+      'INSERT INTO attendances (beneficiary_id, event_id, type, scanned_at) VALUES ($1,$2,$3,$4) RETURNING id, type, scanned_at',
+      [id, evt.id, dir, scannedAt]
+    );
+    const p = ins.rows[0];
+    res.status(201).json({
+      pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
+      child: { id: bR.rows[0].id, prenom: bR.rows[0].first_name, nom: bR.rows[0].last_name },
+      event: { id: evt.id, name: evt.name },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/presences/pointages/:id — corrige un pointage (type et/ou heure).
+// Le corps : { type?, time?: 'HH:MM', date?: 'YYYY-MM-DD' } — la date par défaut
+// est celle du pointage existant (l'heure reste en heure locale Antananarivo).
+app.put('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const { type, time, date } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (type !== undefined && type !== null && !dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const curR = await pool.query('SELECT scanned_at FROM attendances WHERE id = $1', [pid]);
+    if (curR.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    const curDate = date ? String(date) : tanaDateOf(curR.rows[0].scanned_at);
+    if (!isValidDateStr(curDate)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(curDate, hhmm) : curR.rows[0].scanned_at;
+    const up = await pool.query(
+      'UPDATE attendances SET type = COALESCE($1, type), scanned_at = $2 WHERE id = $3 RETURNING id, type, scanned_at',
+      [dir, scannedAt, pid]
+    );
+    if (up.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ pointage: up.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/presences/pointages/:id — supprime un pointage erroné
+app.delete('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const r = await pool.query('DELETE FROM attendances WHERE id = $1 RETURNING id', [pid]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = app;
 
 // Hook de test (node:test) : injecte un pool factice pour tester l'API sans base réelle

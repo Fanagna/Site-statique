@@ -817,6 +817,106 @@ test('GET /api/presences/today → 401 sans clé, 403 pour le président', async
   assert.equal(pres.status, 403);
 });
 
+/* ═══ PRÉSENCES : CRUD des pointages (page Présences — liste des enfants) ═══ */
+test('GET /api/presences/:date → 401 sans clé', async () => {
+  const r = await get('/api/presences/2026-09-01');
+  assert.equal(r.status, 401);
+});
+
+test('GET /api/presences/:date sans session → tous les enfants, pointages vides', async () => {
+  const r = await get('/api/presences/2026-09-01', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event, null);
+  assert.ok(Array.isArray(r.body.children));
+  assert.ok(r.body.children.length >= 2, 'tous les enfants doivent être listés');
+  assert.ok(r.body.children.every((c) => Array.isArray(c.entries) && Array.isArray(c.exits) && c.entries.length === 0 && c.exits.length === 0));
+});
+
+test('GET /api/presences/:date date invalide → 400', async () => {
+  const r = await get('/api/presences/aujourdhui', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages → crée la session du jour + le pointage', async () => {
+  const r = await post('/api/presences/2026-09-02/pointages', { beneficiaryId: 1, type: 'entry', time: '07:45' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry');
+  assert.equal(r.body.event.name, 'Présence du jour');
+  const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'le pointage doit être en base');
+  assert.equal(stored.beneficiary_id, 1);
+  const evt = fakePool.state.events.find((e) => e.daily_key === '2026-09-02');
+  assert.ok(evt && evt.is_daily, 'la session du jour doit être créée');
+  assert.equal(stored.event_id, evt.id);
+});
+
+test('POST /api/presences/:date/pointages → 403 pour le président', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry' }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 403);
+});
+
+test('POST /api/presences/:date/pointages type invalide → 400', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'middle' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages heure invalide → 400', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry', time: '25h99' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 400);
+});
+
+test('POST /api/presences/:date/pointages bénéficiaire inconnu → 404', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 999, type: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+});
+
+test('POST + GET : pointages regroupés par enfant avec id (entrées + sorties)', async () => {
+  await post('/api/presences/2026-09-04/pointages', { beneficiaryId: 1, type: 'entry', time: '07:30' }, { 'x-admin-key': 'test-educator-key' });
+  await post('/api/presences/2026-09-04/pointages', { beneficiaryId: 1, type: 'exit', time: '12:00' }, { 'x-admin-key': 'test-educator-key' });
+  const r = await get('/api/presences/2026-09-04', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.event.name, 'Présence du jour');
+  const jean = r.body.children.find((c) => c.id === 1);
+  assert.ok(jean, 'Jean doit être listé');
+  assert.equal(jean.entries.length, 1);
+  assert.equal(jean.exits.length, 1);
+  assert.ok(jean.entries[0].id, 'chaque pointage expose son id (édition/suppression)');
+  // Lova (inactif) n'a pas pointé → listé avec pointages vides
+  const lova = r.body.children.find((c) => c.id === 2);
+  assert.ok(lova && lova.entries.length === 0 && lova.exits.length === 0);
+});
+
+test('PUT /api/presences/pointages/:id → type et heure modifiés (fuseau Antananarivo)', async () => {
+  const created = await post('/api/presences/2026-09-05/pointages', { beneficiaryId: 1, type: 'entry', time: '08:00' }, { 'x-admin-key': 'test-educator-key' });
+  const pid = created.body.pointage.id;
+  const r = await send('PUT', `/api/presences/pointages/${pid}`, { type: 'exit', time: '16:30' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.pointage.type, 'exit');
+  const stored = fakePool.state.attendances.find((a) => a.id === pid);
+  assert.equal(stored.type, 'exit');
+  // 16h30 heure Antananarivo (UTC+3) = 13:30 UTC
+  assert.equal(new Date(stored.scanned_at).toISOString(), '2026-09-05T13:30:00.000Z');
+});
+
+test('PUT /api/presences/pointages/:id inconnu → 404', async () => {
+  const r = await send('PUT', '/api/presences/pointages/99999', { time: '09:00' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+});
+
+test('DELETE /api/presences/pointages/:id → pointage retiré', async () => {
+  const created = await post('/api/presences/2026-09-06/pointages', { beneficiaryId: 1, type: 'entry' }, { 'x-admin-key': 'test-educator-key' });
+  const pid = created.body.pointage.id;
+  const r = await send('DELETE', `/api/presences/pointages/${pid}`, undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+  assert.ok(!fakePool.state.attendances.some((a) => a.id === pid), 'le pointage doit être retiré');
+});
+
+test('DELETE /api/presences/pointages/:id inconnu → 404', async () => {
+  const r = await send('DELETE', '/api/presences/pointages/99999', undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+});
+
 /* ═══ STATS RÉELLES ═══ */
 test('GET /api/stats → chiffres calculés depuis la base (pas codés en dur)', async () => {
   const r = await get('/api/stats');

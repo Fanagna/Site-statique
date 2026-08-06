@@ -434,6 +434,33 @@ export async function fetchTodayPresence() {
   return await apiCall('/presences/today');
 }
 
+// ── Présences du jour : CRUD des pointages (page Présences — liste des enfants) ──
+// Tous les enfants + leurs entrées/sorties d'une date : { date, event, children }
+// (chaque child a { …fiche, entries: [{id, scanned_at}], exits: [{id, scanned_at}] }).
+export async function fetchPresencesByDate(date) {
+  return await apiCall(`/presences/${date}`);
+}
+
+// Ajoute un pointage manuel : { beneficiaryId, type: 'entry'|'exit', time?: 'HH:MM' }
+export async function createPresencePointage(date, payload) {
+  return apiCallDetailed(`/presences/${date}/pointages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Corrige un pointage : { type?, time?: 'HH:MM' }
+export async function updatePresencePointage(id, payload) {
+  return apiCallDetailed(`/presences/pointages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePresencePointage(id) {
+  return apiCallDetailed(`/presences/pointages/${id}`, { method: 'DELETE' });
+}
+
 // PDF multi-badges (format carte de crédit, 4 par page) → URL Blob, ou null
 export async function exportBadgesPdf(ids) {
   try {
