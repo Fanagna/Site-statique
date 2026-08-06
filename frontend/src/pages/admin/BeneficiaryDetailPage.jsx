@@ -187,11 +187,22 @@ export default function BeneficiaryDetailPage() {
     if (!ok) setData((d) => ({ ...d, notes: data.notes }));
   };
   const saveEdit = async () => {
+    // Le dossier édité (form.dossier) prime — plus la seule fiche. Les pourcentages
+    // d'assiduité/progression restent synchronisés dans le dossier comme avant.
+    const dossier = { ...(form.dossier || data.dossier || {}) };
+    dossier.assiduite = Number(form.assiduite) || Number(data.assiduite) || 0;
+    dossier.progression = Number(form.progression) || Number(data.progression) || 0;
+    // Migration douce : la clé obsolète `felicitations` (remplacée par `recommandation`)
+    // est retirée du dossier à l'enregistrement pour éviter qu'un ancien texte ne ressorte.
+    if (dossier.arina && 'felicitations' in dossier.arina) {
+      const arina = { ...dossier.arina };
+      delete arina.felicitations;
+      dossier.arina = arina;
+    }
     const ok = await persistBenef({
       ...data, ...form,
-      assiduite: Number(form.assiduite) || Number(data.assiduite) || 0,
-      progression: Number(form.progression) || Number(data.progression) || 0,
-      dossier: { ...(data.dossier || {}), assiduite: Number(form.assiduite) || Number(data.assiduite) || 0, progression: Number(form.progression) || Number(data.progression) || 0 },
+      assiduite: dossier.assiduite, progression: dossier.progression,
+      dossier,
     });
     if (ok) setEditing(false);
   };
@@ -279,6 +290,18 @@ export default function BeneficiaryDetailPage() {
       </div>
     </div>
   );
+
+  /* ── Édition du dossier complet (Identité / Familiale / Juridique / Étude / ARINA) ──
+     Les valeurs sont lues dans le formulaire d'édition (form.dossier), avec repli sur
+     les données affichées — les sections vides deviennent saisissables en mode édition. */
+  const dossVal = (section, field) => (form.dossier?.[section]?.[field] ?? data.dossier?.[section]?.[field] ?? '');
+  const setDoss = (section, field) => (e) => {
+    const v = e.target ? e.target.value : e;
+    setForm((prev) => ({
+      ...prev,
+      dossier: { ...(prev.dossier || {}), [section]: { ...(prev.dossier?.[section] || {}), [field]: v } },
+    }));
+  };
 
   return (
     <AdminLayout
@@ -432,114 +455,190 @@ export default function BeneficiaryDetailPage() {
               </div>
             </div>
 
-            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes */}
-            {data.dossier && (Object.keys(data.dossier).length > 0) && (
+            {/* Dossier complet (IDENTITÉ / FAMILIALE / JURIDIQUE / ÉTUDE / ARINA) en 2 colonnes
+                 — affiché en lecture s'il contient des données, et TOUJOURS en mode édition
+                 pour pouvoir remplir un dossier vide depuis la fiche. */}
+            {(editing || (data.dossier && Object.keys(data.dossier).length > 0)) && (
               <div className="grid md:grid-cols-2 gap-6 items-start animate-fade-up" style={{ animationDelay: '220ms' }}>
                 {/* IDENTITÉ */}
-                {(data.dossier.identite && Object.values(data.dossier.identite).some((v) => v)) && (
+                {(editing || (data.dossier.identite && Object.values(data.dossier.identite).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue text-white flex items-center justify-center"><Icon name="users" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Identité</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
-                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['pseudo', 'Pseudo'], ['dateNaissance', 'Date de naissance'], ['lieuNaissance', 'Lieu de naissance'], ['adresse', 'Adresse exacte'], ['contact', 'Contact'], ['situationScolaire', 'Situation scolaire'], ['loisirs', 'Loisirs']].map(([f, l]) => (
+                          <label key={f} className="block">
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('identite', f)} onChange={setDoss('identite', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: 'Pseudo', v: data.dossier.identite.pseudo }, { l: 'Date de naissance', v: data.dossier.identite.dateNaissance }, { l: 'Lieu de naissance', v: data.dossier.identite.lieuNaissance }, { l: 'Adresse exacte', v: data.dossier.identite.adresse }, { l: 'Contact', v: data.dossier.identite.contact }, { l: 'Situation scolaire', v: data.dossier.identite.situationScolaire }, { l: 'Loisirs', v: data.dossier.identite.loisirs }].map((r, i) => (
+                          <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* SITUATION FAMILIALE */}
-                {(data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v)) && (
+                {(editing || (data.dossier.familiale && Object.values(data.dossier.familiale).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-accent to-arina-blue-dark text-white flex items-center justify-center"><Icon name="grid" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Situation familiale</h4>
                     </div>
-                    <div className="space-y-4 text-sm">
-                      {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
-                        <div key={s.t}>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">{s.t}</div>
-                          <div className="grid sm:grid-cols-4 gap-3">
-                            {[{ l: 'Nom', f: s.k[0] }, { l: 'Profession', f: s.k[1] }, { l: 'Contact', f: s.k[2] }, { l: 'Adresse', f: s.k[3] }].map((r, i) => (
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['pereNom', 'Nom du père'], ['pereProfession', 'Profession du père'], ['pereContact', 'Contact du père'], ['pereAdresse', 'Adresse du père'], ['mereNom', 'Nom de la mère'], ['mereProfession', 'Profession de la mère'], ['mereContact', 'Contact de la mère'], ['mereAdresse', 'Adresse de la mère'], ['tuteurNom', 'Nom du tuteur'], ['tuteurContact', 'Contact du tuteur'], ['tuteurAdresse', 'Adresse du tuteur'], ['nbFreresSoeurs', 'Nombre de frères et sœurs'], ['situationParents', 'Situation des parents'], ['niveauVie', 'Niveau de vie des parents']].map(([f, l]) => (
+                          <label key={f} className="block">
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('familiale', f)} onChange={setDoss('familiale', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-4 text-sm">
+                        {[{ t: 'Père', k: ['pereNom', 'pereProfession', 'pereContact', 'pereAdresse'] }, { t: 'Mère', k: ['mereNom', 'mereProfession', 'mereContact', 'mereAdresse'] }].map((s) => (
+                          <div key={s.t}>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">{s.t}</div>
+                            <div className="grid sm:grid-cols-4 gap-3">
+                              {[{ l: 'Nom', f: s.k[0] }, { l: 'Profession', f: s.k[1] }, { l: 'Contact', f: s.k[2] }, { l: 'Adresse', f: s.k[3] }].map((r, i) => (
+                                <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Tuteur</div>
+                          <div className="grid sm:grid-cols-3 gap-3">
+                            {[{ l: 'Nom', f: 'tuteurNom' }, { l: 'Contacts', f: 'tuteurContact' }, { l: 'Adresse', f: 'tuteurAdresse' }].map((r, i) => (
                               <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
                             ))}
                           </div>
                         </div>
-                      ))}
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-1.5">Tuteur</div>
-                        <div className="grid sm:grid-cols-3 gap-3">
-                          {[{ l: 'Nom', f: 'tuteurNom' }, { l: 'Contacts', f: 'tuteurContact' }, { l: 'Adresse', f: 'tuteurAdresse' }].map((r, i) => (
+                        <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
+                          {[{ l: 'Nombre de frères et sœurs', f: 'nbFreresSoeurs' }, { l: 'Situation des parents', f: 'situationParents' }, { l: 'Niveau de vie des parents', f: 'niveauVie' }].map((r, i) => (
                             <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
                           ))}
                         </div>
                       </div>
-                      <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-ios-hairline">
-                        {[{ l: 'Nombre de frères et sœurs', f: 'nbFreresSoeurs' }, { l: 'Situation des parents', f: 'situationParents' }, { l: 'Niveau de vie des parents', f: 'niveauVie' }].map((r, i) => (
-                          <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.familiale[r.f] || '—'}</span></div>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
                 {/* SITUATION JURIDIQUE */}
-                {(data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v)) && (
+                {(editing || (data.dossier.juridique && Object.values(data.dossier.juridique).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center"><Icon name="file" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Situation juridique</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
-                        <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['motifInculpation', "Motifs d'inculpation"], ['dateEcrou', "Date d'écrou"], ['dureeDetention', 'Durée de détention'], ['dateLiberation', 'Date de libération'], ['motifLiberation', 'Motifs de libération']].map(([f, l]) => (
+                          <label key={f} className={f === 'motifInculpation' ? 'block sm:col-span-2' : 'block'}>
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('juridique', f)} onChange={setDoss('juridique', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: "Motifs d'inculpation", f: 'motifInculpation' }, { l: "Date d'écrou", f: 'dateEcrou' }, { l: 'Durée de détention', f: 'dureeDetention' }, { l: 'Date de libération', f: 'dateLiberation' }, { l: 'Motifs de libération', f: 'motifLiberation' }].map((r, i) => (
+                          <div key={i} className={i === 0 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.juridique[r.f] || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* ÉTUDE */}
-                {(data.dossier.etude && Object.values(data.dossier.etude).some((v) => v)) && (
+                {(editing || (data.dossier.etude && Object.values(data.dossier.etude).some((v) => v))) && (
                   <div className="card-apple p-6">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 text-white flex items-center justify-center"><Icon name="calendar" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">Étude</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
-                        <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
-                      ))}
-                    </div>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[['classeActuelle', 'Classe actuelle'], ['etablissement', 'Établissement'], ['carriereEnvisagee', 'Carrière envisagée'], ['diplomeObtenu', 'Diplôme obtenu'], ['specialites', 'Spécialités']].map(([f, l]) => (
+                          <label key={f} className={f === 'specialites' ? 'block sm:col-span-2' : 'block'}>
+                            <span className="block text-xs font-semibold text-ios-text3 mb-1">{l}</span>
+                            <input value={dossVal('etude', f)} onChange={setDoss('etude', f)} className={inputClass} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                        {[{ l: 'Classe actuelle', f: 'classeActuelle' }, { l: 'Établissement', f: 'etablissement' }, { l: 'Carrière envisagée', f: 'carriereEnvisagee' }, { l: 'Diplôme obtenu', f: 'diplomeObtenu' }, { l: 'Spécialités', f: 'specialites' }].map((r, i) => (
+                          <div key={i} className={i === 4 ? 'sm:col-span-2' : ''}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{data.dossier.etude[r.f] || '—'}</span></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* ARINA — pleine largeur (2 colonnes) */}
-                {((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation) && (
+                {(editing || ((data.dossier.arina && Object.values(data.dossier.arina).some((v) => v)) || data.dateEntree || data.formation)) && (
                   <div className="card-apple p-6 md:col-span-2">
                     <div className="flex items-center gap-2.5 mb-4">
                       <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-arina-gold to-amber-600 text-white flex items-center justify-center"><Icon name="star" className="w-4 h-4" /></span>
                       <h4 className="font-bold uppercase tracking-wide text-sm">ARINA</h4>
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                      {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
-                        <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
-                      ))}
-                    </div>
-                    {(() => {
-                      const arina = data.dossier.arina || {};
-                      // La clé `recommandation` prime dès qu'elle existe (même vide = effacée) ;
-                      // `felicitations` n'est qu'un repli de migration pour les anciens dossiers.
-                      const rec = 'recommandation' in arina ? arina.recommandation : (arina.felicitations || '');
-                      if (!rec) return null;
-                      return (
-                        <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Recommandation du professeur</div>
-                          <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{rec}</p>
+                    {editing ? (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Date d'entrée au centre</span>
+                          <input type="date" value={dossVal('arina', 'dateEntreeCentre')} onChange={setDoss('arina', 'dateEntreeCentre')} className={inputClass} />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Formation au centre</span>
+                          <input value={form.formation || ''} onChange={(e) => setForm({ ...form, formation: e.target.value })} className={inputClass} />
+                        </label>
+                        <label className="block sm:col-span-2">
+                          <span className="block text-xs font-semibold text-ios-text3 mb-1">Recommandation du professeur</span>
+                          {/* Repli de migration : un ancien dossier peut ne contenir que
+                              `felicitations` — son texte doit apparaître ici (sinon la
+                              sauvegarde l'effacerait). */}
+                          <textarea rows={3} value={dossVal('arina', 'recommandation') || (!('recommandation' in (form.dossier?.arina || data.dossier?.arina || {})) ? (data.dossier?.arina?.felicitations || '') : '')} onChange={setDoss('arina', 'recommandation')} className={`${inputClass} resize-none`} />
+                        </label>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                          {[{ l: "Date d'entrée au centre", v: data.dossier.arina?.dateEntreeCentre || data.dateEntree }, { l: 'Formation au centre', v: data.formation }, { l: "Date d'entrée (fiche)", v: data.dateEntree }].filter((r) => r.v).map((r, i) => (
+                            <div key={i}><span className="text-ios-text3">{r.l} :</span> <span className="font-medium text-ios-text">{r.v || '—'}</span></div>
+                          ))}
                         </div>
-                      );
-                    })()}
+                        {(() => {
+                          const arina = data.dossier.arina || {};
+                          // La clé `recommandation` prime dès qu'elle existe (même vide = effacée) ;
+                          // `felicitations` n'est qu'un repli de migration pour les anciens dossiers.
+                          const rec = 'recommandation' in arina ? arina.recommandation : (arina.felicitations || '');
+                          if (!rec) return null;
+                          return (
+                            <div className="mt-4 rounded-xl bg-arina-warm/70 dark:bg-white/5 p-4">
+                              <div className="text-xs font-semibold uppercase tracking-wide text-ios-text3 mb-2">Recommandation du professeur</div>
+                              <p className="text-sm text-ios-text leading-relaxed whitespace-pre-line">{rec}</p>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Bouton d'enregistrement du dossier complet (mode édition) */}
+                {editing && (
+                  <div className="md:col-span-2 flex flex-wrap items-center justify-end gap-2 no-print">
+                    <button onClick={() => setEditing(false)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-ios-fill text-ios-text hover:bg-ios-fill-2 transition-all">Annuler</button>
+                    <button onClick={saveEdit} className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-arina-blue text-white hover:bg-arina-blue-dark shadow-lg shadow-arina-blue/20 transition-all">💾 Enregistrer le dossier complet</button>
                   </div>
                 )}
               </div>
