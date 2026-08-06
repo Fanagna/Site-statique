@@ -24,6 +24,11 @@ import {
    4. Succès             → enfant + ENTRÉE/SORTIE détectée + heures + « Confirmé »
    5. Réseau / serveur   → message d'erreur + Fermer
    Caméra AVANT par défaut (bornes/téléphones), basculable en arrière.
+   ✨ SCAN INTELLIGENT : le QR est lu sur TOUTE la surface de la caméra (le
+   repère plein cadre est indicatif, pas une restriction) — il peut être penché,
+   éloigné, partiellement hors cadre ou affiché sur un écran de téléphone.
+   Détection QR uniquement (formats), plus fréquente (retryDelay), résolution
+   idéale 720p et zoom intégré pour les codes lointains.
    ═══════════════════════════════════════════ */
 
 const fmtTime = (iso) => {
@@ -34,6 +39,9 @@ const fmtTime = (iso) => {
     : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 const DIR_LABEL = { entry: 'ENTRÉE', exit: 'SORTIE' };
+// Scan intelligent : les badges ARINA sont 100 % QR — restreindre aux QR accélère
+// la détection (le détecteur ne cherche plus les autres formats de codes).
+const SCAN_FORMATS = ['qr_code'];
 
 export default function ScanPage() {
   const { user, logout } = useAuth();
@@ -303,12 +311,23 @@ export default function ScanPage() {
                 <Scanner
                   onScan={onCameraScan}
                   onError={onCameraError}
-                  constraints={{ facingMode: cameraMode }}
-                  components={{ finder: true, torch: true }}
+                  constraints={{ facingMode: cameraMode, width: { ideal: 1280 }, height: { ideal: 720 } }}
+                  formats={SCAN_FORMATS}
+                  components={{ finder: false, torch: true, zoom: true }}
                   paused={paused}
                   sound={false}
                   allowMultiple
+                  retryDelay={60}
                 />
+                {/* Repère PLEIN CADRE : toute la zone est scannée, pas seulement le centre */}
+                {!paused && !overlay && (
+                  <div className="absolute inset-4 pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                    <span className="absolute top-0 left-0 w-9 h-9 border-t-2 border-l-2 border-white/90 rounded-tl-2xl" />
+                    <span className="absolute top-0 right-0 w-9 h-9 border-t-2 border-r-2 border-white/90 rounded-tr-2xl" />
+                    <span className="absolute bottom-0 left-0 w-9 h-9 border-b-2 border-l-2 border-white/90 rounded-bl-2xl" />
+                    <span className="absolute bottom-0 right-0 w-9 h-9 border-b-2 border-r-2 border-white/90 rounded-br-2xl" />
+                  </div>
+                )}
                 {/* Ligne laser décorative */}
                 {!paused && !overlay && (
                   <div className="absolute left-[12%] right-[12%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_rgba(52,211,153,0.9)] animate-scan-line" />
@@ -328,6 +347,16 @@ export default function ScanPage() {
                   {cameraMode === 'user' ? 'Avant' : 'Arrière'}
                 </button>
               </div>
+            </div>
+
+            {/* Scan intelligent : toute la zone est lue */}
+            <div className="px-4 py-2.5 border-t border-ios-hairline flex items-center gap-2 text-[11px] text-ios-text2 bg-emerald-50/50 dark:bg-emerald-500/5">
+              <Icon name="qrCode" className="w-4 h-4 text-arina-blue flex-shrink-0" />
+              <span>
+                <b className="text-emerald-700 dark:text-emerald-400">Scan intelligent</b> — le QR est détecté sur{' '}
+                <b>toute la zone</b> de la caméra, même penché, éloigné, hors repère ou affiché sur un écran de téléphone.{' '}
+                Le <b>zoom (+/−)</b> aide pour les codes lointains (si disponible sur l'appareil).
+              </span>
             </div>
 
             {/* Infos de l'événement sélectionné */}
