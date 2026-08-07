@@ -23,6 +23,9 @@ const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arina2024';
 const DEFAULT_ADMIN_PASSWORD = 'arina2024'; // valeur codée en dur — refusée tant qu'ADMIN_PASSWORD n'est pas configuré
 const ROLES = { admin: 'admin', president: 'president', accountant: 'accountant', educator: 'educator' };
+// Rôles autorisés sur les présences & badges QR (scan, pointages, badges PDF) :
+// l'éducateur gère le quotidien, le président supervise, le comptable suit la présence.
+const PRESENCE_ROLES = [ROLES.educator, ROLES.president, ROLES.accountant];
 
 // ── Sécurité : identifiants par défaut ──
 // Tant que ADMIN_PASSWORD n'est pas défini dans les variables d'environnement,
@@ -1551,7 +1554,7 @@ function localToday() {
 // quotidienne créée automatiquement au premier scan valide — une seule par jour).
 // La réponse inclut la timeline de l'enfant pour la session (toutes les heures
 // d'entrées/sorties) : l'écran affiche les heures à l'enfant avant confirmation.
-app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educator), async (req, res) => {
+app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const { badge, eventId, direction } = req.body || {};
     let parsed = null;
@@ -1662,7 +1665,7 @@ app.post('/api/scan', rateLimit('scan', 300, 60 * 1000), requireRole(ROLES.educa
 });
 
 // POST badge — génère (ou retrouve) le badgeId + le QR code base64 de l'enfant
-app.post('/api/beneficiaries/:id/badge', requireRole(ROLES.educator), async (req, res) => {
+app.post('/api/beneficiaries/:id/badge', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
@@ -1674,7 +1677,7 @@ app.post('/api/beneficiaries/:id/badge', requireRole(ROLES.educator), async (req
 });
 
 // GET PDF d'UN badge (logo + photo + QR + identité)
-app.get('/api/beneficiaries/:id/badge/pdf', requireRole(ROLES.educator), async (req, res) => {
+app.get('/api/beneficiaries/:id/badge/pdf', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM beneficiaries WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
@@ -1691,7 +1694,7 @@ app.get('/api/beneficiaries/:id/badge/pdf', requireRole(ROLES.educator), async (
 });
 
 // POST export — PDF de plusieurs badges (format carte de crédit, 4 par page)
-app.post('/api/beneficiaries/badges/export', requireRole(ROLES.educator), async (req, res) => {
+app.post('/api/beneficiaries/badges/export', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(Number).filter((n) => n > 0))] : [];
     if (ids.length === 0) return res.status(400).json({ error: 'Sélectionnez au moins un bénéficiaire' });
@@ -1731,7 +1734,7 @@ const toMin = (hhmm) => {
   return (Number(h) || 0) * 60 + (Number(m) || 0);
 };
 
-app.get('/api/presences/today', requireRole(ROLES.educator), async (req, res) => {
+app.get('/api/presences/today', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const todayStr = localToday();
 
@@ -1897,7 +1900,7 @@ async function getOrCreateDailyEvent(dateStr) {
 // GET /api/presences/:date — TOUS les enfants + leurs entrées/sorties de la date.
 // Lecture seule (aucune création de session) : une date sans session renvoie les
 // enfants avec des pointages vides (l'interface affiche les absents).
-app.get('/api/presences/:date', requireRole(ROLES.educator), async (req, res) => {
+app.get('/api/presences/:date', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const dateStr = req.params.date;
     if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
@@ -1939,7 +1942,7 @@ app.get('/api/presences/:date', requireRole(ROLES.educator), async (req, res) =>
 // POST /api/presences/:date/pointages — ajoute une entrée ou une sortie manuelle.
 // Le corps : { beneficiaryId, type: 'entry'|'exit', time?: 'HH:MM' } (heure locale
 // facultative — l'heure courante est utilisée par défaut).
-app.post('/api/presences/:date/pointages', requireRole(ROLES.educator), async (req, res) => {
+app.post('/api/presences/:date/pointages', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const dateStr = req.params.date;
     if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
@@ -1971,7 +1974,7 @@ app.post('/api/presences/:date/pointages', requireRole(ROLES.educator), async (r
 // PUT /api/presences/pointages/:id — corrige un pointage (type et/ou heure).
 // Le corps : { type?, time?: 'HH:MM', date?: 'YYYY-MM-DD' } — la date par défaut
 // est celle du pointage existant (l'heure reste en heure locale Antananarivo).
-app.put('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+app.put('/api/presences/pointages/:id', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const pid = Number(req.params.id);
     if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
@@ -1995,7 +1998,7 @@ app.put('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req,
 });
 
 // DELETE /api/presences/pointages/:id — supprime un pointage erroné
-app.delete('/api/presences/pointages/:id', requireRole(ROLES.educator), async (req, res) => {
+app.delete('/api/presences/pointages/:id', requireRole(...PRESENCE_ROLES), async (req, res) => {
   try {
     const pid = Number(req.params.id);
     if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });

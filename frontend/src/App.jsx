@@ -110,11 +110,11 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* Présences & badges QR : réservés à l'éducateur et à l'admin */}
+              {/* Présences & badges QR : éducateur, président et comptable (l'admin passe toujours) */}
               <Route
                 path="/admin/presences"
                 element={
-                  <ProtectedRoute roles={['educator']}>
+                  <ProtectedRoute roles={['educator', 'president', 'accountant']}>
                     <PresencesPage />
                   </ProtectedRoute>
                 }
@@ -122,7 +122,7 @@ function App() {
               <Route
                 path="/admin/scan"
                 element={
-                  <ProtectedRoute roles={['educator']}>
+                  <ProtectedRoute roles={['educator', 'president', 'accountant']}>
                     <ScanPage />
                   </ProtectedRoute>
                 }

@@ -43,7 +43,7 @@ const fakePool = makeFakePool({
     // « reçu → à confirmer → reçu » où aucun 2e reçu ne doit partir.
     { id: 2, amount: 30, currency: 'EUR', name: 'Jean', email: 'jean@exemple.mg', message: null, method: 'bank', anonymous: false, status: 'pledge', received_at: null, receipt_number: 'ARINA-2026-0002', receipt_sent_at: '2026-01-15T10:00:00.000Z', created_at: new Date().toISOString() },
   ],
-  // Bénéficiaires (badges QR : l'éducateur scanne les présences)
+  // Bénéficiaires (badges QR : l'éducateur, le président et le comptable suivent les présences)
   beneficiaries: [
     { id: 1, first_name: 'Jean', last_name: 'Rakoto', age: 16, entry_date: '2025-01-10', status: 'active', training: 'Menuiserie', photo_url: null, badge_id: 'ARINA-0001-AB12', dossier: {}, created_at: new Date().toISOString() },
     { id: 2, first_name: 'Lova', last_name: 'Rasoa', age: 17, entry_date: '2025-03-02', status: 'inactive', training: 'Cuisine', photo_url: null, badge_id: 'ARINA-0002-CD34', dossier: {}, created_at: new Date().toISOString() },
@@ -790,9 +790,9 @@ test('POST /api/beneficiaries/badges/export sans ids → 400', async () => {
   assert.equal(r.status, 400);
 });
 
-test('GET /api/beneficiaries/:id/badge/pdf avec clé comptable → 403 (hors périmètre)', async () => {
+test('GET /api/beneficiaries/:id/badge/pdf avec clé comptable → 200 (badge PDF accessible)', async () => {
   const r = await get('/api/beneficiaries/1/badge/pdf', { 'x-admin-key': 'test-accountant-key' });
-  assert.equal(r.status, 403);
+  assert.equal(r.status, 200);
 });
 
 /* ═══ PRÉSENCE DU JOUR : résumé du tableau de bord ═══ */
@@ -895,11 +895,11 @@ test('GET /api/presences/today → présents / retardataires / absents calculés
   assert.deepEqual(past.absentNames, ['Faly Rabe']);
 });
 
-test('GET /api/presences/today → 401 sans clé, 403 pour le président', async () => {
+test('GET /api/presences/today → 401 sans clé, 200 pour le président (lecture autorisée)', async () => {
   const anon = await get('/api/presences/today');
   assert.equal(anon.status, 401);
   const pres = await get('/api/presences/today', { 'x-admin-key': 'test-president-key' });
-  assert.equal(pres.status, 403);
+  assert.equal(pres.status, 200);
 });
 
 /* ═══ PRÉSENCES : CRUD des pointages (page Présences — liste des enfants) ═══ */
@@ -935,9 +935,13 @@ test('POST /api/presences/:date/pointages → crée la session du jour + le poin
   assert.equal(stored.event_id, evt.id);
 });
 
-test('POST /api/presences/:date/pointages → 403 pour le président', async () => {
-  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry' }, { 'x-admin-key': 'test-president-key' });
-  assert.equal(r.status, 403);
+test('POST /api/presences/:date/pointages avec clé président → 201 (CRUD autorisé)', async () => {
+  const r = await post('/api/presences/2026-09-03/pointages', { beneficiaryId: 1, type: 'entry', time: '08:00' }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry');
+  const stored = fakePool.state.attendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'le pointage du président doit être en base');
+  assert.equal(stored.beneficiary_id, 1);
 });
 
 test('POST /api/presences/:date/pointages type invalide → 400', async () => {

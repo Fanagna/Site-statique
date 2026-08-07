@@ -1156,7 +1156,7 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* ── Encart « Présence du jour » (éducateur / admin) ── */}
+          {/* ── Encart « Présence du jour » — rôles ayant l'onglet présences ── */}
           {allowedTabs.includes('presences') && (
             <div className="card-apple overflow-hidden animate-fade-up" style={{ animationDelay: '140ms' }}>
               <div className="px-5 py-4 border-b border-ios-hairline flex flex-wrap items-center gap-3">
