@@ -446,6 +446,31 @@ function ensureSchema() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE INDEX IF NOT EXISTS attendances_benef_event_idx ON attendances (beneficiary_id, event_id)`,
+    // ── Personnel (éducateurs, bénévoles, permanents) : même système de badges QR
+    //    que les bénéficiaires — présence scannée, partage la « Présence du jour ».
+    `CREATE TABLE IF NOT EXISTS staff (
+      id SERIAL PRIMARY KEY,
+      first_name VARCHAR(255) NOT NULL,
+      last_name VARCHAR(255) NOT NULL,
+      role VARCHAR(100) DEFAULT 'permanent',
+      photo_url TEXT,
+      badge_id VARCHAR(64),
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE staff ADD COLUMN IF NOT EXISTS photo_url TEXT`,
+    `ALTER TABLE staff ADD COLUMN IF NOT EXISTS badge_id VARCHAR(64)`,
+    `ALTER TABLE staff ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS staff_badge_id_unique ON staff (badge_id) WHERE badge_id IS NOT NULL`,
+    `CREATE TABLE IF NOT EXISTS staff_attendances (
+      id SERIAL PRIMARY KEY,
+      staff_id INTEGER NOT NULL,
+      event_id INTEGER NOT NULL,
+      type VARCHAR(10) NOT NULL CHECK (type IN ('entry', 'exit')),
+      scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS staff_attendances_staff_event_idx ON staff_attendances (staff_id, event_id)`,
     `CREATE TABLE IF NOT EXISTS donations (
       id SERIAL PRIMARY KEY,
       amount NUMERIC(12,2) NOT NULL,
@@ -2003,6 +2028,479 @@ app.delete('/api/presences/pointages/:id', requireRole(...PRESENCE_ROLES), async
     const pid = Number(req.params.id);
     if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
     const r = await pool.query('DELETE FROM attendances WHERE id = $1 RETURNING id', [pid]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══ PERSONNEL : fiches + badges QR + présences (éducateurs, bénévoles, permanents) ═══
+// Même système que les bénéficiaires : chaque membre a un badge STAFF-XXXX scannable
+// (QR { kind:'staff', id, badgeId, name }), pointe entrée/sortie sur la même
+// « Présence du jour » et se corrige depuis la page Personnel (CRUD des pointages).
+// Gestion des fiches : admin + président. Présences & scan : tous les rôles présence.
+const STAFF_BADGE_PREFIX = 'STAFF-';
+
+/* Normalise une ligne staff (colonnes → champs frontend) */
+function normalizeStaff(r) {
+  return {
+    id: r.id, prenom: r.first_name, nom: r.last_name,
+    role: r.role || 'permanent',
+    photo: r.photo_url || '',
+    badgeId: r.badge_id || '',
+    actif: r.active === undefined || r.active === true || r.active === 'true' ? true : false,
+  };
+}
+
+/* Génère (et mémorise) le badgeId STAFF-XXXX-XXXX d'un membre — stable entre deux exports */
+async function ensureStaffBadge(staff) {
+  if (staff.badge_id) return staff.badge_id;
+  const badgeId = `${STAFF_BADGE_PREFIX}${String(staff.id).padStart(4, '0')}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  await pool.query('UPDATE staff SET badge_id = $1 WHERE id = $2', [badgeId, staff.id]);
+  return badgeId;
+}
+
+// GET /api/staff — liste du personnel (lecture : tous les rôles authentifiés)
+app.get('/api/staff', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM staff ORDER BY id DESC');
+    res.json(r.rows.map(normalizeStaff));
+  } catch (err) { res.json([]); }
+});
+
+// POST /api/staff — ajoute un membre (admin ou président). Le badge QR personnel
+// (badge_id STAFF-XXXX) est créé immédiatement, comme pour les bénéficiaires.
+app.post('/api/staff', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const { prenom, nom, role, photo, actif } = req.body || {};
+    const first = String(prenom || '').trim();
+    const last = String(nom || '').trim();
+    if (!first || !last) return res.status(400).json({ error: 'Prénom et nom requis' });
+    const r = await pool.query(
+      'INSERT INTO staff (first_name, last_name, role, photo_url, active) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [first, last, String(role || 'permanent').trim().slice(0, 100) || 'permanent', photo || null, actif === false ? false : true]
+    );
+    const created = r.rows[0];
+    const badgeId = await ensureStaffBadge(created);
+    res.status(201).json(normalizeStaff({ ...created, badge_id: badgeId }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/staff/:id — modifie la fiche (admin ou président)
+app.put('/api/staff/:id', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const { prenom, nom, role, photo, actif } = req.body || {};
+    const r = await pool.query(
+      `UPDATE staff SET
+         first_name = COALESCE($1, first_name),
+         last_name = COALESCE($2, last_name),
+         role = COALESCE($3, role),
+         photo_url = CASE WHEN $4 = '' THEN NULL ELSE COALESCE($4, photo_url) END,
+         active = COALESCE($5, active)
+       WHERE id = $6 RETURNING *`,
+      [prenom !== undefined ? String(prenom).trim() : null,
+       nom !== undefined ? String(nom).trim() : null,
+       role !== undefined ? String(role).trim().slice(0, 100) || 'permanent' : null,
+       photo !== undefined ? (photo || '') : undefined,
+       // actif : null/undefined → inchangé (COALESCE) ; true/false → appliqué tel quel
+       actif == null ? null : !!actif,
+       req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Membre introuvable' });
+    res.json(normalizeStaff(r.rows[0]));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/staff/:id — retire un membre (admin ou président)
+app.delete('/api/staff/:id', requireRole(ROLES.president), async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM staff WHERE id = $1 RETURNING id', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Membre introuvable' });
+    res.json({ deleted: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/staff/:id/badge — génère (ou retrouve) le badgeId + QR base64 du membre
+app.post('/api/staff/:id/badge', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM staff WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Membre introuvable' });
+    const s = r.rows[0];
+    const badgeId = await ensureStaffBadge(s);
+    const qr = await generateQRCode(s.id, badgeId, `${s.first_name} ${s.last_name}`.trim());
+    res.json({ badgeId, qrCode: `data:image/png;base64,${qr}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/staff/:id/badge/pdf — badge PDF complet (logo + photo + QR + identité)
+app.get('/api/staff/:id/badge/pdf', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM staff WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Membre introuvable' });
+    const s = r.rows[0];
+    const badgeId = await ensureStaffBadge(s);
+    const pdf = await generateBadgePDF({
+      id: s.id, badgeId, firstName: s.first_name, lastName: s.last_name,
+      role: s.role || 'Permanent', photo: s.photo_url,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="badge-${badgeId}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/staff/badges/export — PDF de plusieurs badges du personnel (4 par page)
+app.post('/api/staff/badges/export', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(Number).filter((n) => n > 0))] : [];
+    if (ids.length === 0) return res.status(400).json({ error: 'Sélectionnez au moins un membre' });
+    const r = await pool.query('SELECT * FROM staff WHERE id = ANY($1)', [ids]);
+    const byId = new Map(r.rows.map((x) => [x.id, x]));
+    const users = [];
+    for (const id of ids) {
+      const s = byId.get(id);
+      if (!s) continue;
+      const badgeId = await ensureStaffBadge(s);
+      users.push({ id: s.id, badgeId, firstName: s.first_name, lastName: s.last_name, role: s.role || 'Permanent', photo: s.photo_url });
+    }
+    if (users.length === 0) return res.status(404).json({ error: 'Aucun membre trouvé' });
+    const pdf = await exportMultipleBadges(users);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="badges-personnel.pdf"');
+    res.send(Buffer.from(pdf));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/staff/scan — pointage entrée/sortie du personnel depuis le QR du badge.
+// Même logique que /api/scan (bénéficiaires) : sens détecté automatiquement, session
+// quotidienne partagée et codes d'erreur identiques pour l'écran de scan.
+app.post('/api/staff/scan', rateLimit('scan', 300, 60 * 1000), requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const { badge, eventId, direction } = req.body || {};
+    let parsed = null;
+    if (typeof badge === 'string' && badge.trim()) {
+      try { parsed = JSON.parse(badge); } catch { /* badge illisible */ }
+    }
+    const dir = direction === 'exit' ? 'exit' : direction === 'entry' ? 'entry' : null;
+
+    if (!parsed || !parsed.id) {
+      return res.status(404).json({ code: 'BADGE_INVALID', error: 'Badge non reconnu' });
+    }
+    const badgeId = String(parsed.badgeId || '');
+    const rows = badgeId
+      ? await pool.query('SELECT * FROM staff WHERE badge_id = $1', [badgeId])
+      : await pool.query('SELECT * FROM staff WHERE id = $1', [Number(parsed.id)]);
+    const staff = rows.rows[0];
+    if (!staff) return res.status(404).json({ code: 'BADGE_INVALID', error: 'Badge non reconnu' });
+
+    // Compte désactivé (actif = false → badge refusé)
+    if (staff.active === false || staff.active === 'false') {
+      return res.status(403).json({ code: 'BENEFICIARY_DISABLED', error: 'Compte désactivé — contactez l\'administrateur.' });
+    }
+
+    // Événement : choisi, ou « Présence du jour » (session quotidienne partagée)
+    let evtId = Number(eventId);
+    if (!evtId || !Number.isFinite(evtId)) {
+      const todayStr = localToday();
+      let dR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+      if (dR.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO badge_events (name, event_date, is_daily, daily_key) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (daily_key) WHERE daily_key IS NOT NULL DO NOTHING`,
+          ['Présence du jour', todayStr, true, todayStr]
+        );
+        dR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+      }
+      if (dR.rows.length === 0) return res.status(500).json({ error: 'Impossible de créer la présence du jour' });
+      evtId = dR.rows[0].id;
+    }
+    const evtR = await pool.query('SELECT id, name FROM badge_events WHERE id = $1', [evtId]);
+    if (evtR.rows.length === 0) {
+      return res.status(404).json({ code: 'EVENT_INVALID', error: 'Événement introuvable' });
+    }
+
+    // Dernier pointage du membre pour cet événement
+    const lastR = await pool.query(
+      'SELECT id, type, scanned_at FROM staff_attendances WHERE staff_id = $1 AND event_id = $2 ORDER BY id DESC LIMIT 1',
+      [staff.id, evtId]
+    );
+    const prev = lastR.rows[0];
+    const finalDir = dir || (prev && prev.type === 'entry' ? 'exit' : 'entry');
+
+    // Mode explicite uniquement : garde-fous (double pointage, sortie sans entrée)
+    if (dir) {
+      if (prev && prev.type === finalDir) {
+        return res.status(409).json({
+          code: 'ALREADY_SCANNED',
+          error: 'Vous êtes déjà pointé(e) !',
+          lastScan: { type: prev.type, scanned_at: prev.scanned_at },
+        });
+      }
+      if (finalDir === 'exit' && !prev) {
+        return res.status(422).json({
+          code: 'EXIT_WITHOUT_ENTRY',
+          error: 'Vous devez d\'abord scanner l\'entrée',
+          suggest: 'entry',
+        });
+      }
+    }
+
+    const ins = await pool.query(
+      'INSERT INTO staff_attendances (staff_id, event_id, type) VALUES ($1,$2,$3) RETURNING id, type, scanned_at',
+      [staff.id, evtId, finalDir]
+    );
+    const p = ins.rows[0];
+
+    // Timeline du membre pour la session (toutes les heures entrées/sorties)
+    const tR = await pool.query(
+      'SELECT type, scanned_at FROM staff_attendances WHERE staff_id = $1 AND event_id = $2 ORDER BY id ASC',
+      [staff.id, evtId]
+    );
+    const timeline = tR.rows.map((x) => ({
+      type: x.type,
+      scanned_at: x.scanned_at ? new Date(x.scanned_at).toISOString() : null,
+    }));
+
+    res.status(201).json({
+      success: true, code: 'OK',
+      pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
+      child: { id: staff.id, badgeId: staff.badge_id, firstName: staff.first_name, lastName: staff.last_name },
+      event: { id: evtId, name: evtR.rows[0].name },
+      timeline,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/events/:id/staff-attendances — présences du personnel d'un événement,
+// groupées par membre (fil « en direct » du scanner en mode Personnel).
+app.get('/api/events/:id/staff-attendances', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT a.id, a.type, a.scanned_at, s.id AS staff_id, s.first_name, s.last_name, s.photo_url, s.role
+      FROM staff_attendances a JOIN staff s ON s.id = a.staff_id
+      WHERE a.event_id = $1 ORDER BY a.id ASC`,
+      [req.params.id]);
+    const map = new Map();
+    for (const row of r.rows) {
+      let g = map.get(row.staff_id);
+      if (!g) {
+        g = {
+          id: row.staff_id, firstName: row.first_name, lastName: row.last_name,
+          photo: row.photo_url || '', role: row.role, entries: [], exits: [], lastScan: null,
+        };
+        map.set(row.staff_id, g);
+      }
+      const stamp = row.scanned_at ? new Date(row.scanned_at).toISOString() : null;
+      if (row.type === 'entry') g.entries.push(stamp); else g.exits.push(stamp);
+      g.lastScan = stamp;
+    }
+    res.json([...map.values()]);
+  } catch (err) { res.json([]); }
+});
+
+// GET /api/staff-presences/today — résumé « Présence du jour » du personnel pour
+// le tableau de bord (mêmes compteurs que l'encart des bénéficiaires : présents,
+// retardataires, absents, tendance 7 jours).
+app.get('/api/staff-presences/today', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const todayStr = localToday();
+    const days = [];
+    for (let i = 6; i >= 0; i--) days.push(localDateStr(new Date(Date.now() - i * 86400000)));
+    const [weekEvtsR, weekAttR, activeR] = await Promise.all([
+      pool.query('SELECT * FROM badge_events WHERE is_daily = TRUE AND daily_key >= $1 AND daily_key <= $2 ORDER BY daily_key', [days[0], days[6]]),
+      pool.query('SELECT a.event_id, a.staff_id, a.type, a.scanned_at FROM staff_attendances a JOIN badge_events e ON e.id = a.event_id WHERE e.is_daily = TRUE AND e.daily_key >= $1 AND e.daily_key <= $2', [days[0], days[6]]),
+      pool.query('SELECT id, first_name, last_name FROM staff WHERE active = TRUE ORDER BY first_name'),
+    ]);
+    const activeRows = activeR.rows;
+    const weekTotal = activeRows.length;
+    const scansByEvt = new Map();
+    for (const row of weekAttR.rows) {
+      let byStaff = scansByEvt.get(row.event_id);
+      if (!byStaff) { byStaff = new Map(); scansByEvt.set(row.event_id, byStaff); }
+      let g = byStaff.get(row.staff_id);
+      if (!g) { g = { firstEntry: null, entries: 0 }; byStaff.set(row.staff_id, g); }
+      const t = row.scanned_at ? new Date(row.scanned_at) : null;
+      if (row.type === 'entry') {
+        g.entries++;
+        if (t && (!g.firstEntry || t < g.firstEntry)) g.firstEntry = t;
+      }
+    }
+    const evtByKey = new Map(weekEvtsR.rows.map((e) => [String(e.daily_key), e]));
+    const startMin = toMin(DAILY_START_TIME);
+    const week = days.map((date) => {
+      const weekday = new Date(`${date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' });
+      const evt = evtByKey.get(date);
+      if (!evt) {
+        return { date, weekday, entered: 0, total: weekTotal, rate: 0, hasSession: false, late: 0, absent: 0, lateNames: [], absentNames: [] };
+      }
+      const scans = scansByEvt.get(evt.id) || new Map();
+      const entered = [...scans.values()].filter((g) => g.entries > 0).length;
+      let late = 0;
+      const lateNames = [];
+      const absentNames = [];
+      for (const s of activeRows) {
+        const g = scans.get(s.id);
+        const name = `${s.first_name || ''} ${s.last_name || ''}`.trim();
+        if (!g || g.entries === 0) { if (name && absentNames.length < 12) absentNames.push(name); continue; }
+        if (g.firstEntry && toMin(localTimeHHMM(g.firstEntry)) > startMin) { late++; if (name && lateNames.length < 12) lateNames.push(name); }
+      }
+      return {
+        date, weekday, entered, total: weekTotal,
+        rate: weekTotal > 0 ? Math.round((entered / weekTotal) * 100) : 0,
+        hasSession: true, late, absent: Math.max(0, weekTotal - entered), lateNames, absentNames,
+      };
+    });
+
+    const evtR = await pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [todayStr]);
+    const evt = evtR.rows[0];
+    if (!evt) {
+      return res.json({
+        event: null, startTime: DAILY_START_TIME,
+        total: weekTotal, entered: 0, present: 0, late: 0, absent: 0, entries: 0, exits: 0,
+        lateNames: [], absentNames: [], attendanceRate: 0, week,
+      });
+    }
+
+    const attR = await pool.query(
+      'SELECT a.staff_id, a.type, a.scanned_at FROM staff_attendances a JOIN staff s ON s.id = a.staff_id WHERE a.event_id = $1 ORDER BY a.scanned_at ASC, a.id ASC',
+      [evt.id]
+    );
+
+    const byStaff = new Map();
+    let entries = 0;
+    let exits = 0;
+    for (const row of attR.rows) {
+      const id = row.staff_id;
+      if (row.type === 'entry') entries++; else exits++;
+      let g = byStaff.get(id);
+      if (!g) { g = { entries: 0, exits: 0 }; byStaff.set(id, g); }
+      if (row.type === 'entry') g.entries++; else g.exits++;
+    }
+
+    const total = activeRows.length;
+    let present = 0;
+    for (const g of byStaff.values()) if (g.entries > g.exits) present++;
+
+    const todayWeek = week[week.length - 1];
+
+    res.json({
+      event: { id: evt.id, name: evt.name, event_date: evt.event_date ? new Date(evt.event_date).toISOString().split('T')[0] : todayStr },
+      startTime: DAILY_START_TIME,
+      total,
+      entered: todayWeek.entered,
+      present,
+      late: todayWeek.late,
+      absent: todayWeek.absent,
+      entries, exits,
+      lateNames: todayWeek.lateNames,
+      absentNames: todayWeek.absentNames,
+      attendanceRate: total > 0 ? Math.round((todayWeek.entered / total) * 100) : 0,
+      week,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/staff-presences/:date — TOUT le personnel + entrées/sorties de la date.
+// Lecture seule (aucune création de session) : une date sans session renvoie les
+// membres avec des pointages vides.
+app.get('/api/staff-presences/:date', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const [staffR, evtR] = await Promise.all([
+      pool.query('SELECT * FROM staff ORDER BY first_name, last_name'),
+      pool.query('SELECT * FROM badge_events WHERE daily_key = $1', [dateStr]),
+    ]);
+    const evt = evtR.rows[0] || null;
+    let attRows = [];
+    if (evt) {
+      const attR = await pool.query(
+        `SELECT a.id, a.type, a.scanned_at, s.id AS staff_id, s.first_name, s.last_name, s.photo_url, s.active
+         FROM staff_attendances a JOIN staff s ON s.id = a.staff_id
+         WHERE a.event_id = $1 ORDER BY a.scanned_at ASC, a.id ASC`,
+        [evt.id]
+      );
+      attRows = attR.rows;
+    }
+    const byStaff = new Map();
+    for (const row of attRows) {
+      let g = byStaff.get(row.staff_id);
+      if (!g) { g = { entries: [], exits: [] }; byStaff.set(row.staff_id, g); }
+      const p = { id: row.id, scanned_at: row.scanned_at ? new Date(row.scanned_at).toISOString() : null };
+      (row.type === 'entry' ? g.entries : g.exits).push(p);
+    }
+    const staff = staffR.rows.map((s) => {
+      const g = byStaff.get(s.id) || { entries: [], exits: [] };
+      return { ...normalizeStaff(s), entries: g.entries, exits: g.exits };
+    });
+    res.json({
+      date: dateStr,
+      event: evt ? { id: evt.id, name: evt.name, event_date: evt.event_date } : null,
+      staff,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/staff-presences/:date/pointages — ajoute une entrée/sortie manuelle.
+// Corps : { staffId, type: 'entry'|'exit', time?: 'HH:MM' }
+app.post('/api/staff-presences/:date/pointages', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    if (!isValidDateStr(dateStr)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const { staffId, type, time } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (!dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const id = Number(staffId);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'Membre requis' });
+    const sR = await pool.query('SELECT * FROM staff WHERE id = $1', [id]);
+    if (sR.rows.length === 0) return res.status(404).json({ error: 'Membre introuvable' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(dateStr, hhmm) : new Date().toISOString();
+    const evt = await getOrCreateDailyEvent(dateStr);
+    if (!evt) return res.status(500).json({ error: 'Impossible de créer la présence du jour' });
+    const ins = await pool.query(
+      'INSERT INTO staff_attendances (staff_id, event_id, type, scanned_at) VALUES ($1,$2,$3,$4) RETURNING id, type, scanned_at',
+      [id, evt.id, dir, scannedAt]
+    );
+    const p = ins.rows[0];
+    res.status(201).json({
+      pointage: { id: p.id, type: p.type, scanned_at: p.scanned_at },
+      child: { id: sR.rows[0].id, prenom: sR.rows[0].first_name, nom: sR.rows[0].last_name },
+      event: { id: evt.id, name: evt.name },
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/staff-presences/pointages/:id — corrige un pointage (type et/ou heure)
+app.put('/api/staff-presences/pointages/:id', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const { type, time, date } = req.body || {};
+    const dir = type === 'exit' ? 'exit' : type === 'entry' ? 'entry' : null;
+    if (type !== undefined && type !== null && !dir) return res.status(400).json({ error: 'Type invalide (entry ou exit attendu)' });
+    const hhmm = /^\d{1,2}:\d{2}$/.test(String(time || '')) ? String(time) : null;
+    if (time && !hhmm) return res.status(400).json({ error: 'Heure invalide (format HH:MM attendu)' });
+    const curR = await pool.query('SELECT scanned_at FROM staff_attendances WHERE id = $1', [pid]);
+    if (curR.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    const curDate = date ? String(date) : tanaDateOf(curR.rows[0].scanned_at);
+    if (!isValidDateStr(curDate)) return res.status(400).json({ error: 'Date invalide (format YYYY-MM-DD attendu)' });
+    const scannedAt = hhmm ? tanaTimestamp(curDate, hhmm) : curR.rows[0].scanned_at;
+    const up = await pool.query(
+      'UPDATE staff_attendances SET type = COALESCE($1, type), scanned_at = $2 WHERE id = $3 RETURNING id, type, scanned_at',
+      [dir, scannedAt, pid]
+    );
+    if (up.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
+    res.json({ pointage: up.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/staff-presences/pointages/:id — supprime un pointage erroné
+app.delete('/api/staff-presences/pointages/:id', requireRole(...PRESENCE_ROLES), async (req, res) => {
+  try {
+    const pid = Number(req.params.id);
+    if (!Number.isFinite(pid) || pid <= 0) return res.status(400).json({ error: 'Pointage invalide' });
+    const r = await pool.query('DELETE FROM staff_attendances WHERE id = $1 RETURNING id', [pid]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Pointage introuvable' });
     res.json({ deleted: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

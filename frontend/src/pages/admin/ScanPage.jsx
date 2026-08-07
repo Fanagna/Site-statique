@@ -10,6 +10,7 @@ import { timeAgo } from '../../components/admin/utils';
 import {
   fetchEvents, scanBadge, fetchEventAttendances,
   fetchBeneficiaries, fetchBeneficiaryBadge,
+  fetchStaff, fetchStaffBadge, scanStaffBadge, fetchStaffEventAttendances,
 } from '../../services/api';
 
 /* ═══════════════════════════════════════════
@@ -107,6 +108,10 @@ export default function ScanPage() {
   const [feed, setFeed] = useState([]);
   const [children, setChildren] = useState([]);
   const [manualQuery, setManualQuery] = useState('');
+  /* ── Mode de scan : étudiants (bénéficiaires) ou personnel (éducateurs, bénévoles, permanents) ── */
+  const [scanKind, setScanKind] = useState('students'); // 'students' | 'staff'
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [feedGroups, setFeedGroups] = useState([]); // liste groupée brute (compteur « présent » en mode personnel)
 
   /* ── Overlay (machine à états du scan) ── */
   const [overlay, setOverlay] = useState(null); // { kind, child?, pointage?, timeline?, error?, raw? }
@@ -152,14 +157,17 @@ export default function ScanPage() {
       if (Array.isArray(evts) && evts.length) setEvents(evts);
       const kids = await fetchBeneficiaries();
       if (Array.isArray(kids)) setChildren(kids);
+      const staff = await fetchStaff();
+      if (Array.isArray(staff)) setStaffMembers(staff);
     })();
   }, []);
 
   /* Recharge les compteurs des événements + le fil des pointages */
-  const refreshFeed = useCallback(async (evt) => {
+  const refreshFeed = useCallback(async (evt, kind = scanKind) => {
     if (!evt) return;
-    const list = await fetchEventAttendances(evt);
+    const list = kind === 'staff' ? await fetchStaffEventAttendances(evt) : await fetchEventAttendances(evt);
     if (!Array.isArray(list)) return;
+    setFeedGroups(list);
     const flat = [];
     for (const g of list) {
       g.entries.forEach((at) => flat.push({ at, type: 'entry', ...g }));
@@ -167,7 +175,7 @@ export default function ScanPage() {
     }
     flat.sort((a, b) => new Date(b.at) - new Date(a.at));
     setFeed(flat.slice(0, 10));
-  }, []);
+  }, [scanKind]);
 
   const refreshEvents = useCallback(async () => {
     const evts = await fetchEvents();
@@ -185,9 +193,9 @@ export default function ScanPage() {
       // Mode « Présence du jour » : on suit la session quotidienne du jour si elle existe
       const daily = events.find((e) => e.is_daily && e.event_date === todayStr);
       if (daily) refreshFeed(daily.id);
-      else setFeed([]);
+      else { setFeed([]); setFeedGroups([]); }
     }
-  }, [eventId, events, refreshFeed, todayStr]);
+  }, [eventId, events, refreshFeed, todayStr, scanKind]);
 
   const dismissOverlay = useCallback(() => {
     clearTimers();
@@ -215,7 +223,7 @@ export default function ScanPage() {
 
     // Sans direction : le serveur détecte automatiquement entrée/sortie et renvoie
     // la timeline des heures (data.timeline) pour l'écran de confirmation.
-    const res = await scanBadge(raw, eventId || null);
+    const res = scanKind === 'staff' ? await scanStaffBadge(raw, eventId || null) : await scanBadge(raw, eventId || null);
     const d = res.data || {};
 
     if (res.ok && d.code === 'OK') {
@@ -249,7 +257,7 @@ export default function ScanPage() {
         });
         break;
     }
-  }, [eventId, refreshFeed, refreshEvents, showBrief, soundOn]);
+  }, [eventId, refreshFeed, refreshEvents, showBrief, soundOn, scanKind]);
 
   /* Scanner caméra → JSON du QR → handleScan */
   const onCameraScan = useCallback((codes) => {
@@ -284,27 +292,44 @@ export default function ScanPage() {
     if (busyRef.current) return;
     let badgeId = child.badgeId;
     if (!badgeId) {
-      const gen = await fetchBeneficiaryBadge(child.id);
+      const gen = scanKind === 'staff' ? await fetchStaffBadge(child.id) : await fetchBeneficiaryBadge(child.id);
       if (gen?.ok && gen.data?.badgeId) badgeId = gen.data.badgeId;
     }
     if (!badgeId) {
       if (soundOn) playErrorBuzz();
-      setOverlay({ kind: 'network', error: 'Impossible de générer le badge de cet enfant.' });
+      setOverlay({ kind: 'network', error: 'Impossible de générer le badge de cette personne.' });
       return;
     }
-    const payload = JSON.stringify({ id: child.id, badgeId, name: `${child.prenom} ${child.nom}`.trim() });
+    const payload = JSON.stringify(scanKind === 'staff'
+      ? { kind: 'staff', id: child.id, badgeId, name: `${child.prenom} ${child.nom}`.trim() }
+      : { id: child.id, badgeId, name: `${child.prenom} ${child.nom}`.trim() });
     handleScan(payload);
-  }, [handleScan, soundOn]);
+  }, [handleScan, soundOn, scanKind]);
 
-  const filteredKids = children.filter((c) =>
+
+  // Bascule du mode de scan : réinitialise l'écran et le fil avant de changer de groupe
+  const switchScanKind = (k) => {
+    if (k === scanKind) return;
+    dismissOverlay();
+    setFeed([]);
+    setFeedGroups([]);
+    setManualQuery('');
+    setScanKind(k);
+  };
+
+  const manualPool = scanKind === 'staff' ? staffMembers : children;
+  const filteredKids = manualPool.filter((c) =>
     `${c.prenom} ${c.nom}`.toLowerCase().includes(manualQuery.trim().toLowerCase())
   );
 
   const dailyEvent = events.find((e) => e.is_daily && e.event_date === todayStr);
   // En mode quotidien (aucun événement choisi), on affiche la session du jour
   const selectedEvent = eventId ? events.find((e) => String(e.id) === String(eventId)) : dailyEvent;
-  // Compteur fiable : calculé côté serveur (contrairement au fil, limité à 10 entrées)
-  const presentCount = selectedEvent ? Math.max(0, selectedEvent.entries - selectedEvent.exits) : 0;
+  // Compteur fiable : côté serveur pour les étudiants ; pour le personnel, calculé
+  // depuis la liste groupée complète (membres avec plus d'entrées que de sorties).
+  const presentCount = scanKind === 'staff'
+    ? feedGroups.filter((g) => g.entries.length > g.exits.length).length
+    : selectedEvent ? Math.max(0, selectedEvent.entries - selectedEvent.exits) : 0;
 
   const allowedTabs = ROLE_TABS[user?.role] || ROLE_TABS.unknown;
   const can = (t) => allowedTabs.includes(t);
@@ -313,6 +338,7 @@ export default function ScanPage() {
       { key: 'dashboard', label: 'Tableau de bord', icon: 'grid', to: '/admin' },
       { key: 'presences', label: 'Présences', icon: 'calendar', to: '/admin/presences' },
       { key: 'scan', label: 'Scanner', icon: 'send' },
+      { key: 'personnel', label: 'Personnel', icon: 'briefcase', to: '/admin/personnel' },
       ...(can('enfants') ? [{ key: 'enfants', label: 'Enfants', icon: 'users', to: '/admin?tab=enfants' }] : []),
     ] },
     { group: 'Communication', items: [
@@ -366,6 +392,23 @@ export default function ScanPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Bascule du groupe scanné : étudiants ou personnel */}
+              <div className="flex rounded-xl overflow-hidden border border-ios-hairline bg-ios-fill p-1">
+                <button
+                  onClick={() => switchScanKind('students')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${scanKind === 'students' ? 'bg-ios-card shadow text-arina-blue' : 'text-ios-text2 hover:text-ios-text'}`}
+                  title="Scanner les badges des bénéficiaires (étudiants)"
+                >
+                  🎓 Étudiants
+                </button>
+                <button
+                  onClick={() => switchScanKind('staff')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${scanKind === 'staff' ? 'bg-ios-card shadow text-arina-blue' : 'text-ios-text2 hover:text-ios-text'}`}
+                  title="Scanner les badges du personnel (éducateurs, bénévoles, permanents)"
+                >
+                  💼 Personnel
+                </button>
+              </div>
               <button
                 onClick={toggleSound}
                 className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${soundOn ? 'bg-arina-blue/10 text-arina-blue hover:bg-arina-blue/20' : 'bg-ios-fill text-ios-text3 hover:bg-ios-fill-2'}`}
@@ -382,10 +425,10 @@ export default function ScanPage() {
                 Caméra {cameraMode === 'user' ? 'avant' : 'arrière'}
               </button>
               <Link
-                to="/admin/presences"
+                to={scanKind === 'staff' ? '/admin/personnel' : '/admin/presences'}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ios-fill text-sm font-semibold text-ios-text2 hover:bg-ios-fill-2 hover:text-arina-blue transition-all"
               >
-                <Icon name="calendar" className="w-4 h-4" /> Voir les présences
+                <Icon name="calendar" className="w-4 h-4" /> {scanKind === 'staff' ? 'Voir le personnel' : 'Voir les présences'}
               </Link>
             </div>
           </div>
@@ -512,19 +555,21 @@ export default function ScanPage() {
                 <input
                   value={manualQuery}
                   onChange={(e) => setManualQuery(e.target.value)}
-                  placeholder="Rechercher un enfant par son nom…"
+                  placeholder={scanKind === 'staff' ? 'Rechercher un membre du personnel…' : 'Rechercher un enfant par son nom…'}
                   className={`${inputClass} pl-10`}
                 />
               </div>
               {filteredKids.length === 0 ? (
-                <p className="text-xs text-ios-text3">Aucun enfant trouvé.</p>
+                <p className="text-xs text-ios-text3">Aucune personne trouvée.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-72 overflow-y-auto scroll-slim">
                   {filteredKids.map((c) => (
                     <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-ios-hairline bg-ios-fill/50 px-3 py-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">{c.prenom} {c.nom}</div>
-                        <div className="text-[10px] text-ios-text3 truncate">{c.badgeId ? c.badgeId : 'Badge non généré'}</div>
+                        <div className="text-[10px] text-ios-text3 truncate">
+                          {scanKind === 'staff' && c.role ? `${c.role} · ` : ''}{c.badgeId ? c.badgeId : 'Badge non généré'}
+                        </div>
                       </div>
                       <button
                         onClick={() => manualScan(c)}

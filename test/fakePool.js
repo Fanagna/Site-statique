@@ -11,6 +11,8 @@ function makeFakePool(opts = {}) {
     news: opts.news || [],
     donors: opts.donors || [],
     beneficiaries: opts.beneficiaries || [],
+    staff: opts.staff || [],
+    staffAttendances: opts.staffAttendances || [],
     events: opts.events || [],
     attendances: opts.attendances || [],
     financeRows: [],
@@ -161,6 +163,122 @@ function makeFakePool(opts = {}) {
       return { rows: state.beneficiaries.filter((b) => b.status === params[0]).map((b) => ({ ...b })) };
     }
     if (/SELECT \* FROM beneficiaries/i.test(s)) return { rows: [...state.beneficiaries] };
+
+    // Personnel (staff) — fiches + badges STAFF-XXXX
+    if (/SELECT \* FROM staff ORDER BY id DESC/i.test(s)) return { rows: [...state.staff] };
+    if (/SELECT \* FROM staff ORDER BY first_name, last_name/i.test(s)) return { rows: [...state.staff] };
+    if (/INSERT INTO staff /i.test(s)) {
+      const row = {
+        id: state.staff.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1,
+        first_name: params[0], last_name: params[1], role: params[2],
+        photo_url: params[3] || null, active: params[4] === false ? false : true,
+        badge_id: null, created_at: new Date().toISOString(),
+      };
+      state.staff.push(row);
+      state.inserts.push({ table: 'staff', row });
+      return { rows: [row] };
+    }
+    if (/SELECT \* FROM staff WHERE badge_id/i.test(s)) {
+      const x = state.staff.find((r) => r.badge_id === params[0]);
+      return { rows: x ? [{ ...x }] : [] };
+    }
+    if (/SELECT \* FROM staff WHERE id = ANY/i.test(s)) {
+      const ids = (params[0] || []).map(Number);
+      return { rows: state.staff.filter((x) => ids.includes(x.id)).map((x) => ({ ...x })) };
+    }
+    if (/SELECT \* FROM staff WHERE id/i.test(s)) {
+      const x = state.staff.find((r) => r.id === Number(params[0]));
+      return { rows: x ? [{ ...x }] : [] };
+    }
+    if (/SELECT id, first_name, last_name FROM staff WHERE active/i.test(s)) {
+      return { rows: state.staff.filter((x) => x.active !== false).map((x) => ({ ...x })) };
+    }
+    if (/UPDATE staff SET badge_id/i.test(s)) {
+      const x = state.staff.find((r) => r.id === Number(params[1]));
+      if (!x) return { rows: [] };
+      x.badge_id = params[0];
+      return { rows: [{ ...x }] };
+    }
+    if (/UPDATE staff SET/i.test(s)) {
+      // Params : [first_name, last_name, role, photo, active, id]
+      const x = state.staff.find((r) => r.id === Number(params[5]));
+      if (!x) return { rows: [] };
+      if (params[0] != null) x.first_name = params[0];
+      if (params[1] != null) x.last_name = params[1];
+      if (params[2] != null) x.role = params[2];
+      if (typeof params[3] === 'string' && params[3] !== '') x.photo_url = params[3];
+      if (params[4] != null) x.active = params[4] !== false;
+      return { rows: [{ ...x }] };
+    }
+    if (/DELETE FROM staff /i.test(s)) {
+      const idx = state.staff.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.staff.splice(idx, 1);
+      return { rows: [removed] };
+    }
+    if (/SELECT \* FROM staff/i.test(s)) return { rows: [...state.staff] };
+
+    // Présences du personnel (staff_attendances) — join avec le personnel d'abord
+    if (/FROM staff_attendances a JOIN staff s/i.test(s)) {
+      const rows = state.staffAttendances
+        .filter((a) => a.event_id === Number(params[0]))
+        .map((a) => {
+          const x = state.staff.find((r) => r.id === a.staff_id) || {};
+          return {
+            id: a.id, type: a.type, scanned_at: a.scanned_at,
+            staff_id: a.staff_id, first_name: x.first_name, last_name: x.last_name,
+            photo_url: x.photo_url, active: x.active, role: x.role,
+          };
+        });
+      return { rows };
+    }
+    // Tendance 7 jours : scans du personnel des sessions quotidiennes de la plage
+    if (/FROM staff_attendances a JOIN badge_events/i.test(s)) {
+      const [from, to] = [String(params[0]), String(params[1])];
+      const ids = new Set(state.events.filter((e) => e.is_daily && String(e.daily_key) >= from && String(e.daily_key) <= to).map((e) => e.id));
+      return { rows: state.staffAttendances.filter((a) => ids.has(a.event_id)).map((a) => ({ event_id: a.event_id, staff_id: a.staff_id, type: a.type, scanned_at: a.scanned_at })) };
+    }
+    if (/SELECT type, scanned_at FROM staff_attendances WHERE/i.test(s)) {
+      const rows = state.staffAttendances
+        .filter((a) => a.staff_id === Number(params[0]) && a.event_id === Number(params[1]))
+        .sort((x, y) => x.id - y.id)
+        .map((a) => ({ type: a.type, scanned_at: a.scanned_at }));
+      return { rows };
+    }
+    if (/SELECT id, type, scanned_at FROM staff_attendances WHERE/i.test(s)) {
+      const found = state.staffAttendances
+        .filter((a) => a.staff_id === Number(params[0]) && a.event_id === Number(params[1]))
+        .sort((x, y) => x.id - y.id);
+      return { rows: found.length ? [{ ...found[found.length - 1] }] : [] };
+    }
+    if (/INSERT INTO staff_attendances/i.test(s)) {
+      // Params : [staff_id, event_id, type] (scan) ou + [scanned_at] (CRUD présences)
+      const row = {
+        id: state.staffAttendances.length + 1,
+        staff_id: params[0], event_id: params[1], type: params[2],
+        scanned_at: params[3] || new Date().toISOString(), created_at: new Date().toISOString(),
+      };
+      state.staffAttendances.push(row);
+      state.inserts.push({ table: 'staff_attendances', row });
+      return { rows: [row] };
+    }
+    if (/SELECT scanned_at FROM staff_attendances WHERE id/i.test(s)) {
+      const a = state.staffAttendances.find((x) => x.id === Number(params[0]));
+      return { rows: a ? [{ ...a }] : [] };
+    }
+    if (/UPDATE staff_attendances SET/i.test(s)) {
+      const a = state.staffAttendances.find((x) => x.id === Number(params[2]));
+      if (!a) return { rows: [] };
+      if (params[0] != null) a.type = params[0];
+      if (params[1] != null) a.scanned_at = params[1];
+      return { rows: [{ ...a }] };
+    }
+    if (/DELETE FROM staff_attendances/i.test(s)) {
+      const idx = state.staffAttendances.findIndex((x) => x.id === Number(params[0]));
+      if (idx === -1) return { rows: [] };
+      const [removed] = state.staffAttendances.splice(idx, 1);
+      return { rows: [removed] };
+    }
 
     // Événements (badge_events) — DELETE AVANT le SELECT générique (même préfixe SQL)
     // « Présence du jour » : session quotidienne unique (ON CONFLICT sur daily_key)

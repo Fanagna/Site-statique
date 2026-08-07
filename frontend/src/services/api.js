@@ -479,3 +479,111 @@ export async function exportBadgesPdf(ids) {
     return null;
   }
 }
+
+/* ═══ Personnel (éducateurs, bénévoles, permanents) — fiches + présences ═══ */
+// Liste du personnel : { id, prenom, nom, role, photo, badgeId, actif }
+export async function fetchStaff() {
+  return await apiCall('/staff');
+}
+
+export async function createStaff(data) {
+  return apiCallDetailed('/staff', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateStaff(id, data) {
+  return apiCallDetailed(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteStaff(id) {
+  return apiCallDetailed(`/staff/${id}`, { method: 'DELETE' });
+}
+
+// Génère (ou retrouve) le badge QR d'un membre → { badgeId, qrCode }
+export async function fetchStaffBadge(id) {
+  return apiCallDetailed(`/staff/${id}/badge`, { method: 'POST' });
+}
+
+// PDF d'UN badge du personnel → URL Blob, ou null
+export async function fetchStaffBadgePdf(id) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/staff/${id}/badge/pdf`, {
+      headers: adminKey ? { 'x-admin-key': adminKey } : {},
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+// PDF multi-badges du personnel → URL Blob, ou null
+export async function exportStaffBadgesPdf(ids) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/staff/badges/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+// Pointage du personnel depuis le JSON du badge QR — mêmes codes que scanBadge
+// (BADGE_INVALID, BENEFICIARY_DISABLED, ALREADY_SCANNED, EXIT_WITHOUT_ENTRY, OK).
+export async function scanStaffBadge(badge, eventId, direction) {
+  try {
+    const adminKey = localStorage.getItem('arina_admin_key');
+    const res = await fetch(`${API_BASE}/staff/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(adminKey ? { 'x-admin-key': adminKey } : {}) },
+      body: JSON.stringify({ badge, eventId, ...(direction ? { direction } : {}) }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data: body };
+  } catch {
+    return { ok: false, status: 0, data: { code: 'NETWORK', error: 'Impossible de joindre le serveur.' } };
+  }
+}
+
+// Présences du personnel d'un événement, groupées par membre ({ entries, exits })
+export async function fetchStaffEventAttendances(id) {
+  return await apiCall(`/events/${id}/staff-attendances`);
+}
+
+// Résumé « Présence du jour » du personnel pour le tableau de bord (même forme
+// que fetchTodayPresence : event, total, present, late, absent, week…)
+export async function fetchStaffTodayPresence() {
+  return await apiCall('/staff-presences/today');
+}
+
+// Tous les membres + leurs entrées/sorties d'une date : { date, event, staff }
+export async function fetchStaffPresencesByDate(date) {
+  return await apiCall(`/staff-presences/${date}`);
+}
+
+// Ajoute un pointage manuel du personnel : { staffId, type: 'entry'|'exit', time?: 'HH:MM' }
+export async function createStaffPresencePointage(date, payload) {
+  return apiCallDetailed(`/staff-presences/${date}/pointages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Corrige un pointage du personnel : { type?, time?: 'HH:MM' }
+export async function updateStaffPresencePointage(id, payload) {
+  return apiCallDetailed(`/staff-presences/pointages/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteStaffPresencePointage(id) {
+  return apiCallDetailed(`/staff-presences/pointages/${id}`, { method: 'DELETE' });
+}

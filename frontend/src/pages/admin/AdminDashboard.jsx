@@ -14,7 +14,7 @@ import {
   fetchVolunteers, deleteVolunteer, getVolunteerAttachment,
   fetchTestimonials, updateTestimonial, deleteTestimonial,
   fetchActivity,
-  fetchTodayPresence,
+  fetchTodayPresence, fetchStaffTodayPresence,
   fetchUsers, createUser, deleteUser, resetUserPassword,
 } from '../../services/api';
 
@@ -245,6 +245,11 @@ export default function AdminDashboard() {
   const [hoveredWeekDay, setHoveredWeekDay] = useState(null); // jour de la tendance survolé (infobulle)
   const todayReqRef = useRef(0); // ignore les réponses périmées (rafraîchissements concurrents)
 
+  /* ── Encart « Présence du personnel du jour » (rôles ayant l'onglet personnel) ── */
+  const [staffToday, setStaffToday] = useState(null); // même forme : { event, total, present, late, absent, … }
+  const [staffTodayLoading, setStaffTodayLoading] = useState(false);
+  const staffReqRef = useRef(0); // ignore les réponses périmées
+
   const refreshTodayPresence = useCallback(async (manual = false) => {
     if (!allowedTabs.includes('presences')) return;
     const reqId = ++todayReqRef.current;
@@ -266,6 +271,24 @@ export default function AdminDashboard() {
     const id = window.setInterval(() => refreshTodayPresence(), 60000);
     return () => window.clearInterval(id);
   }, [allowedTabs, tab, refreshTodayPresence]);
+
+  /* Même mécanique pour le personnel (éducateurs, bénévoles, permanents) */
+  const refreshStaffToday = useCallback(async () => {
+    if (!allowedTabs.includes('personnel')) return;
+    const reqId = ++staffReqRef.current;
+    const p = await fetchStaffTodayPresence();
+    if (reqId !== staffReqRef.current) return; // une demande plus récente a pris la main
+    setStaffToday(p || null);
+    setStaffTodayLoading(false);
+  }, [allowedTabs]);
+
+  useEffect(() => {
+    if (!allowedTabs.includes('personnel') || tab !== 'dashboard') return;
+    setStaffTodayLoading(true);
+    refreshStaffToday();
+    const id = window.setInterval(() => refreshStaffToday(), 60000);
+    return () => window.clearInterval(id);
+  }, [allowedTabs, tab, refreshStaffToday]);
 
   /* ── CRUD handlers ── */
   /* Met à jour un champ du dossier (section.module) */
@@ -917,6 +940,7 @@ export default function AdminDashboard() {
   if (allowedTabs.includes('dons')) principalItems.push({ key: 'dons', label: 'Dons', icon: 'heart', badge: () => donations.filter((d) => d.status === 'pledge').length });
   if (allowedTabs.includes('presences')) principalItems.push({ key: 'presences', label: 'Présences', icon: 'calendar', to: '/admin/presences' });
   if (allowedTabs.includes('scan')) principalItems.push({ key: 'scan', label: 'Scanner', icon: 'send', to: '/admin/scan' });
+  if (allowedTabs.includes('personnel')) principalItems.push({ key: 'personnel', label: 'Personnel', icon: 'briefcase', to: '/admin/personnel' });
   const communicationItems = [];
   if (allowedTabs.includes('messages')) communicationItems.push({ key: 'messages', label: 'Messages', icon: 'mail', badge: () => contacts.length });
   if (allowedTabs.includes('volunteers')) communicationItems.push({ key: 'volunteers', label: 'Candidatures', icon: 'users', badge: () => volunteers.length });
@@ -1310,6 +1334,82 @@ export default function AdminDashboard() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Encart « Présence du personnel du jour » — rôles ayant l'onglet personnel ── */}
+          {allowedTabs.includes('personnel') && (
+            <div className="card-apple overflow-hidden animate-fade-up" style={{ animationDelay: '160ms' }}>
+              <div className="px-5 py-4 border-b border-ios-hairline flex flex-wrap items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 text-white flex items-center justify-center flex-shrink-0">
+                  <Icon name="briefcase" className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold">Présence du personnel — {staffToday?.event?.event_date || 'aujourd\'hui'}</h3>
+                  <p className="text-[11px] text-ios-text3">Éducateurs, bénévoles et permanents · retard après {staffToday?.startTime || '08:00'}</p>
+                </div>
+                {staffTodayLoading && !staffToday ? (
+                  <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+                ) : !staffToday?.event ? (
+                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ios-fill text-ios-text3">Aucun pointage aujourd'hui</span>
+                ) : (
+                  <button
+                    onClick={() => refreshStaffToday()}
+                    className="p-2 rounded-lg text-ios-text3 hover:text-purple-600 hover:bg-purple-500/10 transition-colors"
+                    title="Actualiser la présence du personnel"
+                  >
+                    <Icon name="refreshCw" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {staffTodayLoading && !staffToday ? (
+                <div className="p-5 space-y-3"><div className="skeleton h-14" /><div className="skeleton h-3 w-2/3" /></div>
+              ) : !staffToday?.event ? (
+                <div className="p-5 text-sm text-ios-text3 flex items-center gap-2">
+                  <Icon name="briefcase" className="w-4 h-4" />
+                  Aucune présence enregistrée — scannez un badge du personnel (page Scanner → Personnel) ou ajoutez un pointage dans Personnel → Présences.
+                </div>
+              ) : (
+                <div className="p-5 space-y-4">
+                  {/* Chips compteurs */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { icon: 'check', label: 'Sur place', value: staffToday.present, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
+                      { icon: 'clock', label: 'Retardataires', value: staffToday.late, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+                      { icon: 'x', label: 'Absents', value: staffToday.absent, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-500/10' },
+                      { icon: 'trendUp', label: 'Taux de présence', value: `${staffToday.attendanceRate}%`, color: 'text-arina-blue', bg: 'bg-arina-warm' },
+                    ].map((s) => (
+                      <div key={s.label} className={`rounded-2xl ${s.bg} px-4 py-3`}>
+                        <div className={`flex items-center gap-1.5 text-[11px] font-semibold ${s.color}`}>
+                          <Icon name={s.icon} className="w-3.5 h-3.5" />{s.label}
+                        </div>
+                        <div className={`text-xl font-extrabold tabular mt-0.5 ${s.color}`}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Barre de progression */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-ios-text2 mb-1.5">
+                      <span>{staffToday.entered} / {staffToday.total} membre{staffToday.total > 1 ? 's' : ''} pointé{staffToday.entered > 1 ? 's' : ''} aujourd'hui</span>
+                      <span className="font-bold text-arina-blue">{staffToday.attendanceRate}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-ios-fill overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-arina-blue" style={{ width: `${Math.min(100, staffToday.attendanceRate)}%` }} />
+                    </div>
+                  </div>
+                  {/* Retards / absents nommés */}
+                  {(staffToday.lateNames?.length > 0 || staffToday.absentNames?.length > 0) && (
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-ios-text2">
+                      {staffToday.lateNames.length > 0 && (
+                        <span>⏰ Retards : <span className="text-amber-600 dark:text-amber-400 font-medium">{staffToday.lateNames.join(', ')}{staffToday.late > staffToday.lateNames.length ? ` +${staffToday.late - staffToday.lateNames.length} autre(s)` : ''}</span></span>
+                      )}
+                      {staffToday.absentNames.length > 0 && (
+                        <span>🚫 Absents : <span className="text-red-500 font-medium">{staffToday.absentNames.join(', ')}{staffToday.absent > staffToday.absentNames.length ? ` +${staffToday.absent - staffToday.absentNames.length} autre(s)` : ''}</span></span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

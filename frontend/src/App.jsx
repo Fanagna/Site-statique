@@ -25,6 +25,7 @@ const NewsManagementPage = lazy(() => import('./pages/admin/NewsManagementPage')
 const BeneficiaryDetailPage = lazy(() => import('./pages/admin/BeneficiaryDetailPage'));
 const ScanPage = lazy(() => import('./pages/admin/ScanPage'));
 const PresencesPage = lazy(() => import('./pages/admin/PresencesPage'));
+const StaffPage = lazy(() => import('./pages/admin/StaffPage'));
 
 /* Écran de chargement minimal pendant le téléchargement d'une page */
 function PageLoader() {
@@ -124,6 +125,15 @@ function App() {
                 element={
                   <ProtectedRoute roles={['educator', 'president', 'accountant']}>
                     <ScanPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Personnel (éducateurs, bénévoles, permanents) : fiches + badges + présences */}
+              <Route
+                path="/admin/personnel"
+                element={
+                  <ProtectedRoute roles={['educator', 'president', 'accountant']}>
+                    <StaffPage />
                   </ProtectedRoute>
                 }
               />

@@ -48,6 +48,11 @@ const fakePool = makeFakePool({
     { id: 1, first_name: 'Jean', last_name: 'Rakoto', age: 16, entry_date: '2025-01-10', status: 'active', training: 'Menuiserie', photo_url: null, badge_id: 'ARINA-0001-AB12', dossier: {}, created_at: new Date().toISOString() },
     { id: 2, first_name: 'Lova', last_name: 'Rasoa', age: 17, entry_date: '2025-03-02', status: 'inactive', training: 'Cuisine', photo_url: null, badge_id: 'ARINA-0002-CD34', dossier: {}, created_at: new Date().toISOString() },
   ],
+  // Personnel (badges STAFF-XXXX — mêmes présences scannées que les bénéficiaires)
+  staff: [
+    { id: 1, first_name: 'Fara', last_name: 'Andria', role: 'Éducateur', photo_url: null, badge_id: 'STAFF-0001-AB12', active: true, created_at: new Date().toISOString() },
+    { id: 3, first_name: 'Tiana', last_name: 'Rabe', role: 'Permanent', photo_url: null, badge_id: 'STAFF-0003-EF56', active: false, created_at: new Date().toISOString() },
+  ],
   events: [
     { id: 1, name: 'Atelier Menuiserie', description: 'Atelier du samedi', event_date: '2026-08-10', location: 'Centre ARINA', created_at: new Date().toISOString() },
   ],
@@ -1024,4 +1029,157 @@ test('POST /api/finances avec QT × PU → montant calculé automatiquement', as
   }, { 'x-admin-key': 'test-accountant-key' });
   assert.equal(r.status, 201);
   assert.equal(r.body.montant, 15000); // 3 × 5000
+});
+
+/* ═══ PERSONNEL : fiches + badges + présences (éducateurs, bénévoles, permanents) ═══ */
+test('GET /api/staff avec clé éducateur → 200', async () => {
+  const r = await get('/api/staff', { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  assert.ok(r.body.some((s) => s.badgeId === 'STAFF-0001-AB12'));
+});
+
+test('POST /api/staff avec clé président → 201, badge STAFF créé immédiatement', async () => {
+  const r = await post('/api/staff', { prenom: 'Miora', nom: 'Rakoto', role: 'Bénévole' }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 201);
+  assert.match(r.body.badgeId || '', /^STAFF-/);
+  const stored = fakePool.state.staff.find((s) => s.id === r.body.id);
+  assert.ok(stored && stored.badge_id, 'le badge doit être mémorisé en base');
+});
+
+test('POST /api/staff avec clé éducateur → 403 (fiches réservées admin + président)', async () => {
+  const r = await post('/api/staff', { prenom: 'X', nom: 'Y' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+});
+
+test('POST /api/staff/scan : badge STAFF inconnu → 404 BADGE_INVALID', async () => {
+  const r = await post('/api/staff/scan', { badge: JSON.stringify({ kind: 'staff', id: 999, badgeId: 'STAFF-9999-ZZ99', name: 'X' }) }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 404);
+  assert.equal(r.body.code, 'BADGE_INVALID');
+});
+
+test('POST /api/staff/scan : badge valide → 201, pointage sur la présence du jour', async () => {
+  const before = fakePool.state.events.filter((e) => e.is_daily).length;
+  const r = await post('/api/staff/scan', { badge: JSON.stringify({ kind: 'staff', id: 1, badgeId: 'STAFF-0001-AB12', name: 'Fara Andria' }) }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.success, true);
+  assert.equal(r.body.pointage.type, 'entry');
+  assert.equal(r.body.child.firstName, 'Fara');
+  assert.ok(Array.isArray(r.body.timeline), 'la timeline doit être renvoyée');
+  const stored = fakePool.state.staffAttendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'le pointage du personnel doit être en base');
+  assert.equal(stored.staff_id, 1);
+  const dailies = fakePool.state.events.filter((e) => e.is_daily);
+  assert.ok(dailies.length >= before, 'la session du jour est partagée avec les étudiants');
+});
+
+test('GET /api/staff-presences/today avec clé président → 200', async () => {
+  const r = await get('/api/staff-presences/today', { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 200);
+  assert.ok('total' in r.body);
+  assert.ok('attendanceRate' in r.body);
+});
+
+test('GET /api/staff-presences/:date → 200, tout le personnel listé', async () => {
+  const r = await get('/api/staff-presences/2026-10-05', { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.staff));
+  assert.ok(r.body.staff.length >= 1, 'tous les membres doivent être listés');
+  assert.ok(r.body.staff.every((c) => Array.isArray(c.entries) && Array.isArray(c.exits)));
+});
+
+test('POST /api/staff-presences/:date/pointages → 201 (CRUD autorisé)', async () => {
+  const r = await post('/api/staff-presences/2026-10-06/pointages', { staffId: 1, type: 'entry', time: '07:30' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.pointage.type, 'entry');
+  const stored = fakePool.state.staffAttendances.find((a) => a.id === r.body.pointage.id);
+  assert.ok(stored, 'le pointage doit être en base');
+  assert.equal(stored.staff_id, 1);
+});
+
+test('DELETE /api/staff-presences/pointages/:id → pointage retiré', async () => {
+  const created = await post('/api/staff-presences/2026-10-07/pointages', { staffId: 1, type: 'exit', time: '12:00' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(created.status, 201);
+  const r = await send('DELETE', `/api/staff-presences/pointages/${created.body.pointage.id}`, undefined, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+  const left = fakePool.state.staffAttendances.find((a) => a.id === created.body.pointage.id);
+  assert.ok(!left, 'le pointage doit être supprimé de la base');
+});
+
+test('GET /api/staff/:id/badge/pdf → PDF valide (clé comptable autorisée)', async () => {
+  const res = await fetch(`${base}/api/staff/1/badge/pdf`, { headers: { 'x-admin-key': 'test-accountant-key' } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.ok(buf.length > 1500, 'le PDF du badge doit contenir du contenu');
+});
+
+test('POST /api/staff/badges/export → PDF multi-badges valide (clé éducateur)', async () => {
+  const res = await fetch(`${base}/api/staff/badges/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-admin-key': 'test-educator-key' },
+    body: JSON.stringify({ ids: [1] }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /application\/pdf/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+});
+
+test('POST /api/staff/scan : membre désactivé → 403 BENEFICIARY_DISABLED', async () => {
+  const r = await post('/api/staff/scan', { badge: JSON.stringify({ kind: 'staff', id: 3, badgeId: 'STAFF-0003-EF56', name: 'Tiana Rabe' }) }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.code, 'BENEFICIARY_DISABLED');
+});
+
+test('PUT /api/staff-presences/pointages/:id → type et heure modifiés', async () => {
+  const created = await post('/api/staff-presences/2026-10-08/pointages', { staffId: 1, type: 'entry', time: '08:00' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(created.status, 201);
+  const r = await send('PUT', `/api/staff-presences/pointages/${created.body.pointage.id}`, { type: 'exit', time: '16:30' }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.pointage.type, 'exit');
+  const stored = fakePool.state.staffAttendances.find((a) => a.id === created.body.pointage.id);
+  assert.equal(stored.type, 'exit', 'le type doit être corrigé en base');
+});
+
+test('GET /api/events/:id/staff-attendances → présences du personnel groupées', async () => {
+  const evt = await post('/api/events', { name: 'Réunion équipe' }, { 'x-admin-key': 'test-educator-key' });
+  const evtId = evt.body.id;
+  const sc = await post('/api/staff/scan', { badge: JSON.stringify({ kind: 'staff', id: 1, badgeId: 'STAFF-0001-AB12' }), eventId: evtId }, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(sc.status, 201);
+  const r = await get(`/api/events/${evtId}/staff-attendances`, { 'x-admin-key': 'test-educator-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body));
+  const g = r.body.find((x) => x.id === 1);
+  assert.ok(g && g.entries.length >= 1, 'Fara doit avoir une entrée groupée');
+  assert.equal(g.firstName, 'Fara');
+});
+
+test('GET /api/staff-presences/:date avec clé comptable → 200 (accès présence)', async () => {
+  const r = await get('/api/staff-presences/2026-10-09', { 'x-admin-key': 'test-accountant-key' });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.staff));
+});
+
+// Placés EN DERNIER : ils rendent le membre 1 inactif / retirent un membre —
+// aucun test suivant ne doit dépendre de leur état.
+test('PUT /api/staff/:id avec clé président → 200, fiche mise à jour', async () => {
+  const r = await send('PUT', '/api/staff/1', { role: 'Coordinateur', actif: false }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.role, 'Coordinateur');
+  assert.equal(r.body.actif, false);
+  const stored = fakePool.state.staff.find((s) => s.id === 1);
+  assert.equal(stored.active, false, 'le statut actif doit être mis à jour en base');
+});
+
+test('DELETE /api/staff/:id avec clé président → 200, membre retiré', async () => {
+  const created = await post('/api/staff', { prenom: 'Temporary', nom: 'Test' }, { 'x-admin-key': 'test-president-key' });
+  assert.equal(created.status, 201);
+  const r = await send('DELETE', `/api/staff/${created.body.id}`, undefined, { 'x-admin-key': 'test-president-key' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.deleted, true);
+  const left = fakePool.state.staff.find((s) => s.id === created.body.id);
+  assert.ok(!left, 'le membre doit être retiré de la base');
 });
